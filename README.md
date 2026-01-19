@@ -80,13 +80,14 @@ kfchess-cc/
 ├── client/           # TypeScript React frontend
 │   ├── src/          # Application code
 │   └── tests/        # Frontend tests
+├── docs/             # Documentation
 └── scripts/          # Development utilities
 ```
 
 ## Documentation
 
-- [Architecture](./ARCHITECTURE.md) - System design and technical decisions
-- [Original Implementation](./KFCHESS_ORIGINAL_IMPLEMENTATION.md) - Reference for the legacy system
+- [Architecture](./docs/ARCHITECTURE.md) - System design and technical decisions
+- [Original Implementation](./docs/KFCHESS_ORIGINAL_IMPLEMENTATION.md) - Reference for the legacy system
 
 ## License
 

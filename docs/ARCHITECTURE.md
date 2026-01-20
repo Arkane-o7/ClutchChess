@@ -602,7 +602,9 @@ class GameState:
 ```python
 # game/engine.py
 class GameEngine:
-    """Core game logic - pure functions, no I/O"""
+    """Core game logic. Mutates state in place for performance.
+    Use GameState.copy() if you need to preserve state (e.g., AI lookahead).
+    """
 
     @staticmethod
     def create_game(
@@ -625,15 +627,15 @@ class GameEngine:
         ...
 
     @staticmethod
-    def apply_move(state: GameState, move: Move) -> GameState:
-        """Apply a move to the game state (immutable)"""
+    def apply_move(state: GameState, move: Move) -> tuple[GameState, list[GameEvent]]:
+        """Apply a move to the game state (mutates in place)"""
         ...
 
     @staticmethod
     def tick(state: GameState) -> tuple[GameState, list[GameEvent]]:
         """
-        Advance game by one tick.
-        Returns new state and list of events (captures, promotions, etc.)
+        Advance game by one tick (mutates state in place).
+        Returns state and list of events (captures, promotions, etc.)
         """
         ...
 

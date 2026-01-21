@@ -349,8 +349,8 @@ export class GameRenderer {
   private createPieceSprite(piece: RendererPiece): PieceSprite {
     const container = new Container();
 
-    // Create the piece sprite - use appropriate texture based on player
-    const texture = getPieceTexture(piece.type, piece.player);
+    // Create the piece sprite - use appropriate texture based on player and board type
+    const texture = getPieceTexture(piece.type, piece.player, this.boardType);
     const sprite = new Sprite(texture);
 
     // Original alignment: sprite is 90% of cell size
@@ -359,15 +359,13 @@ export class GameRenderer {
     const scale = targetSize / Math.max(texture.width, texture.height);
     sprite.scale.set(scale);
 
-    // Original uses cellPadding - shift which nearly cancel out
-    // cellPadding = cellDim * 0.05, shift ≈ cellDim * 0.04
-    // Net offset is about 1% of cell size
-    const offset = this.squareSize * 0.01;
-    sprite.anchor.set(0, 0);
-    sprite.x = offset;
-    sprite.y = offset;
+    // Use center anchor for centering
+    sprite.anchor.set(0.5, 0.5);
+    sprite.x = this.squareSize / 2;
+    sprite.y = this.squareSize / 2;
 
-    // Apply player tint (only for players 3-4, player 2 is already black)
+    // Apply player tint only for players 3 and 4 (red/blue)
+    // Players 1 and 2 use white/black sprites directly without tinting
     if (piece.player >= 3) {
       sprite.tint = getPlayerTint(piece.player);
     }
@@ -386,7 +384,7 @@ export class GameRenderer {
    * Update a piece sprite's appearance (for promotions)
    */
   private updatePieceSpriteAppearance(pieceSprite: PieceSprite, piece: RendererPiece): void {
-    const texture = getPieceTexture(piece.type, piece.player);
+    const texture = getPieceTexture(piece.type, piece.player, this.boardType);
     if (pieceSprite.sprite.texture !== texture) {
       pieceSprite.sprite.texture = texture;
       const SPRITE_FACTOR = 0.90;
@@ -394,12 +392,12 @@ export class GameRenderer {
       const scale = targetSize / Math.max(texture.width, texture.height);
       pieceSprite.sprite.scale.set(scale);
 
-      // Update position offset when texture changes
-      const offset = this.squareSize * 0.01;
-      pieceSprite.sprite.x = offset;
-      pieceSprite.sprite.y = offset;
+      // Use center anchor for centering
+      pieceSprite.sprite.anchor.set(0.5, 0.5);
+      pieceSprite.sprite.x = this.squareSize / 2;
+      pieceSprite.sprite.y = this.squareSize / 2;
     }
-    // Only tint players 3-4, player 2 uses filled black sprites
+    // Apply tinting only for players 3 and 4 (red/blue)
     if (piece.player >= 3) {
       pieceSprite.sprite.tint = getPlayerTint(piece.player);
     } else {
@@ -513,7 +511,7 @@ export class GameRenderer {
 
       if (isHovered && selectedPieceType && selectedPiecePlayer !== undefined) {
         // Show ghost piece on hovered legal move square
-        const texture = getPieceTexture(selectedPieceType, selectedPiecePlayer);
+        const texture = getPieceTexture(selectedPieceType, selectedPiecePlayer, this.boardType);
         const ghostSprite = new Sprite(texture);
 
         // Same sizing as regular pieces
@@ -522,13 +520,12 @@ export class GameRenderer {
         const scale = targetSize / Math.max(texture.width, texture.height);
         ghostSprite.scale.set(scale);
 
-        // Same positioning as regular pieces
-        const offset = this.squareSize * 0.01;
-        ghostSprite.anchor.set(0, 0);
-        ghostSprite.x = offset;
-        ghostSprite.y = offset;
+        // Use center anchor for centering
+        ghostSprite.anchor.set(0.5, 0.5);
+        ghostSprite.x = this.squareSize / 2;
+        ghostSprite.y = this.squareSize / 2;
 
-        // Apply tint for players 3-4
+        // Apply tinting only for players 3 and 4 (red/blue)
         if (selectedPiecePlayer >= 3) {
           ghostSprite.tint = getPlayerTint(selectedPiecePlayer);
         }

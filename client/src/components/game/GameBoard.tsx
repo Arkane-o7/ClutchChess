@@ -57,9 +57,10 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       activeMoves,
       currentTick,
       ticksPerSquare,
-      selectedPiece
+      selectedPiece,
+      boardType
     );
-  }, [selectedPieceId, pieces, activeMoves, currentTick, ticksPerSquare]);
+  }, [selectedPieceId, pieces, activeMoves, currentTick, ticksPerSquare, boardType]);
 
   // Handle piece click
   const handlePieceClick = useCallback(
@@ -78,9 +79,23 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       // If it's our piece and available, select it
       if (piece.player === playerNumber && !piece.captured && !piece.moving && !piece.onCooldown) {
         selectPiece(pieceId);
+        return;
+      }
+
+      // If we have a piece selected and click on an enemy piece that's a legal target, capture it
+      if (selectedPieceId && piece.player !== playerNumber) {
+        const pieceRow = Math.round(piece.row);
+        const pieceCol = Math.round(piece.col);
+        const isLegalTarget = legalMoveTargets.some(
+          ([targetRow, targetCol]) => targetRow === pieceRow && targetCol === pieceCol
+        );
+        if (isLegalTarget) {
+          makeMove(pieceRow, pieceCol);
+          return;
+        }
       }
     },
-    [status, playerNumber, pieces, selectedPieceId, selectPiece]
+    [status, playerNumber, pieces, selectedPieceId, selectPiece, legalMoveTargets, makeMove]
   );
 
   // Handle square click

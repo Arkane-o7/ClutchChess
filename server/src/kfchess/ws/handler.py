@@ -200,6 +200,7 @@ async def _send_initial_state(websocket: WebSocket, game_id: str, service: Any) 
                 "captured": piece.captured,
                 "moving": is_piece_moving(piece.id, state.active_moves),
                 "on_cooldown": is_piece_on_cooldown(piece.id, state.cooldowns, state.current_tick),
+                "moved": piece.moved,
             }
         )
 
@@ -498,6 +499,7 @@ async def _run_game_loop(game_id: str) -> None:
                         "on_cooldown": is_piece_on_cooldown(
                             piece.id, state.cooldowns, state.current_tick
                         ),
+                        "moved": piece.moved,
                     }
                 )
 

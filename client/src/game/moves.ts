@@ -5,16 +5,34 @@
  * Based on the original GameLogic.js implementation.
  */
 
-import type { Piece, ActiveMove, PieceType } from '../stores/game';
+import type { Piece, ActiveMove, BoardType } from '../stores/game';
+import { isValidSquare } from './constants';
 
-// Player direction for pawns: player 1 moves up (-1), player 2 moves down (+1)
-const PLAYER_DIRECTION: Record<number, number> = {
-  1: -1,
-  2: 1,
+// Board dimensions by type
+const BOARD_SIZES: Record<BoardType, number> = {
+  standard: 8,
+  four_player: 12,
 };
 
-// Board dimensions
-const BOARD_SIZE = 8;
+// Player pawn directions for standard 2-player mode
+const STANDARD_PAWN_DIRECTION: Record<number, number> = {
+  1: -1, // Player 1 moves up (decreasing row)
+  2: 1,  // Player 2 moves down (increasing row)
+};
+
+// 4-player pawn config: forward direction (row_delta, col_delta), home axis value, axis type
+interface PawnConfig {
+  forward: [number, number];
+  homeAxis: number;
+  axis: 'row' | 'col';
+}
+
+const FOUR_PLAYER_PAWN_CONFIG: Record<number, PawnConfig> = {
+  1: { forward: [0, -1], homeAxis: 10, axis: 'col' },  // East, moves left
+  2: { forward: [-1, 0], homeAxis: 10, axis: 'row' },  // South, moves up
+  3: { forward: [0, 1], homeAxis: 1, axis: 'col' },    // West, moves right
+  4: { forward: [1, 0], homeAxis: 1, axis: 'row' },    // North, moves down
+};
 
 /**
  * Get a piece at a specific location
@@ -103,9 +121,9 @@ function isLegalMoveNoCross(
 }
 
 /**
- * Check if a pawn move is legal
+ * Check if a pawn move is legal (standard 2-player)
  */
-function isPawnLegalMove(
+function isPawnLegalMoveStandard(
   pieces: Piece[],
   activeMoves: ActiveMove[],
   currentTick: number,
@@ -114,7 +132,7 @@ function isPawnLegalMove(
   toRow: number,
   toCol: number
 ): boolean {
-  const dir = PLAYER_DIRECTION[piece.player] ?? -1;
+  const dir = STANDARD_PAWN_DIRECTION[piece.player] ?? -1;
   const steps = Math.abs(toRow - piece.row);
   let canCapture = true;
 
@@ -150,6 +168,107 @@ function isPawnLegalMove(
   }
 
   return false;
+}
+
+/**
+ * Check if a pawn move is legal (4-player)
+ */
+function isPawnLegalMove4Player(
+  pieces: Piece[],
+  activeMoves: ActiveMove[],
+  currentTick: number,
+  ticksPerSquare: number,
+  piece: Piece,
+  toRow: number,
+  toCol: number,
+  boardType: BoardType
+): boolean {
+  const config = FOUR_PLAYER_PAWN_CONFIG[piece.player];
+  if (!config) return false;
+
+  const [forwardRow, forwardCol] = config.forward;
+  const rowDelta = toRow - piece.row;
+  const colDelta = toCol - piece.col;
+
+  // Check if moving in the forward direction
+  const isForwardMove = (
+    (forwardRow !== 0 && rowDelta === forwardRow && colDelta === 0) ||
+    (forwardCol !== 0 && colDelta === forwardCol && rowDelta === 0)
+  );
+
+  // Check two-square initial move
+  const isDoubleMove = (
+    (forwardRow !== 0 && rowDelta === forwardRow * 2 && colDelta === 0) ||
+    (forwardCol !== 0 && colDelta === forwardCol * 2 && rowDelta === 0)
+  );
+
+  const isAtHome = config.axis === 'row'
+    ? piece.row === config.homeAxis
+    : piece.col === config.homeAxis;
+
+  // Forward move
+  if (isForwardMove) {
+    // Check destination is valid
+    if (!isValidSquare(toRow, toCol, boardType)) return false;
+
+    return isLegalMoveNoCross(
+      pieces, activeMoves, currentTick, ticksPerSquare,
+      piece, forwardRow, forwardCol, 1, false
+    );
+  }
+
+  // Two-square initial move
+  if (isDoubleMove && isAtHome) {
+    if (!isValidSquare(toRow, toCol, boardType)) return false;
+
+    return isLegalMoveNoCross(
+      pieces, activeMoves, currentTick, ticksPerSquare,
+      piece, forwardRow, forwardCol, 2, false
+    );
+  }
+
+  // Diagonal capture - one step forward and one step perpendicular
+  const isDiagonalCapture = (
+    (forwardRow !== 0 && rowDelta === forwardRow && Math.abs(colDelta) === 1) ||
+    (forwardCol !== 0 && colDelta === forwardCol && Math.abs(rowDelta) === 1)
+  );
+
+  if (isDiagonalCapture) {
+    if (!isValidSquare(toRow, toCol, boardType)) return false;
+
+    const destPiece = getPieceAtLocation(pieces, toRow, toCol);
+    if (destPiece && destPiece.player !== piece.player && !isMoving(activeMoves, destPiece.id)) {
+      return isLegalMoveNoCross(
+        pieces, activeMoves, currentTick, ticksPerSquare,
+        piece, rowDelta, colDelta, 1, true
+      );
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if a pawn move is legal (dispatches to appropriate function)
+ */
+function isPawnLegalMove(
+  pieces: Piece[],
+  activeMoves: ActiveMove[],
+  currentTick: number,
+  ticksPerSquare: number,
+  piece: Piece,
+  toRow: number,
+  toCol: number,
+  boardType: BoardType
+): boolean {
+  if (boardType === 'four_player') {
+    return isPawnLegalMove4Player(
+      pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol, boardType
+    );
+  }
+  return isPawnLegalMoveStandard(
+    pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol
+  );
 }
 
 /**
@@ -262,35 +381,19 @@ function isKingLegalMove(
   ticksPerSquare: number,
   piece: Piece,
   toRow: number,
-  toCol: number
+  toCol: number,
+  boardType: BoardType = 'standard'
 ): boolean {
   const rowDelta = Math.abs(toRow - piece.row);
   const colDelta = Math.abs(toCol - piece.col);
 
   if (rowDelta > 1 || colDelta > 1) {
     // Check for castling - king must not have moved
-    if (!piece.moved && rowDelta === 0 && (toCol === 2 || toCol === 6)) {
-      const rookCol = toCol === 2 ? 0 : 7;
-      const rookToCol = toCol === 2 ? 3 : 5;
-      const rookPiece = getPieceAtLocation(pieces, piece.row, rookCol);
-
-      // Rook must exist, be a rook, belong to same player, and not have moved
-      if (
-        rookPiece &&
-        rookPiece.type === 'R' &&
-        rookPiece.player === piece.player &&
-        !rookPiece.moved
-      ) {
-        // Check both king and rook paths are clear
-        const isKingPathClear = isRookLegalMove(
-          pieces, activeMoves, currentTick, ticksPerSquare,
-          piece, toRow, toCol
-        );
-        const isRookPathClear = isRookLegalMove(
-          pieces, activeMoves, currentTick, ticksPerSquare,
-          rookPiece, toRow, rookToCol
-        );
-        return isKingPathClear && isRookPathClear;
+    if (!piece.moved) {
+      if (boardType === 'standard') {
+        return checkCastlingStandard(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
+      } else {
+        return checkCastling4Player(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
       }
     }
     return false;
@@ -299,26 +402,133 @@ function isKingLegalMove(
   return isQueenLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
 }
 
-// Map piece types to their legal move functions
-const PIECE_MOVE_FN: Record<
-  PieceType,
-  (
-    pieces: Piece[],
-    activeMoves: ActiveMove[],
-    currentTick: number,
-    ticksPerSquare: number,
-    piece: Piece,
-    toRow: number,
-    toCol: number
-  ) => boolean
-> = {
-  P: isPawnLegalMove,
-  N: isKnightLegalMove,
-  B: isBishopLegalMove,
-  R: isRookLegalMove,
-  Q: isQueenLegalMove,
-  K: isKingLegalMove,
-};
+/**
+ * Check standard 2-player castling
+ */
+function checkCastlingStandard(
+  pieces: Piece[],
+  activeMoves: ActiveMove[],
+  currentTick: number,
+  ticksPerSquare: number,
+  piece: Piece,
+  toRow: number,
+  toCol: number
+): boolean {
+  const rowDelta = Math.abs(toRow - piece.row);
+
+  // King must stay on same row and move exactly 2 squares
+  if (rowDelta !== 0) return false;
+  if (toCol !== 2 && toCol !== 6) return false;
+
+  const rookCol = toCol === 2 ? 0 : 7;
+  const rookToCol = toCol === 2 ? 3 : 5;
+  const rookPiece = getPieceAtLocation(pieces, piece.row, rookCol);
+
+  // Rook must exist, be a rook, belong to same player, and not have moved
+  if (
+    rookPiece &&
+    rookPiece.type === 'R' &&
+    rookPiece.player === piece.player &&
+    !rookPiece.moved &&
+    !isMoving(activeMoves, rookPiece.id)
+  ) {
+    // Check both king and rook paths are clear
+    const isKingPathClear = isRookLegalMove(
+      pieces, activeMoves, currentTick, ticksPerSquare,
+      piece, toRow, toCol
+    );
+    const isRookPathClear = isRookLegalMove(
+      pieces, activeMoves, currentTick, ticksPerSquare,
+      rookPiece, toRow, rookToCol
+    );
+    return isKingPathClear && isRookPathClear;
+  }
+  return false;
+}
+
+/**
+ * Check 4-player castling
+ * Players 2 and 4 (horizontal): Castle horizontally, rooks at cols 2 and 9
+ * Players 1 and 3 (vertical): Castle vertically, rooks at rows 2 and 9
+ */
+function checkCastling4Player(
+  pieces: Piece[],
+  activeMoves: ActiveMove[],
+  currentTick: number,
+  ticksPerSquare: number,
+  piece: Piece,
+  toRow: number,
+  toCol: number
+): boolean {
+  const rowDiff = toRow - piece.row;
+  const colDiff = toCol - piece.col;
+
+  // Determine if this player castles horizontally or vertically
+  // Players 2 and 4 (on rows 0 and 11) castle horizontally
+  // Players 1 and 3 (on cols 0 and 11) castle vertically
+  const config = FOUR_PLAYER_PAWN_CONFIG[piece.player];
+  if (!config) return false;
+
+  if (config.axis === 'row') {
+    // Horizontal castling (players 2 and 4)
+    // King must stay on same row and move exactly 2 squares
+    if (rowDiff !== 0 || Math.abs(colDiff) !== 2) return false;
+
+    // Determine rook column based on direction
+    const rookCol = colDiff > 0 ? 9 : 2;
+    const newRookCol = colDiff > 0 ? toCol - 1 : toCol + 1;
+    const rookPiece = getPieceAtLocation(pieces, piece.row, rookCol);
+
+    if (
+      rookPiece &&
+      rookPiece.type === 'R' &&
+      rookPiece.player === piece.player &&
+      !rookPiece.moved &&
+      !isMoving(activeMoves, rookPiece.id)
+    ) {
+      // Check paths are clear
+      const isKingPathClear = isRookLegalMove(
+        pieces, activeMoves, currentTick, ticksPerSquare,
+        piece, toRow, toCol
+      );
+      const isRookPathClear = isRookLegalMove(
+        pieces, activeMoves, currentTick, ticksPerSquare,
+        rookPiece, toRow, newRookCol
+      );
+      return isKingPathClear && isRookPathClear;
+    }
+  } else {
+    // Vertical castling (players 1 and 3)
+    // King must stay on same column and move exactly 2 squares
+    if (colDiff !== 0 || Math.abs(rowDiff) !== 2) return false;
+
+    // Determine rook row based on direction
+    const rookRow = rowDiff > 0 ? 9 : 2;
+    const newRookRow = rowDiff > 0 ? toRow - 1 : toRow + 1;
+    const rookPiece = getPieceAtLocation(pieces, rookRow, piece.col);
+
+    if (
+      rookPiece &&
+      rookPiece.type === 'R' &&
+      rookPiece.player === piece.player &&
+      !rookPiece.moved &&
+      !isMoving(activeMoves, rookPiece.id)
+    ) {
+      // Check paths are clear
+      const isKingPathClear = isRookLegalMove(
+        pieces, activeMoves, currentTick, ticksPerSquare,
+        piece, toRow, toCol
+      );
+      const isRookPathClear = isRookLegalMove(
+        pieces, activeMoves, currentTick, ticksPerSquare,
+        rookPiece, newRookRow, piece.col
+      );
+      return isKingPathClear && isRookPathClear;
+    }
+  }
+
+  return false;
+}
 
 /**
  * Check if a specific move is legal
@@ -330,10 +540,18 @@ export function isLegalMove(
   ticksPerSquare: number,
   piece: Piece,
   toRow: number,
-  toCol: number
+  toCol: number,
+  boardType: BoardType = 'standard'
 ): boolean {
+  const boardSize = BOARD_SIZES[boardType];
+
   // Bounds check
-  if (toRow < 0 || toRow >= BOARD_SIZE || toCol < 0 || toCol >= BOARD_SIZE) {
+  if (toRow < 0 || toRow >= boardSize || toCol < 0 || toCol >= boardSize) {
+    return false;
+  }
+
+  // Check for invalid squares (corners in 4-player)
+  if (!isValidSquare(toRow, toCol, boardType)) {
     return false;
   }
 
@@ -342,12 +560,23 @@ export function isLegalMove(
     return false;
   }
 
-  const moveFn = PIECE_MOVE_FN[piece.type];
-  if (!moveFn) {
-    return false;
+  // Dispatch to piece-specific logic
+  switch (piece.type) {
+    case 'P':
+      return isPawnLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol, boardType);
+    case 'N':
+      return isKnightLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
+    case 'B':
+      return isBishopLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
+    case 'R':
+      return isRookLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
+    case 'Q':
+      return isQueenLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
+    case 'K':
+      return isKingLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol, boardType);
+    default:
+      return false;
   }
-
-  return moveFn(pieces, activeMoves, currentTick, ticksPerSquare, piece, toRow, toCol);
 }
 
 /**
@@ -358,13 +587,15 @@ export function getLegalMovesForPiece(
   activeMoves: ActiveMove[],
   currentTick: number,
   ticksPerSquare: number,
-  piece: Piece
+  piece: Piece,
+  boardType: BoardType = 'standard'
 ): [number, number][] {
   const moves: [number, number][] = [];
+  const boardSize = BOARD_SIZES[boardType];
 
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
-      if (isLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, row, col)) {
+  for (let row = 0; row < boardSize; row++) {
+    for (let col = 0; col < boardSize; col++) {
+      if (isLegalMove(pieces, activeMoves, currentTick, ticksPerSquare, piece, row, col, boardType)) {
         moves.push([row, col]);
       }
     }
@@ -381,7 +612,8 @@ export function getAllLegalMoves(
   activeMoves: ActiveMove[],
   currentTick: number,
   ticksPerSquare: number,
-  playerNumber: number
+  playerNumber: number,
+  boardType: BoardType = 'standard'
 ): Map<string, [number, number][]> {
   const allMoves = new Map<string, [number, number][]>();
 
@@ -393,7 +625,7 @@ export function getAllLegalMoves(
       !piece.onCooldown
     ) {
       const moves = getLegalMovesForPiece(
-        pieces, activeMoves, currentTick, ticksPerSquare, piece
+        pieces, activeMoves, currentTick, ticksPerSquare, piece, boardType
       );
       if (moves.length > 0) {
         allMoves.set(piece.id, moves);

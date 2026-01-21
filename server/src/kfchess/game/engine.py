@@ -5,7 +5,10 @@ for performance. Use GameState.copy() if you need to preserve state
 (e.g., for AI lookahead).
 """
 
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -220,10 +223,12 @@ class GameEngine:
 
         # Check piece is not already moving
         if is_piece_moving(piece_id, state.active_moves):
+            logger.warning(f"Move rejected: {piece_id} is already moving")
             return None
 
         # Check piece is not on cooldown
         if is_piece_on_cooldown(piece_id, state.cooldowns, state.current_tick):
+            logger.warning(f"Move rejected: {piece_id} is on cooldown")
             return None
 
         # Check for castling
@@ -241,11 +246,15 @@ class GameEngine:
             # Move starts on NEXT tick (compensates for network delay)
             king_move.start_tick = state.current_tick + 1
             rook_move.start_tick = state.current_tick + 1
+            logger.info(f"Castling validated for {piece_id}")
             return king_move
 
         # Compute the move path
         path = compute_move_path(piece, state.board, to_row, to_col, state.active_moves)
         if path is None:
+            logger.warning(
+                f"Move rejected: {piece_id} from ({piece.row},{piece.col}) to ({to_row},{to_col}) - invalid path"
+            )
             return None
 
         return Move(

@@ -142,6 +142,7 @@ async def get_game(game_id: str) -> dict[str, Any]:
                 "captured": piece.captured,
                 "moving": is_piece_moving(piece.id, state.active_moves),
                 "on_cooldown": is_piece_on_cooldown(piece.id, state.cooldowns, state.current_tick),
+                "moved": piece.moved,
             }
         )
 

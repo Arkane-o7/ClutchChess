@@ -438,7 +438,8 @@ class TestCastling:
         assert result is not None
         king_move, rook_move = result
         assert king_move.path == [(7, 4), (7, 5), (7, 6)]
-        assert rook_move.path == [(7, 7), (7, 5)]
+        # Rook path now includes intermediate squares for consistent timing
+        assert rook_move.path == [(7, 7), (7, 6), (7, 5)]
 
     def test_queenside_castling(self):
         """Test queenside castling."""
@@ -453,7 +454,8 @@ class TestCastling:
         assert result is not None
         king_move, rook_move = result
         assert king_move.path == [(7, 4), (7, 3), (7, 2)]
-        assert rook_move.path == [(7, 0), (7, 3)]
+        # Rook path now includes intermediate squares for consistent timing
+        assert rook_move.path == [(7, 0), (7, 1), (7, 2), (7, 3)]
 
     def test_castling_king_moved(self):
         """Test castling fails if king has moved."""

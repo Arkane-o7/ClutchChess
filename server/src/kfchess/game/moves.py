@@ -1,9 +1,12 @@
 """Move definitions and validation for Kung Fu Chess."""
 
+import logging
 from dataclasses import dataclass
 
 from kfchess.game.board import Board, BoardType
 from kfchess.game.pieces import Piece, PieceType
+
+logger = logging.getLogger(__name__)
 
 # Path type: can be int or float (floats used for knight midpoint)
 PathPoint = tuple[float, float]
@@ -599,6 +602,7 @@ def check_castling(
         return None
 
     if piece.moved:
+        logger.warning(f"Castling rejected: king {piece.id} has moved={piece.moved}")
         return None
 
     if board.board_type == BoardType.STANDARD:
@@ -643,33 +647,42 @@ def _check_castling_standard(
     # Find the rook
     rook = board.get_piece_at(from_row, rook_col)
     if rook is None or rook.type != PieceType.ROOK or rook.player != piece.player:
+        logger.warning(f"Castling rejected: rook not found at ({from_row}, {rook_col}) or wrong type/player. rook={rook}")
         return None
 
     if rook.moved:
+        logger.warning(f"Castling rejected: rook {rook.id} has moved={rook.moved}")
         return None
 
     # Check rook is not currently moving
     if _is_piece_moving(rook.id, active_moves):
+        logger.warning(f"Castling rejected: rook {rook.id} is currently moving")
         return None
 
     # Check rook is not on cooldown
     if cooldowns is not None:
         for cd in cooldowns:
             if cd.piece_id == rook.id and cd.is_active(current_tick):
+                logger.warning(f"Castling rejected: rook {rook.id} is on cooldown")
                 return None
 
     # Check path is clear between king and rook
+    # A piece that is currently moving has vacated its starting square
+    moving_piece_ids = {move.piece_id for move in active_moves}
     start_col = min(from_col, rook_col) + 1
     end_col = max(from_col, rook_col)
     for col in range(start_col, end_col):
-        if board.get_piece_at(from_row, col) is not None:
+        blocking_piece = board.get_piece_at(from_row, col)
+        if blocking_piece is not None and blocking_piece.id not in moving_piece_ids:
+            logger.warning(f"Castling rejected: path blocked by piece at ({from_row}, {col})")
             return None
 
-    # Check no pieces currently moving through the castling path
+    # Check no pieces currently moving INTO the castling path
     for move in active_moves:
         move_end_row, move_end_col = move.end_position
         # Cast to int for proper comparison
         if int(move_end_row) == from_row and start_col <= int(move_end_col) < end_col:
+            logger.warning(f"Castling rejected: piece {move.piece_id} moving into castling path")
             return None
 
     # Create the moves
@@ -678,10 +691,12 @@ def _check_castling_standard(
     for _ in range(2):
         king_path.append((float(from_row), king_path[-1][1] + king_step))
 
-    rook_path: list[PathPoint] = [
-        (float(from_row), float(rook_col)),
-        (float(from_row), float(new_rook_col)),
-    ]
+    # Build rook path with intermediate squares so it takes the same time as king
+    rook_path: list[PathPoint] = [(float(from_row), float(rook_col))]
+    rook_step = 1 if new_rook_col > rook_col else -1
+    rook_distance = abs(new_rook_col - rook_col)
+    for _ in range(rook_distance):
+        rook_path.append((float(from_row), rook_path[-1][1] + rook_step))
 
     # Both moves start at tick 0 - the actual start tick will be set by the engine
     king_move = Move(piece_id=piece.id, path=king_path, start_tick=0)
@@ -767,11 +782,13 @@ def _check_castling_horizontal(
             if cd.piece_id == rook.id and cd.is_active(current_tick):
                 return None
 
-    # Check path is clear
+    # Check path is clear (ignore pieces that are currently moving - they've vacated)
+    moving_piece_ids = {move.piece_id for move in active_moves}
     start_col = min(from_col, rook_col) + 1
     end_col = max(from_col, rook_col)
     for col in range(start_col, end_col):
-        if board.get_piece_at(from_row, col) is not None:
+        blocking_piece = board.get_piece_at(from_row, col)
+        if blocking_piece is not None and blocking_piece.id not in moving_piece_ids:
             return None
 
     for move in active_moves:
@@ -785,10 +802,12 @@ def _check_castling_horizontal(
     for _ in range(2):
         king_path.append((float(from_row), king_path[-1][1] + king_step))
 
-    rook_path: list[PathPoint] = [
-        (float(from_row), float(rook_col)),
-        (float(from_row), float(new_rook_col)),
-    ]
+    # Build rook path with intermediate squares so it takes the same time as king
+    rook_path: list[PathPoint] = [(float(from_row), float(rook_col))]
+    rook_step = 1 if new_rook_col > rook_col else -1
+    rook_distance = abs(new_rook_col - rook_col)
+    for _ in range(rook_distance):
+        rook_path.append((float(from_row), rook_path[-1][1] + rook_step))
 
     king_move = Move(piece_id=piece.id, path=king_path, start_tick=0)
     rook_move = Move(piece_id=rook.id, path=rook_path, start_tick=0)
@@ -842,11 +861,13 @@ def _check_castling_vertical(
             if cd.piece_id == rook.id and cd.is_active(current_tick):
                 return None
 
-    # Check path is clear
+    # Check path is clear (ignore pieces that are currently moving - they've vacated)
+    moving_piece_ids = {move.piece_id for move in active_moves}
     start_row = min(from_row, rook_row) + 1
     end_row = max(from_row, rook_row)
     for row in range(start_row, end_row):
-        if board.get_piece_at(row, from_col) is not None:
+        blocking_piece = board.get_piece_at(row, from_col)
+        if blocking_piece is not None and blocking_piece.id not in moving_piece_ids:
             return None
 
     for move in active_moves:
@@ -860,10 +881,12 @@ def _check_castling_vertical(
     for _ in range(2):
         king_path.append((king_path[-1][0] + king_step, float(from_col)))
 
-    rook_path: list[PathPoint] = [
-        (float(rook_row), float(from_col)),
-        (float(new_rook_row), float(from_col)),
-    ]
+    # Build rook path with intermediate squares so it takes the same time as king
+    rook_path: list[PathPoint] = [(float(rook_row), float(from_col))]
+    rook_step = 1 if new_rook_row > rook_row else -1
+    rook_distance = abs(new_rook_row - rook_row)
+    for _ in range(rook_distance):
+        rook_path.append((rook_path[-1][0] + rook_step, float(from_col)))
 
     king_move = Move(piece_id=piece.id, path=king_path, start_tick=0)
     rook_move = Move(piece_id=rook.id, path=rook_path, start_tick=0)

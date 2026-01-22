@@ -265,3 +265,42 @@ class ReplayEngine:
     def get_initial_state(self) -> "GameState":
         """Get the state at tick 0."""
         return self.get_state_at_tick(0)
+
+    def advance_one_tick(self, state: "GameState") -> "GameState":
+        """Advance the state by exactly one tick (O(1) operation).
+
+        This is the key optimization for replay playback. Instead of
+        recomputing from tick 0 every time (O(n)), we advance the cached
+        state by one tick (O(1)), making full playback O(n) instead of O(n²).
+
+        Args:
+            state: Current game state (will be mutated)
+
+        Returns:
+            The same state object, advanced by one tick
+        """
+        # Import here to avoid circular imports
+        from kfchess.game.engine import GameEngine
+
+        # Apply any moves that start at this tick
+        for replay_move in self._moves_by_tick.get(state.current_tick, []):
+            move = GameEngine.validate_move(
+                state,
+                replay_move.player,
+                replay_move.piece_id,
+                replay_move.to_row,
+                replay_move.to_col,
+            )
+            if move:
+                GameEngine.apply_move(state, move)
+            else:
+                logger.warning(
+                    f"Replay move skipped at tick {state.current_tick}: "
+                    f"player={replay_move.player}, piece={replay_move.piece_id}, "
+                    f"to=({replay_move.to_row}, {replay_move.to_col}) - validation failed"
+                )
+
+        # Advance the tick
+        GameEngine.tick(state)
+
+        return state

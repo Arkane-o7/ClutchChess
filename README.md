@@ -28,9 +28,9 @@ This is a rebuild of the original Kung Fu Chess. The MVP is functional:
 - [x] REST API and WebSocket real-time communication
 - [x] React/PixiJS frontend with smooth rendering
 - [x] Basic AI opponent (random moves)
+- [x] Game replay recording and playback with browser
 - [ ] User authentication and accounts
 - [ ] Lobby system and matchmaking
-- [ ] Game replay recording/playback
 - [ ] Advanced AI (MCTS)
 
 ## Tech Stack
@@ -147,6 +147,7 @@ kfchess-cc/
 - [Architecture](./docs/ARCHITECTURE.md) - System design, technical decisions, and implementation status
 - [MVP Implementation](./docs/MVP_IMPLEMENTATION.md) - Detailed MVP implementation notes
 - [4-Player Design](./docs/FOUR_PLAYER_DESIGN.md) - 4-player mode specification
+- [Replay System](./docs/REPLAY_DESIGN.md) - Replay recording, storage, and playback design
 - [Original Implementation](./docs/KFCHESS_ORIGINAL_IMPLEMENTATION.md) - Reference for the legacy system
 - [CLAUDE.md](./CLAUDE.md) - Quick reference for Claude Code development
 

@@ -130,12 +130,14 @@ kfchess-cc/
 │   │   │
 │   │   ├── api/                    ✓ HTTP API routes
 │   │   │   ├── router.py           ✓ Main router
-│   │   │   └── games.py            ✓ Game management endpoints
-│   │   │   # TODO: auth.py, users.py, lobbies.py, replays.py, campaign.py
+│   │   │   ├── games.py            ✓ Game management endpoints
+│   │   │   └── replays.py          ✓ Replay list endpoint
+│   │   │   # TODO: auth.py, users.py, lobbies.py, campaign.py
 │   │   │
 │   │   ├── ws/                     ✓ WebSocket handlers
 │   │   │   ├── handler.py          ✓ Connection handler + game loop
-│   │   │   └── protocol.py         ✓ Message types/schemas
+│   │   │   ├── protocol.py         ✓ Message types/schemas
+│   │   │   └── replay_handler.py   ✓ Replay WebSocket handler
 │   │   │
 │   │   ├── game/                   ✓ Game engine (COMPLETE)
 │   │   │   ├── engine.py           ✓ Core game logic
@@ -143,8 +145,11 @@ kfchess-cc/
 │   │   │   ├── pieces.py           ✓ Piece definitions
 │   │   │   ├── moves.py            ✓ Move validation
 │   │   │   ├── collision.py        ✓ Collision detection
-│   │   │   └── state.py            ✓ Game state management
-│   │   │   # TODO: replay.py
+│   │   │   ├── state.py            ✓ Game state management
+│   │   │   └── replay.py           ✓ Replay data structures & engine
+│   │   │
+│   │   ├── replay/                 ✓ Replay playback
+│   │   │   └── session.py          ✓ WebSocket replay session
 │   │   │
 │   │   ├── ai/                     ✓ AI system
 │   │   │   ├── base.py             ✓ AI interface
@@ -155,7 +160,11 @@ kfchess-cc/
 │   │   │   └── game_service.py     ✓ In-memory game management
 │   │   │   # TODO: elo.py, s3.py
 │   │   │
-│   │   ├── db/                     Placeholder - TODO
+│   │   ├── db/                     ✓ Database layer
+│   │   │   ├── models.py           ✓ SQLAlchemy models (GameReplay)
+│   │   │   ├── session.py          ✓ Database session management
+│   │   │   └── repositories/       ✓ Repository pattern
+│   │   │       └── replays.py      ✓ Replay CRUD operations
 │   │   ├── redis/                  Placeholder - TODO
 │   │   ├── lobby/                  Placeholder - TODO
 │   │   └── campaign/               Placeholder - TODO
@@ -192,6 +201,7 @@ kfchess-cc/
 │   │   │
 │   │   ├── stores/                 ✓ Zustand stores
 │   │   │   ├── game.ts             ✓ Game state (main)
+│   │   │   ├── replay.ts           ✓ Replay state
 │   │   │   ├── auth.ts             ✓ Auth state (placeholder)
 │   │   │   └── lobby.ts            ✓ Lobby state (placeholder)
 │   │   │
@@ -208,15 +218,20 @@ kfchess-cc/
 │   │   │   │   ├── GameBoard.tsx   ✓ PixiJS canvas wrapper
 │   │   │   │   ├── GameStatus.tsx  ✓
 │   │   │   │   └── GameOverModal.tsx ✓
+│   │   │   ├── replay/             ✓ Replay components
+│   │   │   │   ├── ReplayBoard.tsx ✓
+│   │   │   │   └── ReplayControls.tsx ✓
 │   │   │   └── layout/
 │   │   │       ├── Header.tsx      ✓
 │   │   │       └── Layout.tsx      ✓
-│   │   │   # TODO: lobby/, campaign/, replay/, user/, common/
+│   │   │   # TODO: lobby/, campaign/, user/, common/
 │   │   │
 │   │   ├── pages/                  ✓ Route pages
 │   │   │   ├── Home.tsx            ✓ Home/game creation
-│   │   │   └── Game.tsx            ✓ Game play page
-│   │   │   # TODO: Lobby, Campaign, Replays, Profile, Login, Register
+│   │   │   ├── Game.tsx            ✓ Game play page
+│   │   │   ├── Replay.tsx          ✓ Replay viewer
+│   │   │   └── Replays.tsx         ✓ Replay browser
+│   │   │   # TODO: Lobby, Campaign, Profile, Login, Register
 │   │   │
 │   │   ├── styles/
 │   │   │   └── index.css           ✓
@@ -1754,17 +1769,24 @@ The system is designed for 2-player now with clear extension points for 4-player
 - [x] Basic AI (DummyAI - random moves)
 - [x] Development scripts (dev.sh, migrate.sh)
 - [x] Docker Compose for dev databases
+- [x] Replay system (recording, storage, playback)
+  - Database model and repository
+  - Auto-save on game completion
+  - WebSocket-based playback with play/pause/seek
+  - O(n) incremental playback optimization
+  - Replay browser UI
+  - See [REPLAY_DESIGN.md](./REPLAY_DESIGN.md) for details
 
 ### In Progress / Next Steps
-1. Database persistence (SQLAlchemy models, Alembic migrations)
+1. Database persistence for users (SQLAlchemy models, Alembic migrations)
 2. User authentication (FastAPI-Users is configured, needs wiring)
 3. Lobby system for matchmaking
-4. Replay recording and playback
-5. Advanced AI (MCTS implementation)
-6. ELO rating system
+4. Advanced AI (MCTS implementation)
+5. ELO rating system
 
 ### Future
 - Campaign mode with AI opponents
 - 4-player game support (engine ready, UI needs work)
 - Redis for distributed scaling
+- Multi-server replay support (keyframe caching)
 - Production deployment (Nginx, systemd)

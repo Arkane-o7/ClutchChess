@@ -3,6 +3,23 @@
 This module provides the ReplaySession class that manages replay playback
 for a single client. It runs the ReplayEngine and streams state updates
 via WebSocket, allowing clients to watch replays with play/pause/seek controls.
+
+Performance Optimization:
+-------------------------
+This implementation uses incremental state advancement for O(n) total playback
+instead of the naive O(n²) approach (recomputing from tick 0 every frame).
+
+The key insight is that sequential playback only needs to advance by one tick,
+which is an O(1) operation. We cache the current GameState and advance it
+incrementally during playback. Only seeks require full recomputation.
+
+TODO (Distributed/Multi-Server):
+--------------------------------
+In a distributed deployment where replay sessions can migrate between servers:
+1. On session handoff, client sends current_tick in reconnect message
+2. New server recomputes state from tick 0 to current_tick (O(n) one-time cost)
+3. Consider keyframe caching in Redis: store state snapshots every N ticks
+   to reduce seek cost from O(n) to O(n/N) in the average case
 """
 
 import asyncio
@@ -55,6 +72,12 @@ class ReplaySession:
         self._playback_task: asyncio.Task[None] | None = None
         self._closed = False
         self._lock = asyncio.Lock()
+
+        # Cached state for O(1) incremental playback
+        # Instead of recomputing from tick 0 every frame (O(n) per frame = O(n²) total),
+        # we cache the current state and advance it by one tick (O(1) per frame = O(n) total)
+        self._cached_state: GameState | None = None
+        self._cached_tick: int = -1  # The tick that _cached_state represents
 
     async def start(self) -> None:
         """Initialize session and send replay info.
@@ -146,6 +169,13 @@ class ReplaySession:
             tick: The tick to jump to (clamped to valid range)
 
         If playback was running, it will resume from the new position.
+
+        Note: Seeking invalidates the state cache, requiring O(n) recomputation
+        on the next state request. Sequential playback from the new position
+        will then be O(1) per tick again.
+
+        TODO (Distributed/Keyframes): With keyframe caching, seek cost could be
+        reduced from O(n) to O(n/100) by loading the nearest keyframe from Redis.
         """
         async with self._lock:
             was_playing = self.is_playing
@@ -159,6 +189,11 @@ class ReplaySession:
 
             # Clamp tick to valid range
             self.current_tick = max(0, min(tick, self.replay.total_ticks))
+
+            # Invalidate cache - will trigger recomputation on next _get_state_at_tick
+            # The _get_state_at_tick call in _send_state_at_tick will repopulate the cache
+            self._invalidate_cache()
+
             await self._send_state_at_tick(self.current_tick)
             await self._send_playback_status()
 
@@ -233,6 +268,14 @@ class ReplaySession:
     async def _send_state_at_tick(self, tick: int) -> None:
         """Compute and send state at the given tick.
 
+        This method uses incremental state advancement when possible for O(1)
+        performance during sequential playback. Falls back to full recomputation
+        from tick 0 when the cache is invalid (after seeks or on first call).
+
+        Performance characteristics:
+        - Sequential playback (tick == cached_tick + 1): O(1) - advance one tick
+        - Random access / seek: O(n) - recompute from tick 0
+
         Args:
             tick: The tick to compute state for
 
@@ -240,13 +283,78 @@ class ReplaySession:
 
         Raises:
             Exception: If WebSocket send fails (connection closed)
+
+        TODO (Distributed): For server handoff, the new server receives current_tick
+        from client and calls this method. Consider keyframe caching in Redis to
+        reduce seek cost: store GameState snapshots every 100 ticks, then seek
+        becomes O(n/100) + O(100) = O(n/100) in the average case.
         """
         if self._closed:
             return
 
-        state = self.engine.get_state_at_tick(tick)
+        state = self._get_state_at_tick(tick)
         message = self._format_state_update(state)
         await self.websocket.send_json(message)
+
+    def _get_state_at_tick(self, tick: int) -> GameState:
+        """Get game state at the given tick, using cache when possible.
+
+        This is the core of the O(n²) -> O(n) optimization for replay playback.
+
+        Args:
+            tick: The tick to get state for
+
+        Returns:
+            GameState at the specified tick
+
+        Cache behavior:
+        - If tick == _cached_tick: return cached state (O(1))
+        - If tick == _cached_tick + 1: advance one tick (O(1))
+        - Otherwise: recompute from scratch (O(n))
+        """
+        # Case 1: Cache hit - same tick requested
+        if self._cached_state is not None and self._cached_tick == tick:
+            return self._cached_state
+
+        # Case 2: Sequential advancement - advance one tick (O(1))
+        # This is the common case during playback
+        if self._cached_state is not None and self._cached_tick == tick - 1:
+            # Advance the cached state by one tick
+            self.engine.advance_one_tick(self._cached_state)
+            self._cached_tick = tick
+            return self._cached_state
+
+        # Case 3: Cache miss - need full recomputation (O(n))
+        # This happens on:
+        # - First call (cache is empty)
+        # - After seeks (cache invalidated)
+        # - Non-sequential access (unlikely during normal playback)
+        #
+        # TODO (Distributed/Keyframes): Check Redis for nearest keyframe before tick,
+        # then only replay from keyframe to tick. Example:
+        #   keyframe_tick = (tick // 100) * 100
+        #   cached_state = redis.get(f"replay:{game_id}:keyframe:{keyframe_tick}")
+        #   if cached_state: replay from keyframe_tick to tick (O(tick - keyframe_tick))
+        #   else: replay from 0 (O(tick))
+        logger.debug(
+            f"Replay {self.game_id}: cache miss at tick {tick} "
+            f"(cached_tick={self._cached_tick}), recomputing from tick 0"
+        )
+        self._cached_state = self.engine.get_state_at_tick(tick)
+        self._cached_tick = tick
+        return self._cached_state
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the cached state.
+
+        Called when seeking to a non-sequential tick. The next call to
+        _get_state_at_tick will trigger a full recomputation.
+
+        TODO (Distributed): When implementing keyframe caching, this method
+        could instead seek to the nearest keyframe to reduce recomputation cost.
+        """
+        self._cached_state = None
+        self._cached_tick = -1
 
     def _format_state_update(self, state: GameState) -> dict[str, Any]:
         """Format game state as a state message.
@@ -268,17 +376,21 @@ class ReplaySession:
             pos = get_interpolated_position(
                 piece, state.active_moves, state.current_tick, config.ticks_per_square
             )
-            pieces_data.append({
-                "id": piece.id,
-                "type": piece.type.value,
-                "player": piece.player,
-                "row": pos[0],
-                "col": pos[1],
-                "captured": piece.captured,
-                "moving": is_piece_moving(piece.id, state.active_moves),
-                "on_cooldown": is_piece_on_cooldown(piece.id, state.cooldowns, state.current_tick),
-                "moved": piece.moved,
-            })
+            pieces_data.append(
+                {
+                    "id": piece.id,
+                    "type": piece.type.value,
+                    "player": piece.player,
+                    "row": pos[0],
+                    "col": pos[1],
+                    "captured": piece.captured,
+                    "moving": is_piece_moving(piece.id, state.active_moves),
+                    "on_cooldown": is_piece_on_cooldown(
+                        piece.id, state.cooldowns, state.current_tick
+                    ),
+                    "moved": piece.moved,
+                }
+            )
 
         # Build active moves data
         active_moves_data = []
@@ -286,21 +398,25 @@ class ReplaySession:
             total_ticks = (len(move.path) - 1) * config.ticks_per_square
             elapsed = max(0, state.current_tick - move.start_tick)
             progress = min(1.0, elapsed / total_ticks) if total_ticks > 0 else 1.0
-            active_moves_data.append({
-                "piece_id": move.piece_id,
-                "path": move.path,
-                "start_tick": move.start_tick,
-                "progress": progress,
-            })
+            active_moves_data.append(
+                {
+                    "piece_id": move.piece_id,
+                    "path": move.path,
+                    "start_tick": move.start_tick,
+                    "progress": progress,
+                }
+            )
 
         # Build cooldown data
         cooldowns_data = []
         for cd in state.cooldowns:
             remaining = max(0, (cd.start_tick + cd.duration) - state.current_tick)
-            cooldowns_data.append({
-                "piece_id": cd.piece_id,
-                "remaining_ticks": remaining,
-            })
+            cooldowns_data.append(
+                {
+                    "piece_id": cd.piece_id,
+                    "remaining_ticks": remaining,
+                }
+            )
 
         # Use "state" type to match live game protocol
         return {
@@ -317,36 +433,42 @@ class ReplaySession:
         if self._closed:
             return
 
-        await self.websocket.send_json({
-            "type": "replay_info",
-            "game_id": self.game_id,
-            "speed": self.replay.speed.value,
-            "board_type": self.replay.board_type.value,
-            "players": {str(k): v for k, v in self.replay.players.items()},
-            "total_ticks": self.replay.total_ticks,
-            "winner": self.replay.winner,
-            "win_reason": self.replay.win_reason,
-        })
+        await self.websocket.send_json(
+            {
+                "type": "replay_info",
+                "game_id": self.game_id,
+                "speed": self.replay.speed.value,
+                "board_type": self.replay.board_type.value,
+                "players": {str(k): v for k, v in self.replay.players.items()},
+                "total_ticks": self.replay.total_ticks,
+                "winner": self.replay.winner,
+                "win_reason": self.replay.win_reason,
+            }
+        )
 
     async def _send_playback_status(self) -> None:
         """Send current playback status to the client."""
         if self._closed:
             return
 
-        await self.websocket.send_json({
-            "type": "playback_status",
-            "is_playing": self.is_playing,
-            "current_tick": self.current_tick,
-            "total_ticks": self.replay.total_ticks,
-        })
+        await self.websocket.send_json(
+            {
+                "type": "playback_status",
+                "is_playing": self.is_playing,
+                "current_tick": self.current_tick,
+                "total_ticks": self.replay.total_ticks,
+            }
+        )
 
     async def _send_game_over(self) -> None:
         """Send game over message when replay reaches the end."""
         if self._closed:
             return
 
-        await self.websocket.send_json({
-            "type": "game_over",
-            "winner": self.replay.winner,
-            "reason": self.replay.win_reason,
-        })
+        await self.websocket.send_json(
+            {
+                "type": "game_over",
+                "winner": self.replay.winner,
+                "reason": self.replay.win_reason,
+            }
+        )

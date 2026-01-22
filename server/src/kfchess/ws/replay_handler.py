@@ -1,4 +1,25 @@
-"""WebSocket handler for replay playback."""
+"""WebSocket handler for replay playback.
+
+TODO (Distributed/Multi-Server):
+--------------------------------
+In a distributed deployment, replay sessions may need to migrate between servers:
+
+1. Session Resume Protocol:
+   - Client reconnects with: {"type": "resume", "tick": N, "was_playing": bool}
+   - Server loads replay from DB, seeks to tick N, optionally resumes playback
+   - This allows seamless handoff when server goes down or load balancer reassigns
+
+2. Keyframe Caching:
+   - Store GameState snapshots in Redis every 100 ticks during first playback
+   - On session resume, load nearest keyframe to reduce seek cost from O(n) to O(n/100)
+   - Key format: "replay:{game_id}:keyframe:{tick}"
+   - Consider TTL for cache eviction (e.g., 24 hours)
+
+3. Session State in Redis:
+   - Optionally store session state (current_tick, is_playing) in Redis
+   - Allows any server to resume a session without client providing tick
+   - Key format: "replay:{game_id}:session:{session_id}"
+"""
 
 import json
 import logging
@@ -23,10 +44,12 @@ async def _send_error_and_close(websocket: WebSocket, message: str) -> None:
         message: Error message to send
     """
     try:
-        await websocket.send_json({
-            "type": "error",
-            "message": message,
-        })
+        await websocket.send_json(
+            {
+                "type": "error",
+                "message": message,
+            }
+        )
     except Exception:
         # Client already disconnected, ignore
         pass
@@ -99,16 +122,21 @@ async def handle_replay_websocket(websocket: WebSocket, game_id: str) -> None:
                 message = json.loads(data)
             except json.JSONDecodeError:
                 try:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Invalid JSON",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": "Invalid JSON",
+                        }
+                    )
                 except Exception:
                     # Client disconnected during error send
                     break
                 continue
 
             # Handle message
+            # TODO (Distributed): Add support for "resume" message type:
+            #   {"type": "resume", "tick": N, "was_playing": bool}
+            # This would call session.seek(tick) then optionally session.play()
             try:
                 await session.handle_message(message)
             except Exception as e:

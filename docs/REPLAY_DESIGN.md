@@ -634,50 +634,60 @@ function formatTicksAsTime(ticks: number): string {
 7. ~~Add backwards compatibility for v1 replay format~~
 8. ~~Write tests for replay loading/conversion/storage~~
 
-### Phase 2: Replay WebSocket & Session (NEW)
+### Phase 2: Replay WebSocket & Session (COMPLETED)
 
-1. **Create `ReplaySession` class** that manages playback for one client
-2. **Create WebSocket handler** at `/ws/replay/{game_id}`
-3. **Implement playback commands**: play, pause, seek
-4. **Stream state updates** using same format as live games
-5. **Write tests** for replay session
+1. ~~Create `ReplaySession` class that manages playback for one client~~
+2. ~~Create WebSocket handler at `/ws/replay/{game_id}`~~
+3. ~~Implement playback commands: play, pause, seek~~
+4. ~~Stream state updates using same format as live games~~
+5. ~~Write tests for replay session~~
 
-**Files to create/modify:**
-- `server/src/kfchess/replay/session.py` (new)
-- `server/src/kfchess/ws/replay_handler.py` (new)
-- `server/src/kfchess/main.py` (add WebSocket route)
-- `server/tests/unit/replay/test_session.py` (new)
+**Files created:**
+- `server/src/kfchess/replay/session.py`
+- `server/src/kfchess/ws/replay_handler.py`
+- `server/tests/unit/replay/test_session.py`
 
-### Phase 3: Frontend Replay Client (REWRITE)
+### Phase 3: Frontend Replay Store (COMPLETED)
 
-1. **Delete client-side replay engine** (`replayEngine.ts`)
-2. **Create `ReplayWebSocketClient`** class
-3. **Simplify replay store** to just manage connection + received state
-4. **Add replay types** to API types
+1. ~~Simplify replay store to manage connection + received state~~
+2. ~~Add replay types to API types~~
+3. ~~Integrate with existing WebSocket infrastructure~~
 
-**Files to create/modify:**
-- `client/src/ws/replayClient.ts` (new)
-- `client/src/stores/replay.ts` (rewrite - much simpler)
-- `client/src/api/types.ts` (add replay message types)
-- `client/src/game/replayEngine.ts` (DELETE)
+**Files created/modified:**
+- `client/src/stores/replay.ts`
+- `client/src/api/types.ts`
 
-### Phase 4: Replay Viewer UI
+### Phase 4: Replay Viewer UI (COMPLETED)
 
-1. **Create Replay page** component
-2. **Create ReplayControls** component (play/pause/seek only)
-3. **Add route** for `/replay/:replayId`
-4. **Add "Watch Replay" button** to game over screen
+1. ~~Create Replay page component~~
+2. ~~Create ReplayControls component (play/pause/seek)~~
+3. ~~Create Replays browser page~~
+4. ~~Add routes for `/replay/:replayId` and `/replays`~~
 
-**Files to create/modify:**
-- `client/src/pages/Replay.tsx` (new)
-- `client/src/pages/Replay.css` (new)
-- `client/src/components/replay/ReplayControls.tsx` (new)
-- `client/src/App.tsx` (add route)
+**Files created:**
+- `client/src/pages/Replay.tsx`
+- `client/src/pages/Replay.css`
+- `client/src/pages/Replays.tsx`
+- `client/src/pages/Replays.css`
+- `client/src/components/replay/ReplayBoard.tsx`
+- `client/src/components/replay/ReplayControls.tsx`
+- `client/src/components/replay/ReplayControls.css`
+- `client/src/utils/format.ts`
 
-### Future Enhancements
+### Phase 5: Incremental Playback Optimization (COMPLETED)
+
+1. ~~Add `_cached_state` to `ReplaySession` for O(1) sequential playback~~
+2. ~~Add `advance_one_tick()` method to `ReplayEngine`~~
+3. ~~Invalidate cache on seek~~
+4. ~~Add TODO comments for distributed/multi-server support~~
+
+**Performance improvement:** Full playback changed from O(n²) to O(n).
+
+### Future Enhancements (Phase 6+)
 
 - **Speed controls**: Allow 0.5x, 2x, 4x playback (requires server-side support)
-- **Replay browser**: List and search saved replays
+- **Multi-server support**: Session resume protocol with tick (see TODOs in code)
+- **Keyframe caching**: Store state snapshots in Redis every N ticks
 - **Replay sharing**: Generate shareable links
 - **Export/Import**: Download/upload replay JSON files
 - **Keyboard shortcuts**: Space=play/pause, arrows=seek
@@ -700,56 +710,68 @@ function formatTicksAsTime(ticks: number): string {
 
 ## Performance & Multi-Server Architecture
 
-### Current Implementation: Stateless Replay
+### Current Implementation: Incremental Playback (Optimized)
 
-The current `ReplayEngine.get_state_at_tick()` recomputes state from tick 0 every time:
-
-```
-get_state_at_tick(100) → simulate ticks 0-100 (100 operations)
-get_state_at_tick(101) → simulate ticks 0-101 (101 operations)
-get_state_at_tick(102) → simulate ticks 0-102 (102 operations)
-...
-```
-
-During sequential playback of n ticks: **O(n²) total operations**
-
-For a 5-minute game (3000 ticks): ~4.5 million tick simulations.
-
-**Trade-off:** This is simple and correct. Each tick simulation is very fast (~microseconds), so this works for typical games. The benefit is complete statelessness—any server can compute any tick with no shared state.
-
-### Future Optimization: Incremental Playback
-
-Maintain running `GameState` in `ReplaySession` during playback:
+The `ReplaySession` maintains a cached `GameState` for O(1) sequential playback:
 
 ```python
-class ReplaySession:
-    def __init__(self, replay: Replay, websocket: WebSocket):
-        self.replay = replay
-        self.engine = ReplayEngine(replay)
-        self.current_tick = 0
-        self._cached_state: GameState | None = None  # Running state
+# Sequential playback (common case): O(1) per tick
+if self._cached_tick == tick - 1:
+    self.engine.advance_one_tick(self._cached_state)  # O(1)
+    self._cached_tick = tick
 
-    async def _advance_one_tick(self) -> None:
-        """Advance state by one tick (O(1) operation)."""
-        if self._cached_state is None:
-            # Cold start: compute from scratch
-            self._cached_state = self.engine.get_state_at_tick(self.current_tick)
-        else:
-            # Incremental: apply one tick
-            self.engine.advance_state(self._cached_state, self.current_tick)
-        self.current_tick += 1
-
-    async def seek(self, tick: int) -> None:
-        """Seek invalidates cache, requiring recomputation."""
-        self._cached_state = None  # Invalidate cache
-        self.current_tick = tick
-        self._cached_state = self.engine.get_state_at_tick(tick)
+# Seek or cache miss: O(n) one-time cost
+else:
+    self._cached_state = self.engine.get_state_at_tick(tick)  # O(n)
+    self._cached_tick = tick
 ```
 
 **Performance:**
-- Sequential playback: O(n) total (one tick simulation per tick)
-- Seek: O(target_tick) one-time cost, then O(1) per tick
-- Total for full playback with occasional seeks: O(n) + O(k × avg_seek_distance)
+- Sequential playback of n ticks: **O(n) total operations**
+- Seek to tick k: O(k) one-time cost, then O(1) per tick
+- Full playback with occasional seeks: O(n) + O(k × num_seeks)
+
+For a 5-minute game (3000 ticks): ~3000 tick simulations (vs ~4.5 million before).
+
+### Optimization Details
+
+The `ReplaySession` uses cached state for incremental advancement:
+
+```python
+class ReplaySession:
+    def __init__(self, replay: Replay, websocket: WebSocket, game_id: str):
+        self.replay = replay
+        self.engine = ReplayEngine(replay)
+        self.current_tick = 0
+        self._cached_state: GameState | None = None
+        self._cached_tick: int = -1
+
+    def _get_state_at_tick(self, tick: int) -> GameState:
+        """Get state using cache when possible."""
+        # Cache hit - same tick
+        if self._cached_state is not None and self._cached_tick == tick:
+            return self._cached_state
+
+        # Sequential advancement - O(1)
+        if self._cached_state is not None and self._cached_tick == tick - 1:
+            self.engine.advance_one_tick(self._cached_state)
+            self._cached_tick = tick
+            return self._cached_state
+
+        # Cache miss - full recomputation O(n)
+        self._cached_state = self.engine.get_state_at_tick(tick)
+        self._cached_tick = tick
+        return self._cached_state
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate cache on seek."""
+        self._cached_state = None
+        self._cached_tick = -1
+```
+
+**Key files:**
+- `server/src/kfchess/replay/session.py` - ReplaySession with caching
+- `server/src/kfchess/game/replay.py` - ReplayEngine.advance_one_tick()
 
 ### Multi-Server Architecture
 
@@ -841,18 +863,20 @@ async def get_game_state(game_id: str) -> GameState:
 
 ### Implementation Phases
 
-**Phase 5: Incremental Playback (Optimization)**
-1. Add `_cached_state` to `ReplaySession`
-2. Add `advance_state()` method to `ReplayEngine`
-3. Invalidate cache on seek
-4. Benchmark performance improvement
+**Phase 5: Incremental Playback (COMPLETED)**
+1. ~~Add `_cached_state` to `ReplaySession`~~
+2. ~~Add `advance_one_tick()` method to `ReplayEngine`~~
+3. ~~Invalidate cache on seek~~
+4. ~~Performance: O(n²) → O(n) for full playback~~
 
-**Phase 6: Multi-Server Support**
+**Phase 6: Multi-Server Support (Future)**
 1. Add `resume` message to WebSocket protocol
 2. Client sends current tick on reconnect
 3. Server computes state to that tick and continues
+4. See TODO comments in `session.py` and `replay_handler.py`
 
-**Phase 7: Keyframe Caching (Optional)**
+**Phase 7: Keyframe Caching (Future, Optional)**
 1. Store state snapshots in Redis every N ticks
 2. Add `get_nearest_keyframe()` to load cached state
 3. Compute from keyframe instead of tick 0
+4. Reduces seek cost from O(n) to O(n/100)

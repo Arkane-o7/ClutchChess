@@ -9,7 +9,8 @@ kfchess-cc/
 ├── docs/                    # Documentation
 │   ├── ARCHITECTURE.md      # Full architecture blueprint (design spec)
 │   ├── MVP_IMPLEMENTATION.md # MVP implementation details
-│   └── FOUR_PLAYER_DESIGN.md # 4-player mode design spec
+│   ├── FOUR_PLAYER_DESIGN.md # 4-player mode design spec
+│   └── REPLAY_DESIGN.md     # Replay system design & implementation
 ├── scripts/                 # Development scripts
 │   ├── dev.sh               # Start full dev environment (docker + servers)
 │   ├── dev-servers.sh       # Start only dev servers (backend + frontend)
@@ -18,27 +19,29 @@ kfchess-cc/
 │   ├── src/kfchess/         # Source code
 │   │   ├── main.py          # FastAPI app entry point
 │   │   ├── settings.py      # Pydantic settings configuration
-│   │   ├── game/            # Game engine (engine.py, board.py, moves.py, collision.py, state.py, pieces.py)
-│   │   ├── api/             # HTTP API routes (router.py, games.py)
-│   │   ├── ws/              # WebSocket handlers (handler.py, protocol.py)
+│   │   ├── game/            # Game engine (engine.py, board.py, moves.py, collision.py, state.py, pieces.py, replay.py)
+│   │   ├── api/             # HTTP API routes (router.py, games.py, replays.py)
+│   │   ├── ws/              # WebSocket handlers (handler.py, protocol.py, replay_handler.py)
+│   │   ├── replay/          # Replay playback (session.py)
 │   │   ├── ai/              # AI system (base.py, dummy.py)
 │   │   ├── services/        # Business logic (game_service.py)
-│   │   ├── db/              # Database layer (placeholder)
+│   │   ├── db/              # Database layer (models.py, session.py, repositories/)
 │   │   ├── redis/           # Redis integration (placeholder)
 │   │   ├── lobby/           # Lobby system (placeholder)
 │   │   └── campaign/        # Campaign system (placeholder)
 │   ├── tests/               # pytest tests
-│   │   └── unit/game/       # Game engine unit tests
+│   │   └── unit/            # Unit tests (game/, replay/, etc.)
 │   ├── alembic/             # Database migrations
 │   └── pyproject.toml
 ├── client/                  # TypeScript frontend (React + Vite + PixiJS)
 │   ├── src/
 │   │   ├── api/             # HTTP API client (client.ts, types.ts)
 │   │   ├── ws/              # WebSocket client (client.ts, types.ts)
-│   │   ├── stores/          # Zustand state stores (game.ts, auth.ts, lobby.ts)
+│   │   ├── stores/          # Zustand state stores (game.ts, replay.ts, auth.ts, lobby.ts)
 │   │   ├── game/            # Game rendering (renderer.ts, constants.ts, sprites.ts, interpolation.ts)
-│   │   ├── components/      # React components (game/, layout/)
-│   │   └── pages/           # Route pages (Home.tsx, Game.tsx)
+│   │   ├── components/      # React components (game/, replay/, layout/)
+│   │   ├── pages/           # Route pages (Home.tsx, Game.tsx, Replay.tsx, Replays.tsx)
+│   │   └── utils/           # Shared utilities (format.ts)
 │   ├── tests/               # Vitest tests
 │   └── package.json
 └── docker-compose.yml       # Dev infrastructure (PostgreSQL, Redis)
@@ -109,20 +112,28 @@ docker-compose up -d postgres redis  # Start dev databases
 - `server/src/kfchess/game/state.py` - GameState dataclass, Speed enum, SpeedConfig
 - `server/src/kfchess/game/board.py` - Board class, BoardType enum (standard/4-player)
 - `server/src/kfchess/game/pieces.py` - Piece class, PieceType enum
+- `server/src/kfchess/game/replay.py` - Replay dataclass, ReplayEngine for playback
 
 ## Key Files for Backend API/Services
 - `server/src/kfchess/main.py` - FastAPI app, routes, WebSocket endpoint
 - `server/src/kfchess/api/games.py` - Game REST endpoints (create, move, ready, legal-moves)
+- `server/src/kfchess/api/replays.py` - Replay list endpoint
 - `server/src/kfchess/ws/handler.py` - WebSocket connection handler, game loop
+- `server/src/kfchess/ws/replay_handler.py` - Replay WebSocket handler
 - `server/src/kfchess/ws/protocol.py` - WebSocket message types
 - `server/src/kfchess/services/game_service.py` - GameService (in-memory game management)
+- `server/src/kfchess/replay/session.py` - ReplaySession (WebSocket playback with caching)
+- `server/src/kfchess/db/repositories/replays.py` - Replay database operations
 
 ## Key Files for Frontend
 - `client/src/stores/game.ts` - Main game state store (Zustand)
+- `client/src/stores/replay.ts` - Replay state store (Zustand)
 - `client/src/game/renderer.ts` - GameRenderer class (PixiJS board rendering)
 - `client/src/api/client.ts` - HTTP API client
 - `client/src/ws/client.ts` - GameWebSocketClient class
 - `client/src/pages/Game.tsx` - Game play page component
+- `client/src/pages/Replay.tsx` - Replay viewer page
+- `client/src/pages/Replays.tsx` - Replay browser page
 
 ## Environment
 - Copy `server/.env.example` to `server/.env`
@@ -139,12 +150,12 @@ docker-compose up -d postgres redis  # Start dev databases
 - PixiJS board rendering
 - Basic AI (DummyAI with random moves)
 - Comprehensive game engine tests
+- Replay system (recording, storage, playback with O(n) optimization)
 
 ### Placeholder/TODO
-- Database persistence (models, migrations)
 - User authentication (FastAPI-Users configured but not wired up)
 - Lobby system
 - Campaign mode
-- Replay recording/playback
 - Advanced AI (MCTS)
 - ELO rating system
+- Multi-server replay support (keyframe caching)

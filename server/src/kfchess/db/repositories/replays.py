@@ -63,6 +63,11 @@ class ReplayRepository:
         # Convert players dict keys to strings for JSON
         players_data = {str(k): v for k, v in replay.players.items()}
 
+        # Convert timezone-aware datetime to naive UTC for database
+        created_at = replay.created_at or datetime.now()
+        if created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+
         record = GameReplay(
             id=game_id,
             speed=replay.speed.value,
@@ -72,7 +77,7 @@ class ReplayRepository:
             total_ticks=replay.total_ticks,
             winner=replay.winner,
             win_reason=replay.win_reason,
-            created_at=replay.created_at or datetime.now(),
+            created_at=created_at,
             is_public=True,
         )
 

@@ -61,8 +61,10 @@ uv run alembic upgrade head  # Run migrations
 uv run uvicorn kfchess.main:app --reload --port 8000  # Dev server
 
 # Tests
-uv run pytest tests/ -v      # Run all tests
-uv run pytest tests/unit/game/ -v  # Run game engine tests only
+uv run pytest tests/ -v               # Run all tests (unit + integration)
+uv run pytest tests/unit -v           # Run unit tests only (no database needed)
+uv run pytest tests/integration -v    # Run integration tests (requires database)
+uv run pytest tests/unit/game/ -v     # Run game engine tests only
 
 # Linting
 uv run ruff check src/

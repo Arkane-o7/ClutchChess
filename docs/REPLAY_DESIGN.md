@@ -14,6 +14,8 @@ This document describes the design for replay recording, storage, and playback i
 6. [Backend Implementation](#backend-implementation)
 7. [Frontend Implementation](#frontend-implementation)
 8. [Implementation Plan](#implementation-plan)
+9. [Design Decisions](#design-decisions)
+10. [Performance & Multi-Server Architecture](#performance--multi-server-architecture)
 
 ---
 
@@ -693,3 +695,164 @@ function formatTicksAsTime(ticks: number): string {
 4. **WebSocket per viewer**: Each replay viewer has its own WebSocket connection and playback state. This allows multiple people to watch the same replay at different positions.
 
 5. **Compute state on demand**: Server computes state at requested tick (O(n) from tick 0). For typical games (few thousand ticks), this is fast enough. Could add caching/keyframes later if needed.
+
+---
+
+## Performance & Multi-Server Architecture
+
+### Current Implementation: Stateless Replay
+
+The current `ReplayEngine.get_state_at_tick()` recomputes state from tick 0 every time:
+
+```
+get_state_at_tick(100) → simulate ticks 0-100 (100 operations)
+get_state_at_tick(101) → simulate ticks 0-101 (101 operations)
+get_state_at_tick(102) → simulate ticks 0-102 (102 operations)
+...
+```
+
+During sequential playback of n ticks: **O(n²) total operations**
+
+For a 5-minute game (3000 ticks): ~4.5 million tick simulations.
+
+**Trade-off:** This is simple and correct. Each tick simulation is very fast (~microseconds), so this works for typical games. The benefit is complete statelessness—any server can compute any tick with no shared state.
+
+### Future Optimization: Incremental Playback
+
+Maintain running `GameState` in `ReplaySession` during playback:
+
+```python
+class ReplaySession:
+    def __init__(self, replay: Replay, websocket: WebSocket):
+        self.replay = replay
+        self.engine = ReplayEngine(replay)
+        self.current_tick = 0
+        self._cached_state: GameState | None = None  # Running state
+
+    async def _advance_one_tick(self) -> None:
+        """Advance state by one tick (O(1) operation)."""
+        if self._cached_state is None:
+            # Cold start: compute from scratch
+            self._cached_state = self.engine.get_state_at_tick(self.current_tick)
+        else:
+            # Incremental: apply one tick
+            self.engine.advance_state(self._cached_state, self.current_tick)
+        self.current_tick += 1
+
+    async def seek(self, tick: int) -> None:
+        """Seek invalidates cache, requiring recomputation."""
+        self._cached_state = None  # Invalidate cache
+        self.current_tick = tick
+        self._cached_state = self.engine.get_state_at_tick(tick)
+```
+
+**Performance:**
+- Sequential playback: O(n) total (one tick simulation per tick)
+- Seek: O(target_tick) one-time cost, then O(1) per tick
+- Total for full playback with occasional seeks: O(n) + O(k × avg_seek_distance)
+
+### Multi-Server Architecture
+
+The replay system uses **event sourcing**: moves are the source of truth, state is derived.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DATA LAYER                                   │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
+│  │  PostgreSQL  │    │    Redis     │    │   Redis (optional)   │  │
+│  │   Replays    │    │  Live Moves  │    │   State Keyframes    │  │
+│  │  (immutable) │    │  (append)    │    │   (cache, evictable) │  │
+│  └──────────────┘    └──────────────┘    └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+         │                    │                      │
+         ▼                    ▼                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       SERVER CLUSTER                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │   Server A   │    │   Server B   │    │   Server C   │          │
+│  │              │    │              │    │              │          │
+│  │ GameState    │    │ GameState    │    │ GameState    │          │
+│  │ (in-memory,  │    │ (in-memory,  │    │ (in-memory,  │          │
+│  │  ephemeral)  │    │  ephemeral)  │    │  ephemeral)  │          │
+│  └──────────────┘    └──────────────┘    └──────────────┘          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Principles:**
+
+1. **Moves are immutable source of truth**
+   - Replays: stored in PostgreSQL
+   - Live games: appended to Redis list
+
+2. **State is derived and ephemeral**
+   - Computed by replaying moves
+   - Cached in server memory during active sessions
+   - Can be recomputed by any server
+
+3. **Server handoff protocol**
+   ```
+   1. Client connects to Server B (after Server A died or load balanced)
+   2. Client sends: { "type": "resume", "tick": 1500 }
+   3. Server B loads moves from DB/Redis
+   4. Server B computes state to tick 1500 (one-time O(n) cost)
+   5. Server B continues incremental playback
+   ```
+
+4. **Optional: Keyframe caching in Redis**
+   - Store computed GameState every N ticks (e.g., every 100 ticks)
+   - On handoff: load nearest keyframe, simulate forward
+   - Reduces worst-case seek from O(n) to O(n/100)
+
+### Applying to Live Games
+
+Live games can use the same event-sourcing pattern:
+
+```python
+# Live game move storage (Redis)
+async def record_move(game_id: str, move: Move) -> None:
+    """Append move to Redis list (source of truth)."""
+    await redis.rpush(f"game:{game_id}:moves", move.to_json())
+
+async def get_all_moves(game_id: str) -> list[Move]:
+    """Get all moves for a game."""
+    return await redis.lrange(f"game:{game_id}:moves", 0, -1)
+
+# Any server can reconstruct game state
+async def get_game_state(game_id: str) -> GameState:
+    """Reconstruct state from moves."""
+    moves = await get_all_moves(game_id)
+    state = GameEngine.create_game(...)
+    for move in moves:
+        GameEngine.apply_move(state, move)
+        GameEngine.tick(state)
+    return state
+```
+
+**Benefits:**
+- No single point of failure for game state
+- Horizontal scaling: any server can handle any game
+- Natural replay support: moves are already recorded
+- Consistency: state is always derived from moves
+
+**Trade-offs:**
+- Latency on server handoff (recomputation time)
+- Memory for caching active game states
+- Complexity of move ordering in distributed system
+
+### Implementation Phases
+
+**Phase 5: Incremental Playback (Optimization)**
+1. Add `_cached_state` to `ReplaySession`
+2. Add `advance_state()` method to `ReplayEngine`
+3. Invalidate cache on seek
+4. Benchmark performance improvement
+
+**Phase 6: Multi-Server Support**
+1. Add `resume` message to WebSocket protocol
+2. Client sends current tick on reconnect
+3. Server computes state to that tick and continues
+
+**Phase 7: Keyframe Caching (Optional)**
+1. Store state snapshots in Redis every N ticks
+2. Add `get_nearest_keyframe()` to load cached state
+3. Compute from keyframe instead of tick 0

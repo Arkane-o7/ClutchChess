@@ -156,8 +156,12 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     set({ connectionState: 'disconnected', _ws: null });
   },
 
-  _handleError: (_event: Event) => {
-    set({ error: 'WebSocket connection error', connectionState: 'disconnected' });
+  _handleError: () => {
+    const { _ws } = get();
+    if (_ws) {
+      _ws.close();
+    }
+    set({ error: 'WebSocket connection error', connectionState: 'disconnected', _ws: null });
   },
 
   _handleMessage: (event: MessageEvent) => {

@@ -83,6 +83,13 @@ class ReplaySession:
             await self.pause()
         elif msg_type == "seek":
             tick = message.get("tick", 0)
+            # Validate tick is an integer
+            if not isinstance(tick, int):
+                try:
+                    tick = int(tick)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid seek tick value: {tick}")
+                    return
             await self.seek(tick)
         else:
             logger.warning(f"Unknown replay message type: {msg_type}")

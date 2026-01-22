@@ -149,3 +149,21 @@ export interface ApiReplay {
   win_reason: string | null;
   created_at: string | null;
 }
+
+// Summary of a replay for listing
+export interface ApiReplaySummary {
+  game_id: string;
+  speed: 'standard' | 'lightning';
+  board_type: 'standard' | 'four_player';
+  players: Record<string, string>;
+  total_ticks: number;
+  winner: number | null;
+  win_reason: string | null;
+  created_at: string | null;
+}
+
+// Response for listing replays
+export interface ApiReplayListResponse {
+  replays: ApiReplaySummary[];
+  total: number;
+}

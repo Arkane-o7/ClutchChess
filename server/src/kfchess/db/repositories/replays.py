@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kfchess.db.models import GameReplay
@@ -120,15 +120,17 @@ class ReplayRepository:
         )
         return result.scalar_one_or_none() is not None
 
-    async def list_recent(self, limit: int = 20, offset: int = 0) -> list[Replay]:
-        """List recent replays.
+    async def list_recent(
+        self, limit: int = 20, offset: int = 0
+    ) -> list[tuple[str, Replay]]:
+        """List recent replays with their IDs.
 
         Args:
             limit: Maximum number of replays to return
             offset: Number of replays to skip
 
         Returns:
-            List of replays ordered by creation time (newest first)
+            List of (game_id, replay) tuples ordered by creation time (newest first)
         """
         result = await self.session.execute(
             select(GameReplay)
@@ -139,7 +141,18 @@ class ReplayRepository:
         )
         records = result.scalars().all()
 
-        return [self._record_to_replay(r) for r in records]
+        return [(r.id, self._record_to_replay(r)) for r in records]
+
+    async def count_public(self) -> int:
+        """Count total number of public replays.
+
+        Returns:
+            Total count of public replays
+        """
+        result = await self.session.execute(
+            select(func.count()).select_from(GameReplay).where(GameReplay.is_public.is_(True))
+        )
+        return result.scalar_one()
 
     async def delete(self, game_id: str) -> bool:
         """Delete a replay.

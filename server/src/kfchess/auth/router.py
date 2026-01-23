@@ -13,6 +13,7 @@ from kfchess.auth.dependencies import fastapi_users
 from kfchess.auth.rate_limit import (
     forgot_password_rate_limit,
     login_rate_limit,
+    oauth_rate_limit,
     register_rate_limit,
     verify_rate_limit,
 )
@@ -84,6 +85,7 @@ def get_auth_router() -> APIRouter:
             ),
             prefix="/auth/google",
             tags=["auth"],
+            dependencies=[Depends(oauth_rate_limit)],
         )
 
     return router

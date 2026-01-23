@@ -235,3 +235,196 @@ class TestGoogleOAuthLegacyUserRegistrationBlock:
             assert response.status_code == 400
             data = response.json()
             assert data["detail"] == "REGISTER_USER_ALREADY_EXISTS"
+
+
+class TestGoogleOAuthEdgeCases:
+    """Test edge cases in Google OAuth flow."""
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_email_exists_as_password_user(self):
+        """Test OAuth callback when email already exists as a password-based user."""
+        from fastapi_users.db import SQLAlchemyUserDatabase
+        from fastapi_users.exceptions import UserAlreadyExists
+
+        from kfchess.auth.users import UserManager
+        from kfchess.db.models import OAuthAccount, User
+        from kfchess.db.session import async_session_factory
+
+        # Create a password-based user (not legacy - has password, no google_id)
+        password_user_email = generate_test_email()
+
+        async with async_session_factory() as session:
+            password_user = User(
+                email=password_user_email,
+                username=f"PasswordUser_{password_user_email[:8]}",
+                google_id=None,  # Not a legacy user
+                hashed_password="$argon2id$v=19$m=65536,t=3,p=4$hash",  # Has password
+                is_active=True,
+                is_verified=True,
+                is_superuser=False,
+            )
+            session.add(password_user)
+            await session.commit()
+
+            # Create UserManager
+            user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
+            user_manager = UserManager(user_db)
+
+            # Try OAuth callback with same email - should raise UserAlreadyExists
+            with pytest.raises(UserAlreadyExists):
+                await user_manager.oauth_callback(
+                    oauth_name="google",
+                    access_token="test_token",
+                    account_id="google_account_conflict",
+                    account_email=password_user_email,
+                    expires_at=2147483647,
+                    refresh_token="test_refresh",
+                )
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_returns_user_from_existing_oauth_account(self):
+        """Test OAuth callback returns user when OAuth account exists."""
+        from fastapi_users.db import SQLAlchemyUserDatabase
+        from sqlalchemy import select
+
+        from kfchess.auth.users import UserManager
+        from kfchess.db.models import OAuthAccount, User
+        from kfchess.db.session import async_session_factory
+
+        # Create a user with an OAuth account
+        test_email = generate_test_email()
+        test_account_id = f"existing_account_{test_email[:8]}"
+
+        async with async_session_factory() as session:
+            # Create a user
+            test_user = User(
+                email=test_email,
+                username=f"TestUser_{test_email[:8]}",
+                hashed_password="$argon2id$v=19$m=65536,t=3,p=4$hash",
+                is_active=True,
+                is_verified=True,
+                is_superuser=False,
+            )
+            session.add(test_user)
+            await session.flush()
+            test_user_id = test_user.id
+
+            # Create OAuth account for this user
+            oauth_account = OAuthAccount(
+                user_id=test_user_id,
+                oauth_name="google",
+                access_token="old_token",
+                account_id=test_account_id,
+                account_email=test_email,
+                expires_at=2147483647,
+                refresh_token="old_refresh",
+            )
+            session.add(oauth_account)
+            await session.commit()
+
+        # Now try OAuth callback - should return the existing user
+        async with async_session_factory() as session:
+            user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
+            user_manager = UserManager(user_db)
+
+            result = await user_manager.oauth_callback(
+                oauth_name="google",
+                access_token="new_token",
+                account_id=test_account_id,
+                account_email=test_email,
+                expires_at=2147483647,
+                refresh_token="new_refresh",
+                is_verified_by_default=True,
+            )
+
+            # Should return the existing user
+            assert result is not None
+            assert result.id == test_user_id
+            assert result.email == test_email
+
+            # OAuth account should have been updated with new tokens
+            oauth_result = await session.execute(
+                select(OAuthAccount).where(OAuthAccount.account_id == test_account_id)
+            )
+            updated_oauth = oauth_result.scalar_one_or_none()
+            assert updated_oauth is not None
+            assert updated_oauth.access_token == "new_token"
+            assert updated_oauth.refresh_token == "new_refresh"
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_with_expired_token_logs_warning(self, caplog):
+        """Test that OAuth callback logs warning for expired tokens."""
+        import logging
+
+        from fastapi_users.db import SQLAlchemyUserDatabase
+
+        from kfchess.auth.users import UserManager
+        from kfchess.db.models import OAuthAccount, User
+        from kfchess.db.session import async_session_factory
+
+        new_email = generate_test_email()
+
+        async with async_session_factory() as session:
+            user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
+            user_manager = UserManager(user_db)
+
+            # Set logging level to capture warnings
+            with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+                # Call oauth_callback with an expired token (timestamp in the past)
+                result = await user_manager.oauth_callback(
+                    oauth_name="google",
+                    access_token="expired_token",
+                    account_id=f"expired_account_{new_email[:8]}",
+                    account_email=new_email,
+                    expires_at=1,  # Expired timestamp (Jan 1, 1970)
+                    refresh_token="test_refresh",
+                    is_verified_by_default=True,
+                )
+
+                # Should still create user (token validation is just logging)
+                assert result is not None
+                assert result.email == new_email
+
+                # Should have logged a warning about expired token
+                assert any(
+                    "expired token" in record.message.lower() for record in caplog.records
+                )
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_with_empty_token_logs_warning(self, caplog):
+        """Test that OAuth callback logs warning for empty access token."""
+        import logging
+
+        from fastapi_users.db import SQLAlchemyUserDatabase
+
+        from kfchess.auth.users import UserManager
+        from kfchess.db.models import OAuthAccount, User
+        from kfchess.db.session import async_session_factory
+
+        new_email = generate_test_email()
+
+        async with async_session_factory() as session:
+            user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
+            user_manager = UserManager(user_db)
+
+            with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+                # Call oauth_callback with empty access token
+                result = await user_manager.oauth_callback(
+                    oauth_name="google",
+                    access_token="",  # Empty token
+                    account_id=f"empty_token_account_{new_email[:8]}",
+                    account_email=new_email,
+                    expires_at=2147483647,
+                    refresh_token="test_refresh",
+                    is_verified_by_default=True,
+                )
+
+                # Should still create user
+                assert result is not None
+                assert result.email == new_email
+
+                # Should have logged a warning about empty token
+                assert any(
+                    "empty access_token" in record.message.lower()
+                    for record in caplog.records
+                )

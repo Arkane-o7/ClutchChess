@@ -6,12 +6,14 @@ email sending, and legacy Google OAuth user handling.
 
 import logging
 import random
+import time
 from typing import Any
 
 from fastapi import Request
 from fastapi_users import BaseUserManager, IntegerIDMixin
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from kfchess.auth.email import send_password_reset_email, send_verification_email
 from kfchess.db.models import OAuthAccount, User
@@ -148,7 +150,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         Returns:
             The authenticated user (existing legacy user or newly created)
+
+        Raises:
+            OAuthUserAlreadyExists: If email is already used by a password-based user
         """
+        from fastapi_users.exceptions import UserAlreadyExists
+
+        # Validate token data (log warnings for suspicious values)
+        self._validate_oauth_tokens(access_token, expires_at, refresh_token)
+
         # For Google OAuth, check for legacy users by google_id
         # Legacy users have their email stored in google_id field
         if oauth_name == "google" and account_email:
@@ -184,6 +194,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             if user:
                 return user
 
+            # Orphaned OAuth account - user was deleted but OAuth record remains
+            # Log warning and delete the orphaned OAuth account, then continue
+            # to create a new user
+            logger.warning(
+                f"Found orphaned OAuth account {oauth_account.id} for deleted user "
+                f"{oauth_account.user_id}. Deleting orphaned account."
+            )
+            await self.user_db.session.delete(oauth_account)
+            await self.user_db.session.flush()
+
         # Check for existing user by email (if associate_by_email is True)
         if associate_by_email and account_email:
             user = await self.user_db.get_by_email(account_email)
@@ -200,18 +220,35 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 )
                 return user
 
+        # Check if email already exists as a password-based user
+        # (not legacy, and not associate_by_email mode)
+        if account_email:
+            existing_user = await self.user_db.get_by_email(account_email)
+            if existing_user:
+                logger.warning(
+                    f"OAuth callback for email {account_email} which already exists "
+                    f"as a password-based user. User should link OAuth or login with password."
+                )
+                raise UserAlreadyExists()
+
         # Create new user with auto-generated username
-        username = await self._generate_unique_username()
-        new_user = User(
-            email=account_email,
-            username=username,
-            hashed_password=self.password_helper.hash(self.password_helper.generate()),
-            is_active=True,
-            is_verified=is_verified_by_default,
-            is_superuser=False,
-        )
-        self.user_db.session.add(new_user)
-        await self.user_db.session.flush()
+        try:
+            username = await self._generate_unique_username()
+            new_user = User(
+                email=account_email,
+                username=username,
+                hashed_password=self.password_helper.hash(self.password_helper.generate()),
+                is_active=True,
+                is_verified=is_verified_by_default,
+                is_superuser=False,
+            )
+            self.user_db.session.add(new_user)
+            await self.user_db.session.flush()
+        except IntegrityError as e:
+            # Handle race condition where email or username was taken between checks
+            await self.user_db.session.rollback()
+            logger.warning(f"IntegrityError during OAuth user creation: {e}")
+            raise UserAlreadyExists() from e
 
         logger.info(f"Created new OAuth user {new_user.id} ({new_user.username})")
 
@@ -228,6 +265,30 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         await self.on_after_register(new_user, request)
         return new_user
+
+    def _validate_oauth_tokens(
+        self,
+        access_token: str,
+        expires_at: int | None,
+        refresh_token: str | None,
+    ) -> None:
+        """Validate OAuth tokens and log warnings for suspicious values.
+
+        Args:
+            access_token: OAuth access token
+            expires_at: Token expiration timestamp
+            refresh_token: OAuth refresh token
+        """
+        if not access_token:
+            logger.warning("OAuth callback received empty access_token")
+
+        if expires_at is not None:
+            current_time = int(time.time())
+            if expires_at < current_time:
+                logger.warning(
+                    f"OAuth callback received expired token (expires_at={expires_at}, "
+                    f"current_time={current_time})"
+                )
 
     async def _get_oauth_account(self, oauth_name: str, account_id: str) -> OAuthAccount | None:
         """Get an OAuth account by provider name and account ID.

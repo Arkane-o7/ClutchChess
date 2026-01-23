@@ -3,6 +3,10 @@
 ## Project Overview
 Kung Fu Chess - a real-time chess variant where pieces move simultaneously with cooldowns and collision-based captures.
 
+## Git Workflow
+- Do NOT commit or push changes unless explicitly asked to
+- When asked to commit, follow standard commit message conventions
+
 ## Project Structure
 ```
 kfchess-cc/

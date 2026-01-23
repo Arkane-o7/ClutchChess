@@ -197,6 +197,7 @@ class TestUserManager:
         """Test oauth_callback creates new user when no legacy user found."""
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
         user_manager._get_oauth_account = AsyncMock(return_value=None)
+        user_manager.user_db.get_by_email = AsyncMock(return_value=None)  # No existing user
         user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
         user_manager._create_or_update_oauth_account = AsyncMock()
         user_manager.on_after_register = AsyncMock()
@@ -227,6 +228,7 @@ class TestUserManager:
         """Test oauth_callback skips legacy lookup for non-Google providers."""
         user_manager._find_legacy_google_user = AsyncMock()
         user_manager._get_oauth_account = AsyncMock(return_value=None)
+        user_manager.user_db.get_by_email = AsyncMock(return_value=None)  # No existing user
         user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
         user_manager._create_or_update_oauth_account = AsyncMock()
         user_manager.on_after_register = AsyncMock()
@@ -411,3 +413,137 @@ class TestUserManagerCreate:
             # Should have preserved the provided username
             call_args = mock_parent.call_args[0][0]
             assert call_args.username == "CustomUsername"
+
+
+class TestUserManagerOAuthEdgeCases:
+    """Tests for OAuth edge cases in UserManager."""
+
+    @pytest.fixture
+    def user_manager(self, mock_user_db):
+        """Create a UserManager with mocked database."""
+        return UserManager(mock_user_db)
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_raises_for_existing_password_user(self, user_manager):
+        """Test oauth_callback raises UserAlreadyExists for existing password users."""
+        from fastapi_users.exceptions import UserAlreadyExists
+
+        # Mock no legacy user found
+        user_manager._find_legacy_google_user = AsyncMock(return_value=None)
+        # Mock no existing OAuth account
+        user_manager._get_oauth_account = AsyncMock(return_value=None)
+
+        # Mock existing user found by email
+        existing_user = MagicMock(spec=User)
+        existing_user.id = 123
+        existing_user.email = "existing@example.com"
+        user_manager.user_db.get_by_email = AsyncMock(return_value=existing_user)
+
+        with pytest.raises(UserAlreadyExists):
+            await user_manager.oauth_callback(
+                oauth_name="google",
+                access_token="test_token",
+                account_id="123456789",
+                account_email="existing@example.com",
+                associate_by_email=False,  # Not associating by email
+            )
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_handles_orphaned_oauth_account(self, user_manager):
+        """Test oauth_callback handles orphaned OAuth accounts gracefully."""
+        # Mock no legacy user found
+        user_manager._find_legacy_google_user = AsyncMock(return_value=None)
+
+        # Mock existing OAuth account but no user
+        orphan_oauth = MagicMock(spec=OAuthAccount)
+        orphan_oauth.id = 999
+        orphan_oauth.user_id = 888
+        user_manager._get_oauth_account = AsyncMock(return_value=orphan_oauth)
+
+        # Mock user lookup returns None (user deleted)
+        user_manager.user_db.get = AsyncMock(return_value=None)
+        user_manager.user_db.get_by_email = AsyncMock(return_value=None)
+        user_manager.user_db.session.delete = AsyncMock()
+        user_manager.user_db.session.flush = AsyncMock()
+        user_manager.user_db.session.add = MagicMock()
+
+        # Mock username generation
+        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager._create_or_update_oauth_account = AsyncMock()
+        user_manager.on_after_register = AsyncMock()
+
+        result = await user_manager.oauth_callback(
+            oauth_name="google",
+            access_token="test_token",
+            account_id="123456789",
+            account_email="orphan@example.com",
+            is_verified_by_default=True,
+        )
+
+        # Should have deleted the orphan OAuth account
+        user_manager.user_db.session.delete.assert_called_once_with(orphan_oauth)
+
+        # Should have created a new user
+        assert result is not None
+        assert result.email == "orphan@example.com"
+
+    @pytest.mark.asyncio
+    async def test_oauth_callback_handles_integrity_error(self, user_manager):
+        """Test oauth_callback handles IntegrityError gracefully."""
+        from fastapi_users.exceptions import UserAlreadyExists
+        from sqlalchemy.exc import IntegrityError
+
+        # Mock no legacy user found
+        user_manager._find_legacy_google_user = AsyncMock(return_value=None)
+        user_manager._get_oauth_account = AsyncMock(return_value=None)
+        user_manager.user_db.get_by_email = AsyncMock(return_value=None)
+        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager.user_db.session.add = MagicMock()
+        user_manager.user_db.session.rollback = AsyncMock()
+
+        # Mock flush to raise IntegrityError (simulating race condition)
+        user_manager.user_db.session.flush = AsyncMock(
+            side_effect=IntegrityError("statement", "params", Exception("duplicate"))
+        )
+
+        with pytest.raises(UserAlreadyExists):
+            await user_manager.oauth_callback(
+                oauth_name="google",
+                access_token="test_token",
+                account_id="123456789",
+                account_email="race@example.com",
+            )
+
+        # Should have called rollback
+        user_manager.user_db.session.rollback.assert_called_once()
+
+    def test_validate_oauth_tokens_logs_warning_for_empty_token(self, user_manager, caplog):
+        """Test _validate_oauth_tokens logs warning for empty access token."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+            user_manager._validate_oauth_tokens("", None, None)
+            assert any("empty access_token" in record.message.lower() for record in caplog.records)
+
+    def test_validate_oauth_tokens_logs_warning_for_expired_token(self, user_manager, caplog):
+        """Test _validate_oauth_tokens logs warning for expired token."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+            user_manager._validate_oauth_tokens("valid_token", 1, None)  # expired timestamp
+            assert any("expired token" in record.message.lower() for record in caplog.records)
+
+    def test_validate_oauth_tokens_no_warning_for_valid_token(self, user_manager, caplog):
+        """Test _validate_oauth_tokens doesn't log for valid token."""
+        import logging
+        import time
+
+        future_timestamp = int(time.time()) + 3600  # 1 hour in the future
+
+        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+            user_manager._validate_oauth_tokens("valid_token", future_timestamp, "refresh_token")
+            # Should not have any warnings
+            assert not any(
+                "expired" in record.message.lower() or "empty" in record.message.lower()
+                for record in caplog.records
+            )

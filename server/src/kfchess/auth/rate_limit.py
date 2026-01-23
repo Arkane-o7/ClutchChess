@@ -21,6 +21,7 @@ LOGIN_LIMIT = "5/minute"
 REGISTER_LIMIT = "3/minute"
 FORGOT_PASSWORD_LIMIT = "3/minute"
 VERIFY_LIMIT = "5/minute"
+OAUTH_LIMIT = "10/minute"  # More lenient since OAuth involves redirects
 
 
 def create_rate_limit_dependency(limit_string: str) -> Callable:
@@ -58,3 +59,4 @@ login_rate_limit = create_rate_limit_dependency(LOGIN_LIMIT)
 register_rate_limit = create_rate_limit_dependency(REGISTER_LIMIT)
 forgot_password_rate_limit = create_rate_limit_dependency(FORGOT_PASSWORD_LIMIT)
 verify_rate_limit = create_rate_limit_dependency(VERIFY_LIMIT)
+oauth_rate_limit = create_rate_limit_dependency(OAUTH_LIMIT)

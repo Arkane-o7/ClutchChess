@@ -36,6 +36,7 @@ class TestSendVerificationEmail:
     async def test_sends_email_when_resend_enabled(self, mock_settings):
         """Test verification email is sent when Resend configured."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -65,6 +66,7 @@ class TestSendVerificationEmail:
     async def test_returns_false_on_send_failure(self, mock_settings):
         """Test returns False when email sending fails."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -92,6 +94,7 @@ class TestSendVerificationEmail:
     async def test_does_not_raise_on_failure(self, mock_settings):
         """Test that email failure doesn't raise exception."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -136,6 +139,7 @@ class TestSendPasswordResetEmail:
     async def test_sends_email_when_resend_enabled(self, mock_settings):
         """Test password reset email is sent when Resend configured."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -164,6 +168,7 @@ class TestSendPasswordResetEmail:
     async def test_returns_false_on_send_failure(self, mock_settings):
         """Test returns False when email sending fails."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -186,6 +191,7 @@ class TestSendPasswordResetEmail:
     async def test_does_not_raise_on_failure(self, mock_settings):
         """Test that email failure doesn't raise exception."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.resend_api_key = "test_api_key"
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
@@ -213,6 +219,7 @@ class TestEmailUrlGeneration:
     async def test_verification_url_includes_token(self, mock_settings):
         """Test verification URL includes the token as query param."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.frontend_url = "https://kfchess.com"
         mock_settings.resend_api_key = "key"
         mock_settings.email_from = "noreply@test.com"
@@ -232,6 +239,7 @@ class TestEmailUrlGeneration:
     async def test_reset_url_includes_token(self, mock_settings):
         """Test password reset URL includes the token as query param."""
         mock_settings.resend_enabled = True
+        mock_settings.send_emails = True
         mock_settings.frontend_url = "https://kfchess.com"
         mock_settings.resend_api_key = "key"
         mock_settings.email_from = "noreply@test.com"

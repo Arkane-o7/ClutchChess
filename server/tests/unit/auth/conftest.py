@@ -49,6 +49,7 @@ def mock_settings():
     settings.secret_key = "test-secret-key-for-testing"
     settings.resend_enabled = False
     settings.resend_api_key = ""
+    settings.send_emails = False  # Default to not sending real emails
     settings.frontend_url = "http://localhost:5173"
     settings.email_from = "noreply@test.com"
     settings.google_oauth_enabled = False

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Email (Resend)
     resend_api_key: str = ""
     email_from: str = "noreply@kfchess.com"
+    send_emails: bool = False  # Must be explicitly enabled to send real emails
 
     # Frontend
     frontend_url: str = "http://localhost:5173"

@@ -59,6 +59,9 @@ async def send_verification_email(email: str, token: str) -> bool:
     Email failures are logged but not raised to prevent registration
     from failing. Users can request a new verification email if needed.
 
+    Real emails are only sent when SEND_EMAILS=true is set. Otherwise,
+    tokens are logged to console for development/testing.
+
     Args:
         email: User's email address
         token: Verification token to include in link
@@ -68,7 +71,7 @@ async def send_verification_email(email: str, token: str) -> bool:
     """
     settings = get_settings()
 
-    if not settings.resend_enabled:
+    if not settings.send_emails or not settings.resend_enabled:
         logger.info(f"[DEV] Verification token for {email}: {token}")
         return True
 
@@ -104,6 +107,9 @@ async def send_password_reset_email(email: str, token: str) -> bool:
     reset flow from failing and to avoid leaking information about
     which emails exist in the system.
 
+    Real emails are only sent when SEND_EMAILS=true is set. Otherwise,
+    tokens are logged to console for development/testing.
+
     Args:
         email: User's email address
         token: Reset token to include in link
@@ -113,7 +119,7 @@ async def send_password_reset_email(email: str, token: str) -> bool:
     """
     settings = get_settings()
 
-    if not settings.resend_enabled:
+    if not settings.send_emails or not settings.resend_enabled:
         logger.info(f"[DEV] Password reset token for {email}: {token}")
         return True
 

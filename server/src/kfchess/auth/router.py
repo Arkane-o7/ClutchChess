@@ -7,6 +7,7 @@ routes and optional Google OAuth support.
 from fastapi import APIRouter, Depends
 from httpx_oauth.clients.google import GoogleOAuth2
 
+from kfchess.api.users import router as users_router
 from kfchess.auth.backend import auth_backend
 from kfchess.auth.dependencies import fastapi_users
 from kfchess.auth.rate_limit import (
@@ -15,7 +16,7 @@ from kfchess.auth.rate_limit import (
     register_rate_limit,
     verify_rate_limit,
 )
-from kfchess.auth.schemas import UserCreate, UserRead, UserUpdate
+from kfchess.auth.schemas import UserCreate, UserRead
 from kfchess.settings import get_settings
 
 
@@ -62,12 +63,8 @@ def get_auth_router() -> APIRouter:
         dependencies=[Depends(verify_rate_limit)],
     )
 
-    # User management routes (me, update) - no rate limiting needed
-    router.include_router(
-        fastapi_users.get_users_router(UserRead, UserUpdate),
-        prefix="/users",
-        tags=["users"],
-    )
+    # User management routes (me, update) - uses custom router with DEV_MODE bypass
+    router.include_router(users_router)
 
     # Google OAuth routes (conditional on configuration)
     settings = get_settings()

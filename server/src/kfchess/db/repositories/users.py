@@ -35,7 +35,7 @@ class UserRepository:
             User or None if not found
         """
         result = await self.session.execute(select(User).where(User.id == user_id))
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_by_username(self, username: str) -> User | None:
         """Get a user by username.
@@ -47,7 +47,7 @@ class UserRepository:
             User or None if not found
         """
         result = await self.session.execute(select(User).where(User.username == username))
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_by_google_id(self, google_id: str) -> User | None:
         """Get a user by Google OAuth ID.
@@ -61,7 +61,7 @@ class UserRepository:
             User or None if not found
         """
         result = await self.session.execute(select(User).where(User.google_id == google_id))
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def is_username_available(self, username: str) -> bool:
         """Check if a username is available.

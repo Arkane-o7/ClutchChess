@@ -1,10 +1,10 @@
 """Tests for WebSocket functionality."""
 
-import asyncio
 import json
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from kfchess.main import app
 from kfchess.services.game_service import get_game_service
@@ -96,7 +96,7 @@ class TestWebSocketEndpoint:
 
     def test_websocket_connect_invalid_game(self, client: TestClient) -> None:
         """Test connecting to a nonexistent game."""
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/game/NOTFOUND"):
                 pass
 

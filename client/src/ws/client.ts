@@ -180,7 +180,7 @@ export class GameWebSocketClient {
     }
   }
 
-  private handleClose(_event: CloseEvent): void {
+  private handleClose(): void {
     this.stopPing();
     this.ws = null;
 
@@ -192,7 +192,7 @@ export class GameWebSocketClient {
     this.scheduleReconnect();
   }
 
-  private handleError(_event: Event): void {
+  private handleError(): void {
     // The close handler will be called after this, which handles reconnection
   }
 

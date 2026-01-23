@@ -1,12 +1,10 @@
 """Tests for the game service."""
 
-import pytest
 
-from kfchess.ai.base import AIPlayer
 from kfchess.ai.dummy import DummyAI
 from kfchess.game.board import BoardType
 from kfchess.game.state import GameStatus, Speed
-from kfchess.services.game_service import GameService, ManagedGame
+from kfchess.services.game_service import GameService
 
 
 class TestGameService:

@@ -1,7 +1,7 @@
 """Tests for the ReplayRepository."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -144,7 +144,7 @@ class TestReplayRepositorySave:
             created_at=datetime(2025, 1, 21, 12, 0, 0),
         )
 
-        result = await repository.save("TESTGAME", replay)
+        await repository.save("TESTGAME", replay)
 
         # Verify session.add was called with a GameReplay
         session.add.assert_called_once()

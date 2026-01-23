@@ -9,6 +9,7 @@ from kfchess.main import app
 def generate_test_email() -> str:
     """Generate a unique test email."""
     import uuid
+
     return f"test_{uuid.uuid4().hex[:8]}@example.com"
 
 
@@ -222,6 +223,7 @@ class TestUserUpdate:
     async def test_update_username(self):
         """Test updating username."""
         import uuid
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             email = generate_test_email()

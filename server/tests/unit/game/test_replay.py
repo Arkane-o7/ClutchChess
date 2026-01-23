@@ -1,14 +1,12 @@
 """Tests for the replay system."""
 
-from datetime import datetime, UTC
-
-import pytest
+from datetime import UTC, datetime
 
 from kfchess.game.board import Board, BoardType
-from kfchess.game.engine import GameEngine, GameEventType
+from kfchess.game.engine import GameEngine
 from kfchess.game.pieces import Piece, PieceType
 from kfchess.game.replay import Replay, ReplayEngine, _convert_v1_to_v2
-from kfchess.game.state import GameState, GameStatus, ReplayMove, Speed
+from kfchess.game.state import GameStatus, ReplayMove, Speed
 
 
 class TestReplayDataclass:
@@ -311,10 +309,6 @@ class TestReplayEngine:
 
     def test_get_state_at_tick_after_move_complete(self):
         """Test getting state at a tick after a move completed."""
-        config_standard = {
-            "ticks_per_square": 10,
-        }
-
         replay = Replay(
             version=2,
             speed=Speed.STANDARD,

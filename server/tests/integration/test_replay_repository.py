@@ -9,7 +9,7 @@ These tests hit the real PostgreSQL database to catch issues like:
 Run with: uv run pytest tests/integration/test_replay_repository.py -v
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +47,7 @@ class TestReplayRepositorySaveIntegration:
                 total_ticks=100,
                 winner=1,
                 win_reason="king_captured",
-                created_at=datetime.now(timezone.utc),  # Timezone-aware!
+                created_at=datetime.now(UTC),  # Timezone-aware!
             )
 
             repository = ReplayRepository(db_session)
@@ -137,7 +137,7 @@ class TestReplayRepositorySaveIntegration:
                 total_ticks=100,
                 winner=1,
                 win_reason="king_captured",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             repository = ReplayRepository(db_session)
@@ -179,11 +179,11 @@ class TestReplayRepositoryJsonHandling:
                 total_ticks=5000,
                 winner=1,
                 win_reason="king_captured",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             repository = ReplayRepository(db_session)
-            record = await repository.save(game_id, replay)
+            await repository.save(game_id, replay)
             await db_session.commit()
 
             # Verify all moves are preserved
@@ -212,11 +212,11 @@ class TestReplayRepositoryJsonHandling:
                 total_ticks=100,
                 winner=1,
                 win_reason="king_captured",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             repository = ReplayRepository(db_session)
-            record = await repository.save(game_id, replay)
+            await repository.save(game_id, replay)
             await db_session.commit()
 
             loaded = await repository.get_by_id(game_id)
@@ -256,11 +256,11 @@ class TestReplayRepositoryFourPlayer:
                 total_ticks=200,
                 winner=3,
                 win_reason="last_standing",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             repository = ReplayRepository(db_session)
-            record = await repository.save(game_id, replay)
+            await repository.save(game_id, replay)
             await db_session.commit()
 
             loaded = await repository.get_by_id(game_id)
@@ -290,7 +290,7 @@ class TestReplayRepositoryDelete:
             total_ticks=100,
             winner=1,
             win_reason="king_captured",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         repository = ReplayRepository(db_session)

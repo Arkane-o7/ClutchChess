@@ -1,8 +1,9 @@
 """Integration tests for DEV_MODE authentication bypass."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import patch, MagicMock
 
 from kfchess.main import app
 
@@ -10,6 +11,7 @@ from kfchess.main import app
 def generate_test_email() -> str:
     """Generate a unique test email."""
     import uuid
+
     return f"test_{uuid.uuid4().hex[:8]}@example.com"
 
 

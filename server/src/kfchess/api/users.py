@@ -6,7 +6,7 @@ DEV_MODE authentication bypass for local development.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from kfchess.auth.dependencies import (
@@ -65,6 +65,6 @@ async def update_current_user(
     try:
         updated_user = await user_manager.update(update_data, user)
         return updated_user
-    except Exception as e:
+    except Exception:
         # Let FastAPI-Users exceptions propagate (validation errors, etc.)
         raise

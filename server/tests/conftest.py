@@ -7,12 +7,13 @@ os.environ["RATE_LIMITING_ENABLED"] = "false"
 
 # Clear the settings cache to pick up the new environment variable
 from kfchess.settings import get_settings
+
 get_settings.cache_clear()
 
-import pytest
-from httpx import ASGITransport, AsyncClient
+import pytest  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
 
-from kfchess.main import app
+from kfchess.main import app  # noqa: E402
 
 
 @pytest.fixture

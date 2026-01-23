@@ -1,7 +1,8 @@
 """Tests for email sending functionality."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from kfchess.auth.email import (
     send_password_reset_email,
@@ -17,13 +18,9 @@ class TestSendVerificationEmail:
         """Test verification token logged to console when Resend disabled."""
         mock_settings.resend_enabled = False
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch("kfchess.auth.email.logger") as mock_logger:
-                result = await send_verification_email(
-                    "user@test.com", "test_token_123"
-                )
+                result = await send_verification_email("user@test.com", "test_token_123")
 
         assert result is True
         mock_logger.info.assert_called_once()
@@ -41,15 +38,9 @@ class TestSendVerificationEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.auth.email._send_email_async", new_callable=AsyncMock
-            ) as mock_send:
-                result = await send_verification_email(
-                    "user@test.com", "verify_token"
-                )
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
+            with patch("kfchess.auth.email._send_email_async", new_callable=AsyncMock) as mock_send:
+                result = await send_verification_email("user@test.com", "verify_token")
 
         assert result is True
         mock_send.assert_called_once()
@@ -71,18 +62,14 @@ class TestSendVerificationEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch(
                 "kfchess.auth.email._send_email_async",
                 new_callable=AsyncMock,
                 side_effect=Exception("API error"),
             ):
                 with patch("kfchess.auth.email.logger") as mock_logger:
-                    result = await send_verification_email(
-                        "user@test.com", "token"
-                    )
+                    result = await send_verification_email("user@test.com", "token")
 
         assert result is False
         # Should log the error
@@ -99,9 +86,7 @@ class TestSendVerificationEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch(
                 "kfchess.auth.email._send_email_async",
                 new_callable=AsyncMock,
@@ -121,13 +106,9 @@ class TestSendPasswordResetEmail:
         """Test password reset token logged when Resend disabled."""
         mock_settings.resend_enabled = False
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch("kfchess.auth.email.logger") as mock_logger:
-                result = await send_password_reset_email(
-                    "user@test.com", "reset_token_456"
-                )
+                result = await send_password_reset_email("user@test.com", "reset_token_456")
 
         assert result is True
         mock_logger.info.assert_called_once()
@@ -144,15 +125,9 @@ class TestSendPasswordResetEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.auth.email._send_email_async", new_callable=AsyncMock
-            ) as mock_send:
-                result = await send_password_reset_email(
-                    "user@test.com", "reset_token"
-                )
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
+            with patch("kfchess.auth.email._send_email_async", new_callable=AsyncMock) as mock_send:
+                result = await send_password_reset_email("user@test.com", "reset_token")
 
         assert result is True
         mock_send.assert_called_once()
@@ -173,17 +148,13 @@ class TestSendPasswordResetEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch(
                 "kfchess.auth.email._send_email_async",
                 new_callable=AsyncMock,
                 side_effect=Exception("API error"),
             ):
-                result = await send_password_reset_email(
-                    "user@test.com", "token"
-                )
+                result = await send_password_reset_email("user@test.com", "token")
 
         assert result is False
 
@@ -196,18 +167,14 @@ class TestSendPasswordResetEmail:
         mock_settings.frontend_url = "http://localhost:5173"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
             with patch(
                 "kfchess.auth.email._send_email_async",
                 new_callable=AsyncMock,
                 side_effect=Exception("Network error"),
             ):
                 # Should not raise
-                result = await send_password_reset_email(
-                    "user@test.com", "token"
-                )
+                result = await send_password_reset_email("user@test.com", "token")
 
         assert result is False
 
@@ -224,12 +191,8 @@ class TestEmailUrlGeneration:
         mock_settings.resend_api_key = "key"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.auth.email._send_email_async", new_callable=AsyncMock
-            ) as mock_send:
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
+            with patch("kfchess.auth.email._send_email_async", new_callable=AsyncMock) as mock_send:
                 await send_verification_email("user@test.com", "my_token")
 
         html = mock_send.call_args[0][0]["html"]
@@ -244,12 +207,8 @@ class TestEmailUrlGeneration:
         mock_settings.resend_api_key = "key"
         mock_settings.email_from = "noreply@test.com"
 
-        with patch(
-            "kfchess.auth.email.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.auth.email._send_email_async", new_callable=AsyncMock
-            ) as mock_send:
+        with patch("kfchess.auth.email.get_settings", return_value=mock_settings):
+            with patch("kfchess.auth.email._send_email_async", new_callable=AsyncMock) as mock_send:
                 await send_password_reset_email("user@test.com", "reset_token")
 
         html = mock_send.call_args[0][0]["html"]

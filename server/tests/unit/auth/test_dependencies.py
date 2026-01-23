@@ -1,13 +1,13 @@
 """Tests for authentication dependencies including DEV_MODE bypass."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from kfchess.auth.dependencies import (
     get_current_user_with_dev_bypass,
     get_required_user_with_dev_bypass,
 )
-from kfchess.db.models import User
 
 
 class TestGetCurrentUserWithDevBypass:
@@ -30,9 +30,7 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = False
         mock_settings.dev_user_id = None
 
-        with patch(
-            "kfchess.auth.dependencies.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
             result = await get_current_user_with_dev_bypass(request, None)
 
         assert result is None
@@ -44,17 +42,13 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = True
         mock_settings.dev_user_id = None
 
-        with patch(
-            "kfchess.auth.dependencies.get_settings", return_value=mock_settings
-        ):
+        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
             result = await get_current_user_with_dev_bypass(request, None)
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_dev_user_when_dev_mode_enabled(
-        self, mock_settings, mock_user
-    ):
+    async def test_returns_dev_user_when_dev_mode_enabled(self, mock_settings, mock_user):
         """Test returns dev user when DEV_MODE enabled and no auth."""
         request = MagicMock()
         mock_settings.dev_mode = True
@@ -63,21 +57,13 @@ class TestGetCurrentUserWithDevBypass:
         mock_user.id = 999
         mock_user.username = "DevUser"
 
-        with patch(
-            "kfchess.auth.dependencies.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.db.session.async_session_factory"
-            ) as mock_factory:
+        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
+            with patch("kfchess.db.session.async_session_factory") as mock_factory:
                 mock_session = AsyncMock()
-                mock_factory.return_value.__aenter__ = AsyncMock(
-                    return_value=mock_session
-                )
+                mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch(
-                    "kfchess.db.repositories.UserRepository"
-                ) as MockUserRepo:
+                with patch("kfchess.db.repositories.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=mock_user)
                     MockUserRepo.return_value = mock_repo
@@ -94,21 +80,13 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = True
         mock_settings.dev_user_id = 999
 
-        with patch(
-            "kfchess.auth.dependencies.get_settings", return_value=mock_settings
-        ):
-            with patch(
-                "kfchess.db.session.async_session_factory"
-            ) as mock_factory:
+        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
+            with patch("kfchess.db.session.async_session_factory") as mock_factory:
                 mock_session = AsyncMock()
-                mock_factory.return_value.__aenter__ = AsyncMock(
-                    return_value=mock_session
-                )
+                mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch(
-                    "kfchess.db.repositories.UserRepository"
-                ) as MockUserRepo:
+                with patch("kfchess.db.repositories.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=None)
                     MockUserRepo.return_value = mock_repo
@@ -118,9 +96,7 @@ class TestGetCurrentUserWithDevBypass:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_does_not_override_authenticated_user_in_dev_mode(
-        self, mock_settings, mock_user
-    ):
+    async def test_does_not_override_authenticated_user_in_dev_mode(self, mock_settings, mock_user):
         """Test that authenticated user is NOT overridden even in DEV_MODE."""
         request = MagicMock()
         mock_settings.dev_mode = True

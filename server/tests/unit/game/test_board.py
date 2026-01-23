@@ -1,6 +1,5 @@
 """Tests for board representation."""
 
-import pytest
 
 from kfchess.game.board import Board, BoardType
 from kfchess.game.pieces import Piece, PieceType

@@ -1,9 +1,10 @@
 """Pytest fixtures for auth unit tests."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kfchess.db.models import User, OAuthAccount
+import pytest
+
+from kfchess.db.models import User
 
 
 @pytest.fixture

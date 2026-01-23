@@ -6,6 +6,9 @@ Kung Fu Chess - a real-time chess variant where pieces move simultaneously with 
 ## Git Workflow
 - Do NOT commit or push changes unless explicitly asked to
 - When asked to commit, follow standard commit message conventions
+- Always run tests and linting before committing:
+  - Backend: `cd server && uv run pytest tests/ -v && uv run ruff check src/ tests/`
+  - Frontend: `cd client && npm test && npm run lint && npm run typecheck`
 
 ## Project Structure
 ```

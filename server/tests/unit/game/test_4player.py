@@ -3,18 +3,15 @@
 import pytest
 
 from kfchess.game.board import Board, BoardType
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.moves import (
-    Move,
-    Cooldown,
-    compute_move_path,
-    check_castling,
-    should_promote_pawn,
-    FOUR_PLAYER_ORIENTATIONS,
-    _compute_pawn_path_4player,
-)
-from kfchess.game.state import GameStatus, Speed
 from kfchess.game.engine import GameEngine, GameEventType
+from kfchess.game.moves import (
+    FOUR_PLAYER_ORIENTATIONS,
+    check_castling,
+    compute_move_path,
+    should_promote_pawn,
+)
+from kfchess.game.pieces import Piece, PieceType
+from kfchess.game.state import GameStatus, Speed
 
 
 class TestBoard4Player:

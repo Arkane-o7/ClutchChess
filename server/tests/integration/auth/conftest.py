@@ -20,6 +20,7 @@ async def reset_db_engine():
 
         # Recreate the engine for the next test
         from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
         from kfchess.settings import get_settings
 
         db_session._engine = create_async_engine(

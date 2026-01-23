@@ -9,6 +9,7 @@ from kfchess.main import app
 def generate_test_email() -> str:
     """Generate a unique test email."""
     import uuid
+
     return f"test_{uuid.uuid4().hex[:8]}@example.com"
 
 
@@ -65,6 +66,7 @@ class TestRegistrationFlow:
     async def test_register_with_custom_username(self):
         """Test registration with a custom username."""
         import uuid
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Use unique username to avoid conflicts with previous test runs

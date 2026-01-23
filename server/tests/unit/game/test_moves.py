@@ -1,22 +1,20 @@
 """Tests for move validation and path computation."""
 
-import pytest
 
 from kfchess.game.board import Board
-from kfchess.game.pieces import Piece, PieceType
 from kfchess.game.moves import (
-    Move,
     Cooldown,
-    compute_move_path,
-    check_castling,
-    _compute_pawn_path,
-    _compute_knight_path,
+    Move,
     _compute_bishop_path,
-    _compute_rook_path,
-    _compute_queen_path,
     _compute_king_path,
-    _build_linear_path,
+    _compute_knight_path,
+    _compute_pawn_path,
+    _compute_queen_path,
+    _compute_rook_path,
+    check_castling,
+    compute_move_path,
 )
+from kfchess.game.pieces import Piece, PieceType
 
 
 class TestMove:

@@ -1,12 +1,11 @@
 """Tests for the core game engine."""
 
-import pytest
 
 from kfchess.game.board import Board
+from kfchess.game.engine import GameEngine, GameEventType
+from kfchess.game.moves import Cooldown, Move
 from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.moves import Move, Cooldown
-from kfchess.game.state import GameState, GameStatus, Speed, SPEED_CONFIGS
-from kfchess.game.engine import GameEngine, GameEvent, GameEventType
+from kfchess.game.state import GameStatus, Speed
 
 
 class TestCreateGame:
@@ -753,7 +752,6 @@ class TestCastlingCapture:
         castling_move = GameEngine.validate_move(state, 1, king.id, 7, 6)
         assert castling_move is not None
         assert castling_move.extra_move is not None  # Has rook move
-        rook_move = castling_move.extra_move
 
         state, _ = GameEngine.apply_move(state, castling_move)
 
@@ -804,7 +802,6 @@ class TestCastlingCapture:
         state, _ = GameEngine.set_player_ready(state, 2)
 
         # Create castling move manually and apply it
-        from kfchess.game.moves import Move
         king_move = Move(
             piece_id=king.id,
             path=[(7, 4), (7, 5), (7, 6)],
@@ -826,7 +823,6 @@ class TestCastlingCapture:
 
         # Simulate king capture by directly manipulating state
         # (In real game, this would happen via collision detection)
-        from kfchess.game.collision import Capture
 
         # Process the capture through the tick logic
         # First mark king as captured and check that extra_move is removed

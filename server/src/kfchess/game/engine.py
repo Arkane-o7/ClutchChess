@@ -9,26 +9,26 @@ import logging
 import uuid
 
 logger = logging.getLogger(__name__)
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from enum import Enum
+from dataclasses import dataclass  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from enum import Enum  # noqa: E402
 
-from kfchess.game.board import Board, BoardType
-from kfchess.game.collision import (
+from kfchess.game.board import Board, BoardType  # noqa: E402
+from kfchess.game.collision import (  # noqa: E402
     detect_collisions,
     get_interpolated_position,
     is_piece_moving,
     is_piece_on_cooldown,
 )
-from kfchess.game.moves import (
+from kfchess.game.moves import (  # noqa: E402
     Cooldown,
     Move,
     check_castling,
     compute_move_path,
     should_promote_pawn,
 )
-from kfchess.game.pieces import PieceType
-from kfchess.game.state import (
+from kfchess.game.pieces import PieceType  # noqa: E402
+from kfchess.game.state import (  # noqa: E402
     GameState,
     GameStatus,
     ReplayMove,

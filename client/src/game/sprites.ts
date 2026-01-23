@@ -95,7 +95,7 @@ export async function loadSprites(): Promise<void> {
  * - Player 2: filled (black) sprites - no tint needed
  * - Players 3-4: outline sprites with color tinting (red/blue)
  */
-export function getPieceTexture(pieceType: PieceType, player: number = 1, _boardType: 'standard' | 'four_player' = 'standard'): Texture {
+export function getPieceTexture(pieceType: PieceType, player: number = 1): Texture {
   // Player 2 uses filled black sprites, all others use outline
   const style = player === 2 ? 'filled' : 'outline';
   const key = getTextureKey(pieceType, style);

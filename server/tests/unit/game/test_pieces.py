@@ -1,6 +1,5 @@
 """Tests for piece definitions."""
 
-import pytest
 
 from kfchess.game.pieces import Piece, PieceType
 

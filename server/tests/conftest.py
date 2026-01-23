@@ -1,5 +1,14 @@
 """Pytest configuration and fixtures."""
 
+import os
+
+# Disable rate limiting for all tests
+os.environ["RATE_LIMITING_ENABLED"] = "false"
+
+# Clear the settings cache to pick up the new environment variable
+from kfchess.settings import get_settings
+get_settings.cache_clear()
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 

@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     dev_mode: bool = False
     dev_user_id: int | None = None
 
+    # Rate limiting (disable for tests)
+    rate_limiting_enabled: bool = True
+
     @property
     def google_oauth_enabled(self) -> bool:
         """Check if Google OAuth is configured."""

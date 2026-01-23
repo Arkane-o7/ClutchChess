@@ -7,8 +7,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from kfchess.api.router import api_router
+from kfchess.auth.rate_limit import limiter
 from kfchess.settings import get_settings
 from kfchess.ws.handler import handle_websocket
 from kfchess.ws.replay_handler import handle_replay_websocket
@@ -70,14 +73,24 @@ app = FastAPI(
 )
 
 # CORS middleware
+# In dev mode, allow localhost. In production, allow the configured frontend URL.
 settings = get_settings()
+cors_origins = (
+    ["http://localhost:5173", "http://127.0.0.1:5173"]
+    if settings.dev_mode
+    else [settings.frontend_url]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"] if settings.dev_mode else [],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.get("/health")

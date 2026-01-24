@@ -21,7 +21,25 @@ from kfchess.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Word lists for random username generation (matching legacy pattern)
+# Word lists for random username generation
+ADJECTIVES = [
+    "Mystic",
+    "Humble",
+    "Fluid",
+    "Flowing",
+    "Patient",
+    "Disciplined",
+    "Swift",
+    "Silent",
+    "Fierce",
+    "Ancient",
+    "Wise",
+    "Steady",
+    "Agile",
+    "Noble",
+    "Serene",
+]
+
 ANIMALS = [
     "Tiger",
     "Leopard",
@@ -46,15 +64,16 @@ CHESS_PIECES = [
 
 
 def generate_random_username() -> str:
-    """Generate a random username like 'Tiger Pawn 456'.
+    """Generate a random username like 'Mystic Tiger Pawn 12345'.
 
     Returns:
-        A random username in the format "Animal Piece Number"
+        A random username in the format "Adjective Animal Piece Number"
     """
+    adjective = random.choice(ADJECTIVES)
     animal = random.choice(ANIMALS)
     piece = random.choice(CHESS_PIECES)
-    number = random.randint(100, 999)
-    return f"{animal} {piece} {number}"
+    number = random.randint(10000, 99999)
+    return f"{adjective} {animal} {piece} {number}"
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):

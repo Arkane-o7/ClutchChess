@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from kfchess.auth.users import (
+    ADJECTIVES,
     ANIMALS,
     CHESS_PIECES,
     UserManager,
@@ -16,36 +17,42 @@ from kfchess.db.models import OAuthAccount, User
 class TestGenerateRandomUsername:
     """Tests for random username generation."""
 
-    def test_generates_three_part_username(self):
-        """Test username has format 'Animal Piece Number'."""
+    def test_generates_four_part_username(self):
+        """Test username has format 'Adjective Animal Piece Number'."""
         username = generate_random_username()
         parts = username.split()
-        assert len(parts) == 3
+        assert len(parts) == 4
 
-    def test_first_part_is_animal(self):
-        """Test first part is a valid animal."""
+    def test_first_part_is_adjective(self):
+        """Test first part is a valid kung fu adjective."""
         username = generate_random_username()
-        animal = username.split()[0]
+        adjective = username.split()[0]
+        assert adjective in ADJECTIVES
+
+    def test_second_part_is_animal(self):
+        """Test second part is a valid animal."""
+        username = generate_random_username()
+        animal = username.split()[1]
         assert animal in ANIMALS
 
-    def test_second_part_is_chess_piece(self):
-        """Test second part is a valid chess piece."""
+    def test_third_part_is_chess_piece(self):
+        """Test third part is a valid chess piece."""
         username = generate_random_username()
-        piece = username.split()[1]
+        piece = username.split()[2]
         assert piece in CHESS_PIECES
 
-    def test_third_part_is_three_digit_number(self):
-        """Test third part is a number between 100 and 999."""
+    def test_fourth_part_is_five_digit_number(self):
+        """Test fourth part is a number between 10000 and 99999."""
         username = generate_random_username()
-        number_str = username.split()[2]
+        number_str = username.split()[3]
         assert number_str.isdigit()
         number = int(number_str)
-        assert 100 <= number <= 999
+        assert 10000 <= number <= 99999
 
     def test_generates_variety(self):
         """Test that function generates different usernames."""
         usernames = {generate_random_username() for _ in range(50)}
-        # With 10 animals * 6 pieces * 900 numbers, should get variety
+        # With 15 adjectives * 10 animals * 6 pieces * 90000 numbers, should get variety
         assert len(usernames) > 10
 
     def test_format_example(self):
@@ -53,10 +60,11 @@ class TestGenerateRandomUsername:
         for _ in range(10):
             username = generate_random_username()
             parts = username.split()
-            assert parts[0] in ANIMALS
-            assert parts[1] in CHESS_PIECES
-            assert parts[2].isdigit()
-            assert len(parts[2]) == 3
+            assert parts[0] in ADJECTIVES
+            assert parts[1] in ANIMALS
+            assert parts[2] in CHESS_PIECES
+            assert parts[3].isdigit()
+            assert len(parts[3]) == 5
 
 
 class TestUserManager:
@@ -79,9 +87,10 @@ class TestUserManager:
 
         # Should be a valid username format
         parts = username.split()
-        assert len(parts) == 3
-        assert parts[0] in ANIMALS
-        assert parts[1] in CHESS_PIECES
+        assert len(parts) == 4
+        assert parts[0] in ADJECTIVES
+        assert parts[1] in ANIMALS
+        assert parts[2] in CHESS_PIECES
 
     @pytest.mark.asyncio
     async def test_generate_unique_username_retries_on_collision(self, user_manager):
@@ -198,7 +207,7 @@ class TestUserManager:
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
         user_manager._get_oauth_account = AsyncMock(return_value=None)
         user_manager.user_db.get_by_email = AsyncMock(return_value=None)  # No existing user
-        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager._generate_unique_username = AsyncMock(return_value="Mystic Tiger Pawn 12345")
         user_manager._create_or_update_oauth_account = AsyncMock()
         user_manager.on_after_register = AsyncMock()
         user_manager.user_db.session.add = MagicMock()
@@ -215,7 +224,7 @@ class TestUserManager:
         # Should have created a new user
         assert result is not None
         assert result.email == "newuser@gmail.com"
-        assert result.username == "Tiger Pawn 123"
+        assert result.username == "Mystic Tiger Pawn 12345"
         assert result.is_verified is True
 
         # Should have called create methods
@@ -229,7 +238,7 @@ class TestUserManager:
         user_manager._find_legacy_google_user = AsyncMock()
         user_manager._get_oauth_account = AsyncMock(return_value=None)
         user_manager.user_db.get_by_email = AsyncMock(return_value=None)  # No existing user
-        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager._generate_unique_username = AsyncMock(return_value="Mystic Tiger Pawn 12345")
         user_manager._create_or_update_oauth_account = AsyncMock()
         user_manager.on_after_register = AsyncMock()
         user_manager.user_db.session.add = MagicMock()
@@ -347,7 +356,7 @@ class TestUserManagerCreate:
             new_callable=AsyncMock,
         ) as mock_parent:
             mock_parent.return_value = mock_user
-            user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+            user_manager._generate_unique_username = AsyncMock(return_value="Mystic Tiger Pawn 12345")
 
             # Should not raise UserAlreadyExists from our check
             # (parent might raise it for duplicate email, but that's expected)
@@ -359,7 +368,7 @@ class TestUserManagerCreate:
         from kfchess.auth.schemas import UserCreate
 
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
-        user_manager._generate_unique_username = AsyncMock(return_value="Dragon Knight 789")
+        user_manager._generate_unique_username = AsyncMock(return_value="Humble Dragon Knight 78901")
 
         new_user = MagicMock(spec=User)
 
@@ -381,7 +390,7 @@ class TestUserManagerCreate:
 
             # Should have passed username to parent
             call_args = mock_parent.call_args[0][0]
-            assert call_args.username == "Dragon Knight 789"
+            assert call_args.username == "Humble Dragon Knight 78901"
 
     @pytest.mark.asyncio
     async def test_create_preserves_provided_username(self, user_manager):
@@ -468,7 +477,7 @@ class TestUserManagerOAuthEdgeCases:
         user_manager.user_db.session.add = MagicMock()
 
         # Mock username generation
-        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager._generate_unique_username = AsyncMock(return_value="Mystic Tiger Pawn 12345")
         user_manager._create_or_update_oauth_account = AsyncMock()
         user_manager.on_after_register = AsyncMock()
 
@@ -497,7 +506,7 @@ class TestUserManagerOAuthEdgeCases:
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
         user_manager._get_oauth_account = AsyncMock(return_value=None)
         user_manager.user_db.get_by_email = AsyncMock(return_value=None)
-        user_manager._generate_unique_username = AsyncMock(return_value="Tiger Pawn 123")
+        user_manager._generate_unique_username = AsyncMock(return_value="Mystic Tiger Pawn 12345")
         user_manager.user_db.session.add = MagicMock()
         user_manager.user_db.session.rollback = AsyncMock()
 

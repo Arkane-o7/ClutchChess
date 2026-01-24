@@ -3,7 +3,16 @@
 from datetime import datetime
 
 from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -68,6 +77,95 @@ class User(SQLAlchemyBaseUserTable[int], Base):
 
     # Relationship to OAuth accounts
     oauth_accounts: Mapped[list[OAuthAccount]] = relationship("OAuthAccount", lazy="joined")
+
+
+class Lobby(Base):
+    """Database model for game lobbies.
+
+    Attributes:
+        id: Unique identifier
+        code: Short join code (e.g., "ABC123")
+        host_id: User ID of the lobby host (NULL for anonymous hosts)
+        speed: Game speed ("standard" or "lightning")
+        player_count: Number of players (2 or 4)
+        is_public: Whether the lobby appears in public listings
+        is_ranked: Whether the game affects ELO ratings
+        status: Lobby lifecycle status ("waiting", "in_game", "finished")
+        game_id: ID of current/last game
+        created_at: When the lobby was created
+        started_at: When the game started
+        finished_at: When the game finished
+    """
+
+    __tablename__ = "lobbies"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
+    host_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    speed: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
+    player_count: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_ranked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="waiting")
+    game_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Relationships
+    host: Mapped["User | None"] = relationship("User", foreign_keys=[host_id])
+    players: Mapped[list["LobbyPlayer"]] = relationship(
+        "LobbyPlayer", back_populates="lobby", cascade="all, delete-orphan"
+    )
+
+
+class LobbyPlayer(Base):
+    """Database model for players in a lobby.
+
+    Attributes:
+        id: Unique identifier
+        lobby_id: Foreign key to the lobby
+        user_id: User ID (NULL for anonymous players)
+        guest_id: Guest identifier for anonymous players
+        player_slot: Slot number (1-4)
+        username: Display name
+        is_ready: Whether the player is ready
+        is_ai: Whether this is an AI player
+        ai_type: AI type identifier (e.g., "bot:dummy")
+        joined_at: When the player joined
+    """
+
+    __tablename__ = "lobby_players"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("lobbies.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    guest_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    player_slot: Mapped[int] = mapped_column(Integer, nullable=False)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ai_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), nullable=False
+    )
+
+    # Relationships
+    lobby: Mapped["Lobby"] = relationship("Lobby", back_populates="players")
+    user: Mapped["User | None"] = relationship("User", foreign_keys=[user_id])
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint("lobby_id", "player_slot", name="uq_lobby_players_lobby_slot"),
+    )
 
 
 class GameReplay(Base):

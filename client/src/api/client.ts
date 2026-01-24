@@ -18,6 +18,12 @@ import type {
   ApiUser,
   RegisterRequest,
   UpdateUserRequest,
+  CreateLobbyRequest,
+  CreateLobbyResponse,
+  JoinLobbyRequest,
+  JoinLobbyResponse,
+  LobbyListResponse,
+  GetLobbyResponse,
 } from './types';
 
 const API_BASE = '/api';
@@ -89,6 +95,26 @@ class UserAlreadyExistsError extends ApiClientError {
   constructor(detail?: string) {
     super('User already exists', 400, detail);
     this.name = 'UserAlreadyExistsError';
+  }
+}
+
+/**
+ * Error thrown when lobby is not found (404)
+ */
+class LobbyNotFoundError extends ApiClientError {
+  constructor(code: string, detail?: string) {
+    super(`Lobby not found: ${code}`, 404, detail);
+    this.name = 'LobbyNotFoundError';
+  }
+}
+
+/**
+ * Error thrown when lobby is full (409)
+ */
+class LobbyFullError extends ApiClientError {
+  constructor(detail?: string) {
+    super('Lobby is full', 409, detail);
+    this.name = 'LobbyFullError';
   }
 }
 
@@ -396,10 +422,96 @@ export async function requestVerificationEmail(email: string): Promise<void> {
   // Always succeeds (202) - doesn't reveal if email exists
 }
 
+// ============================================
+// Lobby API Functions
+// ============================================
+
+/**
+ * Create a new lobby
+ */
+export async function createLobby(req: CreateLobbyRequest = {}): Promise<CreateLobbyResponse> {
+  return request<CreateLobbyResponse>('/lobbies', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+/**
+ * List public lobbies
+ */
+export async function listLobbies(
+  speed?: string,
+  playerCount?: number
+): Promise<LobbyListResponse> {
+  const params = new URLSearchParams();
+  if (speed) params.append('speed', speed);
+  if (playerCount) params.append('playerCount', String(playerCount));
+  const queryString = params.toString();
+  return request<LobbyListResponse>(`/lobbies${queryString ? `?${queryString}` : ''}`);
+}
+
+/**
+ * Get lobby by code
+ */
+export async function getLobby(code: string): Promise<GetLobbyResponse> {
+  try {
+    return await request<GetLobbyResponse>(`/lobbies/${code}`);
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      throw new LobbyNotFoundError(code, error.detail);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Join a lobby
+ */
+export async function joinLobby(
+  code: string,
+  req: JoinLobbyRequest = {}
+): Promise<JoinLobbyResponse> {
+  try {
+    return await request<JoinLobbyResponse>(`/lobbies/${code}/join`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      if (error.status === 404) {
+        throw new LobbyNotFoundError(code, error.detail);
+      }
+      if (error.status === 409) {
+        throw new LobbyFullError(error.detail);
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Delete a lobby (host only)
+ */
+export async function deleteLobby(code: string, playerKey: string): Promise<void> {
+  try {
+    await request<{ success: boolean }>(
+      `/lobbies/${code}?player_key=${encodeURIComponent(playerKey)}`,
+      { method: 'DELETE' }
+    );
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      throw new LobbyNotFoundError(code, error.detail);
+    }
+    throw error;
+  }
+}
+
 export {
   ApiClientError,
   GameNotFoundError,
   InvalidPlayerKeyError,
   AuthenticationError,
   UserAlreadyExistsError,
+  LobbyNotFoundError,
+  LobbyFullError,
 };

@@ -211,3 +211,90 @@ export interface UpdateUserRequest {
 export interface AuthErrorResponse {
   detail: string | { code: string; reason: string };
 }
+
+// ============================================
+// Lobby Types
+// ============================================
+
+// Lobby settings configuration
+export interface LobbySettings {
+  isPublic: boolean;
+  speed: 'standard' | 'lightning';
+  playerCount: 2 | 4;
+  isRanked: boolean;
+}
+
+// A player in a lobby
+export interface LobbyPlayer {
+  slot: number;
+  userId: number | null;
+  username: string;
+  isAi: boolean;
+  aiType: string | null;
+  isReady: boolean;
+}
+
+// Full lobby data from server
+export interface Lobby {
+  id: number;
+  code: string;
+  hostSlot: number;
+  settings: LobbySettings;
+  players: Record<number, LobbyPlayer>;
+  status: 'waiting' | 'in_game' | 'finished';
+  currentGameId: string | null;
+  gamesPlayed: number;
+}
+
+// Create lobby request
+export interface CreateLobbyRequest {
+  settings?: Partial<LobbySettings>;
+  addAi?: boolean;
+  aiType?: string;
+  username?: string;
+  guestId?: string;
+}
+
+// Create lobby response
+export interface CreateLobbyResponse {
+  id: number;
+  code: string;
+  playerKey: string;
+  slot: number;
+  lobby: Lobby;
+}
+
+// Join lobby request
+export interface JoinLobbyRequest {
+  preferredSlot?: number;
+  username?: string;
+  guestId?: string;
+}
+
+// Join lobby response
+export interface JoinLobbyResponse {
+  playerKey: string;
+  slot: number;
+  lobby: Lobby;
+}
+
+// Lobby list item (for public lobbies)
+export interface LobbyListItem {
+  id: number;
+  code: string;
+  hostUsername: string;
+  settings: LobbySettings;
+  playerCount: number;
+  currentPlayers: number;
+  status: string;
+}
+
+// Lobby list response
+export interface LobbyListResponse {
+  lobbies: LobbyListItem[];
+}
+
+// Get lobby response
+export interface GetLobbyResponse {
+  lobby: Lobby;
+}

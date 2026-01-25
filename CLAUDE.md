@@ -35,8 +35,5 @@ npm test                     # Run tests
 - `DEV_MODE=true` bypasses authentication (auto-logs in as DEV_USER_ID)
 - Frontend proxies `/api` and `/ws` to backend in dev mode (vite.config.ts)
 
-## Architecture References
-For detailed specs, see:
-- @docs/ARCHITECTURE.md - System design and implementation status
-- @docs/REPLAY_DESIGN.md - Replay system details
-- @docs/FOUR_PLAYER_DESIGN.md - 4-player board layout
+## Architecture Reference
+For detailed system design, see @docs/ARCHITECTURE.md

@@ -1,14 +1,22 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/game';
-import type { BoardType } from '../stores/game';
+import { useLobbyStore } from '../stores/lobby';
+import { useAuthStore } from '../stores/auth';
+
+type BoardType = 'standard' | 'four_player';
 
 function Home() {
   const navigate = useNavigate();
-  const createGame = useGameStore((s) => s.createGame);
+  const createLobby = useLobbyStore((s) => s.createLobby);
+  const connect = useLobbyStore((s) => s.connect);
+  const user = useAuthStore((s) => s.user);
+
   const [isCreating, setIsCreating] = useState(false);
   const [selectedBoardType, setSelectedBoardType] = useState<BoardType>('standard');
   const [showBoardTypeModal, setShowBoardTypeModal] = useState(false);
+  const [showCreateLobbyModal, setShowCreateLobbyModal] = useState(false);
+  const [isCreatingLobby, setIsCreatingLobby] = useState(false);
+  const [addAiToLobby, setAddAiToLobby] = useState(false);
 
   const handlePlayVsAI = () => {
     setShowBoardTypeModal(true);
@@ -19,23 +27,24 @@ function Home() {
     setIsCreating(true);
 
     try {
-      await createGame({
-        speed: 'standard',
-        board_type: selectedBoardType,
-        opponent: 'bot:dummy',
-      });
+      // Create a private lobby with AI filling the slots
+      const playerCount = selectedBoardType === 'four_player' ? 4 : 2;
+      const code = await createLobby(
+        {
+          isPublic: false,
+          speed: 'standard',
+          playerCount,
+          isRanked: false,
+        },
+        true, // Add AI to fill slots
+        user?.username
+      );
 
-      // Get the game ID from the store
-      const gameId = useGameStore.getState().gameId;
-      const playerKey = useGameStore.getState().playerKey;
-
-      if (gameId) {
-        // Store player key in session storage for reconnection
-        if (playerKey) {
-          sessionStorage.setItem(`playerKey_${gameId}`, playerKey);
-        }
-        navigate(`/game/${gameId}`);
+      const state = useLobbyStore.getState();
+      if (state.playerKey) {
+        connect(code, state.playerKey);
       }
+      navigate(`/lobby/${code}`);
     } catch (error) {
       console.error('Failed to create game:', error);
       alert('Failed to create game. Please try again.');
@@ -44,6 +53,45 @@ function Home() {
       setShowBoardTypeModal(false);
     }
   };
+
+  const handleBrowseLobbies = () => {
+    navigate('/lobbies');
+  };
+
+  const handleCreateLobby = () => {
+    setShowCreateLobbyModal(true);
+  };
+
+  const handleCreateLobbySubmit = useCallback(async () => {
+    if (isCreatingLobby) return;
+    setIsCreatingLobby(true);
+
+    try {
+      const code = await createLobby(
+        {
+          isPublic: false,
+          speed: 'standard',
+          playerCount: 2,
+          isRanked: false,
+        },
+        addAiToLobby,
+        user?.username
+      );
+
+      const state = useLobbyStore.getState();
+      if (state.playerKey) {
+        connect(code, state.playerKey);
+      }
+      navigate(`/lobby/${code}`);
+    } catch (error) {
+      console.error('Failed to create lobby:', error);
+      alert('Failed to create lobby. Please try again.');
+    } finally {
+      setIsCreatingLobby(false);
+      setShowCreateLobbyModal(false);
+      setAddAiToLobby(false);
+    }
+  }, [createLobby, connect, navigate, user?.username, addAiToLobby, isCreatingLobby]);
 
   return (
     <div className="home-page">
@@ -62,7 +110,14 @@ function Home() {
         <div className="play-option">
           <h2>Multiplayer</h2>
           <p>Find an opponent or create a lobby</p>
-          <button className="btn btn-secondary" disabled>Browse Lobbies</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button className="btn btn-primary" onClick={handleBrowseLobbies}>
+              Browse Lobbies
+            </button>
+            <button className="btn btn-secondary" onClick={handleCreateLobby}>
+              Create Lobby
+            </button>
+          </div>
         </div>
 
         <div className="play-option">
@@ -111,6 +166,49 @@ function Home() {
               </button>
               <button className="btn btn-primary" onClick={handleStartGame} disabled={isCreating}>
                 {isCreating ? 'Creating...' : 'Start Game'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Lobby Modal */}
+      {showCreateLobbyModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateLobbyModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Create Lobby</h2>
+            <div className="board-type-options">
+              <label className={`board-type-option ${!addAiToLobby ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="lobbyType"
+                  checked={!addAiToLobby}
+                  onChange={() => setAddAiToLobby(false)}
+                />
+                <div className="board-type-info">
+                  <h3>Wait for Player</h3>
+                  <p>Create a lobby and wait for someone to join</p>
+                </div>
+              </label>
+              <label className={`board-type-option ${addAiToLobby ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="lobbyType"
+                  checked={addAiToLobby}
+                  onChange={() => setAddAiToLobby(true)}
+                />
+                <div className="board-type-info">
+                  <h3>Play vs AI</h3>
+                  <p>Create a lobby with an AI opponent</p>
+                </div>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowCreateLobbyModal(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleCreateLobbySubmit} disabled={isCreatingLobby}>
+                {isCreatingLobby ? 'Creating...' : 'Create Lobby'}
               </button>
             </div>
           </div>

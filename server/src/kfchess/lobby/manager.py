@@ -12,7 +12,7 @@ import logging
 import random
 import secrets
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # Characters for lobby codes (excluding ambiguous: O/0, I/1/L)
 LOBBY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 LOBBY_CODE_LENGTH = 6
+
+# Grace period for disconnected players before removal
+DISCONNECT_GRACE_PERIOD = timedelta(seconds=30)
 
 
 def _generate_lobby_code() -> str:
@@ -70,6 +73,7 @@ class LobbyManager:
         self._lobbies: dict[str, Lobby] = {}  # code -> Lobby
         self._player_keys: dict[str, dict[int, str]] = {}  # code -> {slot: key}
         self._key_to_slot: dict[str, tuple[str, int]] = {}  # key -> (code, slot)
+        self._key_to_player_id: dict[str, str] = {}  # key -> player_id (for cleanup on disconnect)
         self._player_to_lobby: dict[str, tuple[str, int]] = {}  # player_id -> (code, slot)
         self._game_to_lobby: dict[str, str] = {}  # game_id -> lobby_code
         self._next_lobby_id: int = 1
@@ -188,6 +192,7 @@ class LobbyManager:
             # Track player in lobby
             if player_id:
                 self._player_to_lobby[player_id] = (code, 1)
+                self._key_to_player_id[host_key] = player_id
 
             # Add AI players if requested
             if add_ai:
@@ -283,6 +288,7 @@ class LobbyManager:
             # Track player in lobby
             if player_id:
                 self._player_to_lobby[player_id] = (code, slot)
+                self._key_to_player_id[player_key] = player_id
 
             logger.info(f"Player {username} joined lobby {code} in slot {slot}")
 
@@ -314,7 +320,12 @@ class LobbyManager:
                 return None
 
             slot = key_info[1]
-            result = await self._leave_lobby_internal(code, slot, player_id)
+
+            # Look up player_id from key if not provided (needed for proper cleanup)
+            if player_id is None:
+                player_id = self._key_to_player_id.get(player_key)
+
+            result = await self._leave_lobby_internal(code, slot, player_id, player_key)
 
         # Persist or delete outside lock
         if result is None:
@@ -329,6 +340,7 @@ class LobbyManager:
         code: str,
         slot: int,
         player_id: str | None = None,
+        player_key: str | None = None,
     ) -> Lobby | None:
         """Internal method to remove a player from a lobby.
 
@@ -348,10 +360,15 @@ class LobbyManager:
         # Remove player
         del lobby.players[slot]
 
-        # Remove key
+        # Remove key and key->player_id mapping
         if code in self._player_keys and slot in self._player_keys[code]:
             key = self._player_keys[code].pop(slot)
             self._key_to_slot.pop(key, None)
+            self._key_to_player_id.pop(key, None)
+
+        # Also clean up the provided player_key if different
+        if player_key:
+            self._key_to_player_id.pop(player_key, None)
 
         # Remove player tracking
         if player_id:
@@ -373,6 +390,89 @@ class LobbyManager:
             logger.info(f"Host transferred to slot {new_host_slot} in lobby {code}")
 
         return lobby
+
+    async def set_connected(
+        self,
+        code: str,
+        slot: int,
+        connected: bool,
+    ) -> Lobby | None:
+        """Set a player's connection status.
+
+        Args:
+            code: Lobby code
+            slot: Player slot
+            connected: Whether player is connected
+
+        Returns:
+            Updated Lobby or None if not found
+        """
+        async with self._lock:
+            lobby = self._lobbies.get(code)
+            if lobby is None:
+                return None
+
+            player = lobby.players.get(slot)
+            if player is None:
+                return None
+
+            player.is_connected = connected
+            # Track disconnect time for grace period
+            if connected:
+                player.disconnected_at = None
+            else:
+                player.disconnected_at = datetime.utcnow()
+            logger.debug(f"Player in slot {slot} set connected={connected} in lobby {code}")
+
+        # Persist outside lock
+        await self._persist_lobby(lobby)
+
+        return lobby
+
+    async def cleanup_disconnected_players(self, code: str) -> list[int]:
+        """Remove players who have been disconnected past the grace period.
+
+        This is called lazily on lobby access rather than using background tasks,
+        making it stateless and compatible with multiple server processes.
+
+        Args:
+            code: Lobby code
+
+        Returns:
+            List of slots that were cleaned up
+        """
+        cleaned_slots: list[int] = []
+        now = datetime.utcnow()
+
+        async with self._lock:
+            lobby = self._lobbies.get(code)
+            if lobby is None:
+                return cleaned_slots
+
+            # Don't clean up during games
+            if lobby.status == LobbyStatus.IN_GAME:
+                return cleaned_slots
+
+            # Find players past grace period
+            for slot, player in list(lobby.players.items()):
+                if player.is_ai:
+                    continue
+                if player.disconnected_at is None:
+                    continue
+                if now - player.disconnected_at > DISCONNECT_GRACE_PERIOD:
+                    cleaned_slots.append(slot)
+
+            # Remove expired players (still under lock)
+            for slot in cleaned_slots:
+                player = lobby.players.get(slot)
+                if player:
+                    logger.info(
+                        f"Removing player {player.username} from lobby {code} "
+                        f"(disconnected for {DISCONNECT_GRACE_PERIOD.seconds}s)"
+                    )
+                    await self._leave_lobby_internal(code, slot)
+
+        return cleaned_slots
 
     async def set_ready(
         self,
@@ -462,11 +562,19 @@ class LobbyManager:
                     message="Cannot reduce player count below current players",
                 )
 
-            if settings.is_ranked and any(p.is_ai for p in lobby.players.values()):
-                return LobbyError(
-                    code="invalid_settings",
-                    message="Cannot enable ranked with AI players",
-                )
+            if settings.is_ranked:
+                # Ranked games require all players to be logged in (no AI, no guests)
+                for p in lobby.players.values():
+                    if p.is_ai:
+                        return LobbyError(
+                            code="invalid_settings",
+                            message="Cannot enable ranked with AI players",
+                        )
+                    if p.user_id is None:
+                        return LobbyError(
+                            code="invalid_settings",
+                            message="Cannot enable ranked with guest players",
+                        )
 
             # Check if settings actually changed
             old_settings = lobby.settings
@@ -541,10 +649,14 @@ class LobbyManager:
             # Remove player
             del lobby.players[target_slot]
 
-            # Remove key
+            # Remove key and associated mappings
             if target_slot in self._player_keys.get(code, {}):
                 key = self._player_keys[code].pop(target_slot)
                 self._key_to_slot.pop(key, None)
+                # Clean up player_id tracking
+                player_id = self._key_to_player_id.pop(key, None)
+                if player_id:
+                    self._player_to_lobby.pop(player_id, None)
 
             logger.info(f"Player {target.username} kicked from lobby {code}")
 
@@ -832,6 +944,7 @@ class LobbyManager:
         status: LobbyStatus | None = None,
         speed: str | None = None,
         player_count: int | None = None,
+        is_ranked: bool | None = None,
     ) -> list[Lobby]:
         """Get all public lobbies, optionally filtered.
 
@@ -839,6 +952,7 @@ class LobbyManager:
             status: Filter by status (defaults to WAITING)
             speed: Filter by speed setting
             player_count: Filter by player count
+            is_ranked: Filter by ranked/unranked setting
 
         Returns:
             List of matching lobbies
@@ -853,9 +967,13 @@ class LobbyManager:
                 continue
             if lobby.status != status:
                 continue
+            if lobby.is_full:
+                continue  # Don't show full lobbies
             if speed and lobby.settings.speed != speed:
                 continue
             if player_count and lobby.settings.player_count != player_count:
+                continue
+            if is_ranked is not None and lobby.settings.is_ranked != is_ranked:
                 continue
             lobbies.append(lobby)
 
@@ -903,10 +1021,11 @@ class LobbyManager:
         if lobby is None:
             return False
 
-        # Clean up all player keys
+        # Clean up all player keys and key->player_id mappings
         if code in self._player_keys:
             for key in self._player_keys[code].values():
                 self._key_to_slot.pop(key, None)
+                self._key_to_player_id.pop(key, None)
             del self._player_keys[code]
 
         # Clean up player tracking (find all players in this lobby)

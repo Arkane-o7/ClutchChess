@@ -441,11 +441,13 @@ export async function createLobby(req: CreateLobbyRequest = {}): Promise<CreateL
  */
 export async function listLobbies(
   speed?: string,
-  playerCount?: number
+  playerCount?: number,
+  isRanked?: boolean
 ): Promise<LobbyListResponse> {
   const params = new URLSearchParams();
   if (speed) params.append('speed', speed);
   if (playerCount) params.append('playerCount', String(playerCount));
+  if (isRanked !== undefined) params.append('isRanked', String(isRanked));
   const queryString = params.toString();
   return request<LobbyListResponse>(`/lobbies${queryString ? `?${queryString}` : ''}`);
 }

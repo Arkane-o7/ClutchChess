@@ -22,6 +22,7 @@ def serialize_player(player: LobbyPlayer) -> dict[str, Any]:
         "isAi": player.is_ai,
         "aiType": player.ai_type,
         "isReady": player.is_ready,
+        "isConnected": player.is_connected,
     }
 
 
@@ -206,6 +207,33 @@ class LobbyConnectionManager:
 lobby_connection_manager = LobbyConnectionManager()
 
 
+async def _cleanup_and_broadcast(code: str) -> None:
+    """Clean up expired disconnected players and broadcast removals.
+
+    Args:
+        code: The lobby code
+    """
+    manager = get_lobby_manager()
+    cleaned_slots = await manager.cleanup_disconnected_players(code)
+
+    # Broadcast player removals
+    for slot in cleaned_slots:
+        await lobby_connection_manager.broadcast(
+            code,
+            {"type": "player_left", "slot": slot, "reason": "disconnected"},
+        )
+
+    # Check if host changed (if host was removed)
+    if cleaned_slots:
+        lobby = manager.get_lobby(code)
+        if lobby:
+            # Broadcast updated lobby state so clients have correct host
+            await lobby_connection_manager.broadcast(
+                code,
+                {"type": "lobby_state", "lobby": serialize_lobby(lobby)},
+            )
+
+
 async def handle_lobby_websocket(
     websocket: WebSocket,
     code: str,
@@ -222,6 +250,9 @@ async def handle_lobby_websocket(
 
     manager = get_lobby_manager()
 
+    # Clean up any expired disconnected players (stateless grace period check)
+    await _cleanup_and_broadcast(code)
+
     # Validate player key
     slot = manager.validate_player_key(code, player_key)
     if slot is None:
@@ -236,6 +267,22 @@ async def handle_lobby_websocket(
         await websocket.close(code=4004, reason="Lobby not found")
         return
 
+    # Check if this is a reconnection (player exists but was marked disconnected)
+    player = lobby.players.get(slot)
+    is_reconnection = player is not None and not player.is_connected
+
+    if is_reconnection:
+        logger.info(f"Player slot {slot} reconnected to lobby {code}")
+
+        # Mark player as connected
+        await manager.set_connected(code, slot, True)
+
+        # Refresh lobby state after update
+        lobby = manager.get_lobby(code)
+        if lobby is None:
+            await websocket.close(code=4004, reason="Lobby not found")
+            return
+
     # Connect
     await lobby_connection_manager.connect(code, websocket, slot)
 
@@ -249,15 +296,23 @@ async def handle_lobby_websocket(
         )
     )
 
-    # Broadcast player_joined to OTHER connected players
-    # (The connecting player already has the full lobby state)
+    # Broadcast to OTHER connected players
     player = lobby.players.get(slot)
     if player:
-        await lobby_connection_manager.broadcast_to_others(
-            code,
-            slot,
-            {"type": "player_joined", "slot": slot, "player": serialize_player(player)},
-        )
+        if is_reconnection:
+            # Broadcast reconnection
+            await lobby_connection_manager.broadcast_to_others(
+                code,
+                slot,
+                {"type": "player_reconnected", "slot": slot, "player": serialize_player(player)},
+            )
+        else:
+            # Broadcast player_joined
+            await lobby_connection_manager.broadcast_to_others(
+                code,
+                slot,
+                {"type": "player_joined", "slot": slot, "player": serialize_player(player)},
+            )
 
     try:
         while True:
@@ -309,8 +364,12 @@ async def _handle_message(
 
     if msg_type == "ping":
         await websocket.send_text(json.dumps({"type": "pong"}))
+        return
 
-    elif msg_type == "ready":
+    # Clean up expired disconnected players on any non-ping action
+    await _cleanup_and_broadcast(code)
+
+    if msg_type == "ready":
         ready = data.get("ready", True)
         result = await manager.set_ready(code, player_key, ready)
 
@@ -492,14 +551,10 @@ async def _create_game_from_lobby(
 ) -> None:
     """Create a game from a lobby and notify all players.
 
-    Currently the GameService only supports single human vs AI.
-    For multiplayer human games, the game service will need to be extended
-    to accept multiple player keys.
-
     Args:
         code: The lobby code
         lobby: The lobby object
-        game_id: The generated game ID (from lobby manager)
+        game_id: The generated game ID (from lobby manager, unused - we generate new one)
         game_player_keys: Player keys for the game {slot: key} (from lobby manager)
     """
     from kfchess.game.board import BoardType
@@ -512,45 +567,38 @@ async def _create_game_from_lobby(
     speed = Speed.LIGHTNING if lobby.settings.speed == "lightning" else Speed.STANDARD
     board_type = BoardType.FOUR_PLAYER if lobby.settings.player_count == 4 else BoardType.STANDARD
 
-    # Find AI type (default to dummy if none specified)
-    ai_type = "bot:dummy"
-    for player in lobby.players.values():
-        if player.is_ai and player.ai_type:
-            ai_type = player.ai_type
-            break
+    # Separate human players and AI players
+    human_player_keys: dict[int, str] = {}
+    ai_players_config: dict[int, str] = {}
 
-    # Create the game using existing service API
-    # Note: Current API is designed for single human vs AI
-    # TODO: Extend GameService to support multiple human players with pre-generated keys
-    game_id_created, service_player_key, player_number = service.create_game(
+    for slot, player in lobby.players.items():
+        if player.is_ai:
+            ai_type = (player.ai_type or "bot:dummy").removeprefix("bot:")
+            ai_players_config[slot] = ai_type
+        else:
+            # Use the lobby-generated keys for human players
+            if slot in game_player_keys:
+                human_player_keys[slot] = game_player_keys[slot]
+
+    # Create the game with all player keys registered
+    game_id_created = service.create_lobby_game(
         speed=speed,
         board_type=board_type,
-        opponent=ai_type,
+        player_keys=human_player_keys,
+        ai_players_config=ai_players_config if ai_players_config else None,
     )
 
-    # Update lobby with actual game ID (might differ from pre-generated)
+    # Update lobby with actual game ID
     lobby.current_game_id = game_id_created
 
-    # Update the game-to-lobby mapping with the actual game ID
+    # Update the game-to-lobby mapping
     manager = get_lobby_manager()
     manager._game_to_lobby[game_id_created] = code
-    # Remove the old mapping if it was different
-    if game_id != game_id_created and game_id in manager._game_to_lobby:
-        del manager._game_to_lobby[game_id]
-
-    # Build player key mapping
-    # For now, GameService only generates key for player 1
-    # Use service key for player 1, lobby-generated keys for others
-    # (Other players won't work until GameService is extended)
-    actual_player_keys = {1: service_player_key}
-    for slot, key in game_player_keys.items():
-        if slot != 1:
-            actual_player_keys[slot] = key
 
     # Send game_starting message to ALL human players
     for slot, player in lobby.players.items():
         if not player.is_ai:
-            player_game_key = actual_player_keys.get(slot)
+            player_game_key = human_player_keys.get(slot)
             if player_game_key:
                 await lobby_connection_manager.send_to_slot(
                     code,
@@ -608,9 +656,13 @@ async def _handle_leave(code: str, player_key: str, slot: int, reason: str) -> N
 async def _handle_disconnect(code: str, player_key: str, slot: int) -> None:
     """Handle a player disconnecting from the WebSocket.
 
+    The player is marked as disconnected with a timestamp. Cleanup happens
+    lazily when the lobby is next accessed, making this stateless and
+    compatible with multiple server processes.
+
     Args:
         code: The lobby code
-        player_key: The player's secret key
+        player_key: The player's secret key (unused but kept for signature consistency)
         slot: The player's slot
     """
     manager = get_lobby_manager()
@@ -618,13 +670,28 @@ async def _handle_disconnect(code: str, player_key: str, slot: int) -> None:
     if lobby is None:
         return
 
-    # If the game is in progress, don't remove from lobby (handled by game)
+    # If the game is in progress, don't mark as disconnected (handled by game)
     if lobby.status == LobbyStatus.IN_GAME:
         logger.info(f"Player slot {slot} disconnected from lobby {code} during game, not removing")
         return
 
-    # Otherwise, leaving the WebSocket means leaving the lobby
-    await _handle_leave(code, player_key, slot, "disconnected")
+    player = lobby.players.get(slot)
+    if player is None or player.is_ai:
+        return
+
+    # Mark player as disconnected (sets disconnected_at timestamp)
+    await manager.set_connected(code, slot, False)
+
+    # Broadcast disconnection status to other players
+    await lobby_connection_manager.broadcast(
+        code,
+        {
+            "type": "player_disconnected",
+            "slot": slot,
+        },
+    )
+
+    logger.info(f"Player slot {slot} disconnected from lobby {code}, grace period started")
 
 
 async def notify_game_ended(code: str, winner: int | None, reason: str) -> None:

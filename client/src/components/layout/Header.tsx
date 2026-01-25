@@ -85,7 +85,7 @@ function Header() {
           </Link>
           <nav className="nav">
             <Link to="/">Home</Link>
-            <Link to="/lobby">Lobby</Link>
+            <Link to="/lobbies">Lobbies</Link>
             <Link to="/campaign">Campaign</Link>
             <Link to="/replays">Replays</Link>
           </nav>

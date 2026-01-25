@@ -232,6 +232,7 @@ export interface LobbyPlayer {
   isAi: boolean;
   aiType: string | null;
   isReady: boolean;
+  isConnected: boolean;
 }
 
 // Full lobby data from server

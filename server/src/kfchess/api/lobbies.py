@@ -147,6 +147,7 @@ async def create_lobby(request: CreateLobbyRequest) -> CreateLobbyResponse:
 async def list_lobbies(
     speed: str | None = None,
     player_count: int | None = Query(default=None, alias="playerCount"),
+    is_ranked: bool | None = Query(default=None, alias="isRanked"),
 ) -> LobbyListResponse:
     """List public lobbies that are waiting for players.
 
@@ -158,6 +159,7 @@ async def list_lobbies(
     lobbies = manager.get_public_lobbies(
         speed=speed,
         player_count=player_count,
+        is_ranked=is_ranked,
     )
 
     items = []
@@ -200,22 +202,15 @@ async def join_lobby(code: str, request: JoinLobbyRequest) -> JoinLobbyResponse:
     """Join an existing lobby.
 
     Returns the player key needed for WebSocket authentication.
-    Private lobbies require an invite link (direct navigation to lobby page).
+    Both public and private lobbies can be joined if the user knows the code
+    (e.g., via invite link).
     """
     manager = get_lobby_manager()
 
-    # Check if lobby exists and is public
+    # Check if lobby exists
     lobby = manager.get_lobby(code)
     if lobby is None:
         raise HTTPException(status_code=404, detail="Lobby not found")
-
-    # Private lobbies cannot be joined via the API directly
-    # Users must use the direct lobby URL (invite link)
-    if not lobby.settings.is_public:
-        raise HTTPException(
-            status_code=403,
-            detail="This lobby is private. Use the invite link to join.",
-        )
 
     # Determine player identity
     # TODO: Get user from auth when implemented

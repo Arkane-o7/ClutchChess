@@ -21,6 +21,8 @@ type LobbyServerMessage =
   | { type: 'player_joined'; slot: number; player: LobbyPlayer }
   | { type: 'player_left'; slot: number; reason: string }
   | { type: 'player_ready'; slot: number; ready: boolean }
+  | { type: 'player_disconnected'; slot: number }
+  | { type: 'player_reconnected'; slot: number; player: LobbyPlayer }
   | { type: 'settings_updated'; settings: LobbySettings }
   | { type: 'host_changed'; newHostSlot: number }
   | { type: 'game_starting'; gameId: string; playerKey: string; lobbyCode: string }
@@ -49,7 +51,7 @@ interface LobbyState {
   // Actions - REST
   createLobby: (settings?: Partial<LobbySettings>, addAi?: boolean, username?: string) => Promise<string>;
   joinLobby: (code: string, username?: string) => Promise<void>;
-  fetchPublicLobbies: (speed?: string, playerCount?: number) => Promise<void>;
+  fetchPublicLobbies: (speed?: string, playerCount?: number, isRanked?: boolean) => Promise<void>;
 
   // Actions - WebSocket
   connect: (code: string, playerKey: string) => void;
@@ -133,6 +135,9 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
       error: null,
     });
 
+    // Persist credentials for reconnection on refresh
+    saveLobbyCredentials(response.code, response.playerKey, response.slot);
+
     return response.code;
   },
 
@@ -150,12 +155,15 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
       lobby: response.lobby,
       error: null,
     });
+
+    // Persist credentials for reconnection on refresh
+    saveLobbyCredentials(code, response.playerKey, response.slot);
   },
 
-  fetchPublicLobbies: async (speed, playerCount) => {
+  fetchPublicLobbies: async (speed, playerCount, isRanked) => {
     set({ isLoadingLobbies: true });
     try {
-      const response = await api.listLobbies(speed, playerCount);
+      const response = await api.listLobbies(speed, playerCount, isRanked);
       set({ publicLobbies: response.lobbies, isLoadingLobbies: false });
     } catch (error) {
       console.error('Failed to fetch public lobbies:', error);
@@ -170,8 +178,9 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
   connect: (code, playerKey) => {
     const state = get();
 
-    // Close existing connection
+    // Close existing connection (mark as intentional to prevent reconnect loop)
     if (state._ws) {
+      set({ _intentionalClose: true });
       state._ws.close();
     }
 
@@ -226,12 +235,15 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
           clearInterval(currentState._pingInterval);
         }
 
-        set({ _ws: null, _pingInterval: null });
+        // Only clear _ws if this is the current WebSocket (not if a new one replaced it)
+        if (currentState._ws === ws) {
+          set({ _ws: null, _pingInterval: null });
 
-        if (!currentState._intentionalClose) {
-          currentState._scheduleReconnect();
-        } else {
-          set({ connectionState: 'disconnected' });
+          if (!currentState._intentionalClose) {
+            currentState._scheduleReconnect();
+          } else {
+            set({ connectionState: 'disconnected' });
+          }
         }
       };
 
@@ -280,6 +292,8 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
 
     if (state._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
+      // Clear stale credentials to prevent infinite retry loop
+      clearLobbyCredentials();
       set({ connectionState: 'disconnected', error: 'Connection lost' });
       return;
     }
@@ -361,6 +375,37 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
             },
           };
         });
+        break;
+
+      case 'player_disconnected':
+        set((state) => {
+          if (!state.lobby) return state;
+          const player = state.lobby.players[data.slot];
+          if (!player) return state;
+          return {
+            lobby: {
+              ...state.lobby,
+              players: {
+                ...state.lobby.players,
+                [data.slot]: { ...player, isConnected: false, isReady: false },
+              },
+            },
+          };
+        });
+        break;
+
+      case 'player_reconnected':
+        set((state) => ({
+          lobby: state.lobby
+            ? {
+                ...state.lobby,
+                players: {
+                  ...state.lobby.players,
+                  [data.slot]: data.player,
+                },
+              }
+            : null,
+        }));
         break;
 
       case 'settings_updated':
@@ -484,6 +529,8 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
       _ws.send(JSON.stringify({ type: 'leave' }));
     }
     get().disconnect();
+    // Clear saved credentials
+    clearLobbyCredentials();
     set({
       code: null,
       playerKey: null,
@@ -534,6 +581,42 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
 // Helpers
 // ============================================
 
+const LOBBY_CREDENTIALS_KEY = 'kfchess_lobby_credentials';
+
+interface LobbyCredentials {
+  code: string;
+  playerKey: string;
+  slot: number;
+}
+
+/**
+ * Save lobby credentials to sessionStorage for reconnection on refresh
+ */
+function saveLobbyCredentials(code: string, playerKey: string, slot: number): void {
+  const credentials: LobbyCredentials = { code, playerKey, slot };
+  sessionStorage.setItem(LOBBY_CREDENTIALS_KEY, JSON.stringify(credentials));
+}
+
+/**
+ * Get saved lobby credentials from sessionStorage
+ */
+export function getSavedLobbyCredentials(): LobbyCredentials | null {
+  const saved = sessionStorage.getItem(LOBBY_CREDENTIALS_KEY);
+  if (!saved) return null;
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear saved lobby credentials
+ */
+function clearLobbyCredentials(): void {
+  sessionStorage.removeItem(LOBBY_CREDENTIALS_KEY);
+}
+
 /**
  * Get or create a persistent guest ID for anonymous players
  */
@@ -559,9 +642,11 @@ export const selectMyPlayer = (state: LobbyState): LobbyPlayer | null =>
 
 export const selectIsAllReady = (state: LobbyState): boolean => {
   if (!state.lobby) return false;
-  const players = Object.values(state.lobby.players);
-  if (players.length < state.lobby.settings.playerCount) return false;
-  return players.every((p) => p.isReady);
+  const hostSlot = state.lobby.hostSlot;
+  const entries = Object.entries(state.lobby.players);
+  if (entries.length < state.lobby.settings.playerCount) return false;
+  // Host is always considered ready, only check non-host players
+  return entries.every(([slot, p]) => Number(slot) === hostSlot || p.isReady);
 };
 
 export const selectIsFull = (state: LobbyState): boolean => {

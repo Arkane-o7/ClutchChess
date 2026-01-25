@@ -26,9 +26,11 @@ export function Game() {
   const boardType = useGameStore((s) => s.boardType);
   const status = useGameStore((s) => s.status);
   const connectionState = useGameStore((s) => s.connectionState);
+  const countdown = useGameStore((s) => s.countdown);
   const joinGame = useGameStore((s) => s.joinGame);
   const connect = useGameStore((s) => s.connect);
   const disconnect = useGameStore((s) => s.disconnect);
+  const startCountdown = useGameStore((s) => s.startCountdown);
 
   // Initialize game on mount
   useEffect(() => {
@@ -88,6 +90,19 @@ export function Game() {
     }
   }, [connectionState, storeGameId, status, connect]);
 
+  // Start countdown when connected and waiting (only once)
+  const countdownStartedRef = useRef(false);
+  useEffect(() => {
+    if (connectionState === 'connected' && status === 'waiting' && !countdownStartedRef.current) {
+      countdownStartedRef.current = true;
+      startCountdown();
+    }
+    // Reset if game finishes and we reconnect
+    if (status === 'finished') {
+      countdownStartedRef.current = false;
+    }
+  }, [connectionState, status, startCountdown]);
+
   // Don't render until we have game data
   if (!storeGameId) {
     return (
@@ -102,6 +117,11 @@ export function Game() {
       <div className="game-content">
         <div className="game-board-wrapper">
           <GameBoard boardType={boardType} squareSize={64} />
+          {countdown !== null && (
+            <div className="game-countdown-overlay">
+              <div className="game-countdown-number">{countdown}</div>
+            </div>
+          )}
         </div>
         <div className="game-sidebar">
           <GameStatus />

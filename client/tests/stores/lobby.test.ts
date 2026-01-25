@@ -34,6 +34,7 @@ const createMockPlayer = (slot: number, overrides?: Partial<LobbyPlayer>): Lobby
   isAi: false,
   aiType: null,
   isReady: false,
+  isConnected: true,
   ...overrides,
 });
 

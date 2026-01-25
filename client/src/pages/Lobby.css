@@ -1,0 +1,446 @@
+/* Lobby Page Styles */
+
+.lobby-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.lobby-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lobby-title {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.lobby-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.lobby-code {
+  font-family: monospace;
+  font-size: 1.25rem;
+  color: var(--color-primary);
+  background-color: var(--color-surface);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+}
+
+.lobby-loading {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--color-text-muted);
+}
+
+.lobby-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.lobby-error-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.lobby-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Lobby Settings */
+.lobby-settings {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.lobby-settings h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-item label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.setting-item select {
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.setting-item select:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.setting-item select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.setting-value {
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+
+/* Player Slots */
+.player-slots {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.slots-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.slots-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.player-slot {
+  background-color: var(--color-background);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.player-slot.empty {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.player-slot.me {
+  border-color: var(--color-primary);
+}
+
+.player-slot.ready {
+  border-color: #28a745;
+}
+
+.player-slot.disconnected {
+  border-color: #dc3545;
+  opacity: 0.7;
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.slot-number {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slot-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.host-badge,
+.ai-badge,
+.badge-placeholder {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.badge-placeholder {
+  visibility: hidden;
+}
+
+.host-badge {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.ai-badge {
+  background-color: var(--color-secondary);
+  color: white;
+}
+
+.disconnected-badge {
+  background-color: #dc3545;
+  color: white;
+}
+
+.player-name {
+  font-weight: 500;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-status {
+  font-size: 0.85rem;
+}
+
+.status-ready {
+  color: #28a745;
+}
+
+.status-waiting {
+  color: var(--color-text-muted);
+}
+
+.status-disconnected {
+  color: #dc3545;
+}
+
+.kick-btn {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  font-size: 0.75rem;
+  color: #dc3545;
+}
+
+.kick-btn:hover {
+  color: #bd2130;
+}
+
+/* Lobby Actions */
+.lobby-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+/* Share Section */
+.share-section {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.share-section p {
+  margin: 0 0 0.75rem 0;
+  color: var(--color-text-muted);
+}
+
+.share-link {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.share-link code {
+  background-color: var(--color-background);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Connection Banner */
+.connection-banner {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  z-index: 100;
+}
+
+.connection-banner.reconnecting {
+  background-color: #856404;
+  color: white;
+}
+
+/* Modal subtitle */
+.modal-subtitle {
+  text-align: center;
+  color: var(--color-text-muted);
+  margin-bottom: 1.5rem;
+}
+
+/* Lobbies Browser Page */
+.lobbies-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.lobbies-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.lobbies-header h1 {
+  margin: 0;
+}
+
+.lobbies-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.lobbies-filters select {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.lobbies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lobby-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 0.2s;
+}
+
+.lobby-card:hover {
+  border-color: var(--color-primary);
+}
+
+.lobby-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lobby-card-host {
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.lobby-card-details {
+  display: flex;
+  gap: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.lobby-card-players {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.lobbies-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-text-muted);
+}
+
+.lobbies-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+}
+
+/* Join by Code Section */
+.join-code-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.join-code-section h3 {
+  margin-bottom: 1rem;
+}
+
+.join-code-form {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 300px;
+}
+
+.join-code-form input {
+  flex: 1;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  text-transform: uppercase;
+}
+
+.join-code-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.join-code-form input::placeholder {
+  text-transform: none;
+}

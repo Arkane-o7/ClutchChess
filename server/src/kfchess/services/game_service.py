@@ -152,6 +152,63 @@ class GameService:
 
         return game_id, player_key, human_player
 
+    def create_lobby_game(
+        self,
+        speed: Speed,
+        board_type: BoardType,
+        player_keys: dict[int, str],
+        ai_players_config: dict[int, str] | None = None,
+    ) -> str:
+        """Create a game from a lobby with multiple human players.
+
+        Args:
+            speed: Game speed setting
+            board_type: Type of board (standard or four_player)
+            player_keys: Map of player number to pre-generated player key
+            ai_players_config: Map of player number to AI type (e.g., {2: "dummy"})
+
+        Returns:
+            The game_id
+        """
+        game_id = _generate_game_id()
+
+        # Ensure unique game ID
+        while game_id in self.games:
+            game_id = _generate_game_id()
+
+        # Build players dict
+        players: dict[int, str] = {}
+        for player_num, key in player_keys.items():
+            players[player_num] = f"u:{key}"
+
+        ai_players_config = ai_players_config or {}
+        ai_instances: dict[int, AIPlayer] = {}
+        for player_num, ai_type in ai_players_config.items():
+            players[player_num] = f"bot:{ai_type}"
+            ai_instances[player_num] = self._create_ai(ai_type)
+
+        logger.debug(f"Creating lobby game with players: {players}")
+
+        # Create the game state
+        state = GameEngine.create_game(
+            speed=speed,
+            players=players,
+            board_type=board_type,
+            game_id=game_id,
+        )
+
+        # Create managed game with all player keys
+        managed_game = ManagedGame(
+            state=state,
+            player_keys=dict(player_keys),  # Copy all human player keys
+            ai_players=ai_instances,
+        )
+
+        self.games[game_id] = managed_game
+        logger.info(f"Lobby game {game_id} created with {len(player_keys)} human players")
+
+        return game_id
+
     def _create_ai(self, bot_name: str) -> AIPlayer:
         """Create an AI instance based on bot name.
 

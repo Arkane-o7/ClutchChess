@@ -12,6 +12,8 @@ import Verify from './pages/Verify';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
+import { Lobby } from './pages/Lobby';
+import { Lobbies } from './pages/Lobbies';
 
 function App() {
   return (
@@ -29,8 +31,9 @@ function App() {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="lobby/:code" element={<Lobby />} />
+          <Route path="lobbies" element={<Lobbies />} />
           {/* TODO: Add routes */}
-          {/* <Route path="lobby" element={<Lobby />} /> */}
           {/* <Route path="campaign" element={<Campaign />} /> */}
           {/* <Route path="profile/:userId" element={<Profile />} /> */}
         </Route>

@@ -28,6 +28,8 @@ class LobbyPlayer:
         is_ai: Whether this is an AI player
         ai_type: AI type identifier (e.g., "bot:dummy")
         is_ready: Whether the player is ready to start
+        is_connected: Whether the player is currently connected
+        disconnected_at: When the player disconnected (for grace period tracking)
         joined_at: When the player joined the lobby
     """
 
@@ -37,13 +39,17 @@ class LobbyPlayer:
     is_ai: bool = False
     ai_type: str | None = None
     _is_ready: bool = field(default=False, repr=False)
+    is_connected: bool = True
+    disconnected_at: datetime | None = None
     joined_at: datetime = field(default_factory=datetime.utcnow)
 
     @property
     def is_ready(self) -> bool:
-        """AI players are always ready."""
+        """AI players are always ready. Disconnected players are not ready."""
         if self.is_ai:
             return True
+        if not self.is_connected:
+            return False
         return self._is_ready
 
     @is_ready.setter
@@ -162,6 +168,7 @@ class Lobby:
                     "isAi": p.is_ai,
                     "aiType": p.ai_type,
                     "isReady": p.is_ready,
+                    "isConnected": p.is_connected,
                 }
                 for slot, p in self.players.items()
             },

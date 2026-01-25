@@ -402,8 +402,8 @@ class TestJoinLobby:
         assert 2 not in lobby1.players  # Left first lobby
         assert 2 in lobby2.players  # Joined second lobby
 
-    def test_join_private_lobby_forbidden(self, client: TestClient) -> None:
-        """Test that private lobbies cannot be joined via API."""
+    def test_join_private_lobby_allowed(self, client: TestClient) -> None:
+        """Test that private lobbies can be joined via direct link/code."""
         # Create a private lobby
         create_response = client.post(
             "/api/lobbies",
@@ -414,14 +414,16 @@ class TestJoinLobby:
         )
         code = create_response.json()["code"]
 
-        # Try to join the private lobby
+        # Join the private lobby (allowed with direct code)
         response = client.post(
             f"/api/lobbies/{code}/join",
             json={"username": "Player2"},
         )
 
-        assert response.status_code == 403
-        assert "private" in response.json()["detail"].lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert "playerKey" in data
+        assert data["slot"] == 2
 
 
 class TestDeleteLobby:

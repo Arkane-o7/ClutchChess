@@ -1,7 +1,7 @@
 /**
  * GameStatus Component
  *
- * Displays current game status, connection state, and ready button.
+ * Displays current game status and connection state.
  */
 
 import { useGameStore } from '../../stores/game';
@@ -12,7 +12,6 @@ export function GameStatus() {
   const playerNumber = useGameStore((s) => s.playerNumber);
   const currentTick = useGameStore((s) => s.currentTick);
   const lastError = useGameStore((s) => s.lastError);
-  const markReady = useGameStore((s) => s.markReady);
 
   const getStatusText = () => {
     switch (status) {
@@ -92,12 +91,6 @@ export function GameStatus() {
         <div className="game-status-error">
           {lastError}
         </div>
-      )}
-
-      {status === 'waiting' && playerNumber > 0 && connectionState === 'connected' && (
-        <button className="game-ready-button" onClick={markReady}>
-          Ready!
-        </button>
       )}
     </div>
   );

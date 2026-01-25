@@ -73,6 +73,7 @@ interface GameState {
   // UI state
   selectedPieceId: string | null;
   lastError: string | null;
+  countdown: number | null; // Countdown seconds before game starts (null = no countdown)
 
   // Internal
   wsClient: GameWebSocketClient | null;
@@ -85,6 +86,7 @@ interface GameActions {
   connect: () => void;
   disconnect: () => void;
   markReady: () => void;
+  startCountdown: () => void;
   resyncState: () => Promise<void>;
 
   // Gameplay
@@ -124,6 +126,7 @@ const initialState: GameState = {
   cooldowns: [],
   selectedPieceId: null,
   lastError: null,
+  countdown: null,
   wsClient: null,
 };
 
@@ -343,6 +346,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (wsClient) {
       wsClient.sendReady();
     }
+  },
+
+  startCountdown: () => {
+    const { status, playerNumber, countdown } = get();
+
+    // Only start countdown if waiting and is a player (not spectator)
+    if (status !== 'waiting' || playerNumber === 0 || countdown !== null) {
+      return;
+    }
+
+    set({ countdown: 3 });
+
+    const tick = () => {
+      const { countdown: currentCountdown, status: currentStatus } = get();
+
+      // Stop if game already started or countdown was cancelled
+      if (currentStatus !== 'waiting' || currentCountdown === null) {
+        return;
+      }
+
+      if (currentCountdown <= 1) {
+        // Countdown finished, mark ready
+        set({ countdown: null });
+        get().markReady();
+      } else {
+        // Continue countdown
+        set({ countdown: currentCountdown - 1 });
+        setTimeout(tick, 1000);
+      }
+    };
+
+    setTimeout(tick, 1000);
   },
 
   selectPiece: (pieceId) => {

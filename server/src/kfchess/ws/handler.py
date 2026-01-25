@@ -12,6 +12,7 @@ from kfchess.ws.protocol import (
     ErrorMessage,
     GameOverMessage,
     GameStartedMessage,
+    JoinedMessage,
     MoveMessage,
     MoveRejectedMessage,
     PongMessage,
@@ -321,6 +322,11 @@ async def handle_websocket(
 
     # Connect
     await connection_manager.connect(game_id, websocket, player)
+
+    # Send joined message with player number (0 for spectators)
+    await websocket.send_text(
+        JoinedMessage(player_number=player if player is not None else 0).model_dump_json()
+    )
 
     # Send initial state to the connecting client
     await _send_initial_state(websocket, game_id, service)

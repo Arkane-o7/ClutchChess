@@ -112,7 +112,13 @@ class TestWebSocketEndpoint:
         with client.websocket_connect(
             f"/ws/game/{game_id}?player_key={player_key}"
         ) as websocket:
-            # First message should be initial state
+            # First message should be joined with player number
+            response = websocket.receive_text()
+            msg = json.loads(response)
+            assert msg["type"] == "joined"
+            assert msg["player_number"] == 1
+
+            # Second message should be initial state
             response = websocket.receive_text()
             msg = json.loads(response)
             assert msg["type"] == "state"
@@ -136,7 +142,12 @@ class TestWebSocketEndpoint:
         with client.websocket_connect(
             f"/ws/game/{game_id}?player_key={player_key}"
         ) as websocket:
-            # First message is initial state
+            # First message is joined
+            response = websocket.receive_text()
+            msg = json.loads(response)
+            assert msg["type"] == "joined"
+
+            # Second message is initial state
             response = websocket.receive_text()
             msg = json.loads(response)
             assert msg["type"] == "state"
@@ -196,8 +207,9 @@ class TestWebSocketEndpoint:
         with client.websocket_connect(
             f"/ws/game/{game_id}?player_key={player_key}"
         ) as websocket:
-            # Skip initial state message
-            websocket.receive_text()
+            # Skip joined and initial state messages
+            websocket.receive_text()  # joined
+            websocket.receive_text()  # state
 
             # Send invalid JSON
             websocket.send_text("not valid json")
@@ -219,8 +231,9 @@ class TestWebSocketEndpoint:
         with client.websocket_connect(
             f"/ws/game/{game_id}?player_key={player_key}"
         ) as websocket:
-            # Skip initial state message
-            websocket.receive_text()
+            # Skip joined and initial state messages
+            websocket.receive_text()  # joined
+            websocket.receive_text()  # state
 
             # Send unknown message type
             websocket.send_text(json.dumps({"type": "unknown_type"}))
@@ -242,8 +255,9 @@ class TestWebSocketEndpoint:
         with client.websocket_connect(
             f"/ws/game/{game_id}?player_key={player_key}"
         ) as websocket:
-            # Skip initial state message
-            websocket.receive_text()
+            # Skip joined and initial state messages
+            websocket.receive_text()  # joined
+            websocket.receive_text()  # state
 
             # Mark ready first
             websocket.send_text(json.dumps({"type": "ready"}))

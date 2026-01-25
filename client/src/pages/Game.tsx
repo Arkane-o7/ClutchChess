@@ -4,7 +4,7 @@
  * Main game view that contains the board and game UI.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useGameStore } from '../stores/game';
 import { GameBoard, GameStatus, GameOverModal } from '../components/game';
@@ -21,16 +21,30 @@ export function Game() {
   // Get player key from URL or local storage
   const playerKeyFromUrl = searchParams.get('playerKey');
 
-  // Store state and actions
+  // Store state only - actions accessed via getState() to avoid dependency issues
   const storeGameId = useGameStore((s) => s.gameId);
   const boardType = useGameStore((s) => s.boardType);
   const status = useGameStore((s) => s.status);
+  const currentTick = useGameStore((s) => s.currentTick);
   const connectionState = useGameStore((s) => s.connectionState);
   const countdown = useGameStore((s) => s.countdown);
-  const joinGame = useGameStore((s) => s.joinGame);
-  const connect = useGameStore((s) => s.connect);
-  const disconnect = useGameStore((s) => s.disconnect);
-  const startCountdown = useGameStore((s) => s.startCountdown);
+
+  // Stable action callbacks that don't change between renders
+  const doConnect = useCallback(() => {
+    useGameStore.getState().connect();
+  }, []);
+
+  const doDisconnect = useCallback(() => {
+    useGameStore.getState().disconnect();
+  }, []);
+
+  const doJoinGame = useCallback((gId: string, pKey?: string) => {
+    return useGameStore.getState().joinGame(gId, pKey);
+  }, []);
+
+  const doStartCountdown = useCallback(() => {
+    useGameStore.getState().startCountdown();
+  }, []);
 
   // Initialize game on mount
   useEffect(() => {
@@ -53,11 +67,11 @@ export function Game() {
     }
 
     // Join the game
-    joinGame(gameId, playerKey ?? undefined)
+    doJoinGame(gameId, playerKey ?? undefined)
       .then(() => {
         // Only connect if still active (handles StrictMode double-mount)
         if (isActiveRef.current) {
-          connect();
+          doConnect();
         }
       })
       .catch((error) => {
@@ -71,37 +85,53 @@ export function Game() {
     // Cleanup on unmount
     return () => {
       isActiveRef.current = false;
-      disconnect();
+      doDisconnect();
     };
-  }, [gameId, playerKeyFromUrl, joinGame, connect, disconnect, navigate]);
+  }, [gameId, playerKeyFromUrl, navigate, doJoinGame, doConnect, doDisconnect]);
 
   // Handle unexpected disconnection (only reconnect if we were previously connected)
   const wasConnectedRef = useRef(false);
+  const reconnectingRef = useRef(false);
 
   useEffect(() => {
     // Track if we've ever been connected
     if (connectionState === 'connected') {
       wasConnectedRef.current = true;
+      reconnectingRef.current = false;
     }
 
     // Only auto-reconnect if we were previously connected and got disconnected
-    if (connectionState === 'disconnected' && wasConnectedRef.current && storeGameId && status !== 'finished') {
-      connect();
+    // Use reconnectingRef to prevent multiple reconnect attempts
+    if (
+      connectionState === 'disconnected' &&
+      wasConnectedRef.current &&
+      storeGameId &&
+      status !== 'finished' &&
+      !reconnectingRef.current
+    ) {
+      reconnectingRef.current = true;
+      doConnect();
     }
-  }, [connectionState, storeGameId, status, connect]);
+  }, [connectionState, storeGameId, status, doConnect]);
 
   // Start countdown when connected and waiting (only once)
+  // Also check currentTick === 0 to prevent countdown on rejoin of in-progress games
   const countdownStartedRef = useRef(false);
   useEffect(() => {
-    if (connectionState === 'connected' && status === 'waiting' && !countdownStartedRef.current) {
+    if (
+      connectionState === 'connected' &&
+      status === 'waiting' &&
+      currentTick === 0 &&
+      !countdownStartedRef.current
+    ) {
       countdownStartedRef.current = true;
-      startCountdown();
+      doStartCountdown();
     }
     // Reset if game finishes and we reconnect
     if (status === 'finished') {
       countdownStartedRef.current = false;
     }
-  }, [connectionState, status, startCountdown]);
+  }, [connectionState, status, currentTick, doStartCountdown]);
 
   // Don't render until we have game data
   if (!storeGameId) {

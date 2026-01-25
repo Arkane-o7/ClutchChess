@@ -511,8 +511,9 @@ class TestCollisionDetection4Player:
         state, _ = GameEngine.set_player_ready(state, 1)
         state, _ = GameEngine.set_player_ready(state, 3)
 
-        # Move rook through pawn's position
-        move = GameEngine.validate_move(state, 1, p1_rook.id, 5, 2)
+        # Move rook TO pawn's position (capture move)
+        # Note: can't move THROUGH enemy piece, only TO it
+        move = GameEngine.validate_move(state, 1, p1_rook.id, 5, 4)
         assert move is not None
         state, _ = GameEngine.apply_move(state, move)
 

@@ -157,6 +157,9 @@ export class GameWebSocketClient {
     }
 
     switch (data.type) {
+      case 'joined':
+        this.options.onJoined?.(data);
+        break;
       case 'state':
         this.options.onStateUpdate?.(data);
         break;

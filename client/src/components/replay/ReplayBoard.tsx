@@ -30,6 +30,29 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
   const isPlaying = useReplayStore((s) => s.isPlaying);
   const speed = useReplayStore((s) => s.speed);
 
+  // Store latest values in refs so the render loop can access them without restarting
+  const replayStateRef = useRef({
+    pieces,
+    activeMoves,
+    cooldowns,
+    currentTick,
+    lastTickTime,
+    timeSinceTick,
+    isPlaying,
+    speed,
+  });
+  // Update ref on every render
+  replayStateRef.current = {
+    pieces,
+    activeMoves,
+    cooldowns,
+    currentTick,
+    lastTickTime,
+    timeSinceTick,
+    isPlaying,
+    speed,
+  };
+
   // Initialize renderer
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -66,35 +89,40 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
   }, [boardType, squareSize]);
 
   // Render loop with visual tick interpolation
+  // Uses refs to read latest state without restarting the animation loop
   useEffect(() => {
     if (!isReady || !rendererRef.current) return;
-
-    // Get timing constants based on speed
-    const ticksPerSquare = speed === 'lightning'
-      ? TIMING.LIGHTNING_TICKS_PER_SQUARE
-      : TIMING.STANDARD_TICKS_PER_SQUARE;
 
     const render = () => {
       const renderer = rendererRef.current;
       if (!renderer) return;
 
+      // Read latest state from ref (avoids effect restart on state change)
+      const state = replayStateRef.current;
+
+      // Get timing constants based on speed
+      const ticksPerSquare = state.speed === 'lightning'
+        ? TIMING.LIGHTNING_TICKS_PER_SQUARE
+        : TIMING.STANDARD_TICKS_PER_SQUARE;
+
       // Calculate visual tick for smooth animation
       // Only interpolate if playing
-      let visualTick = currentTick;
+      let visualTick = state.currentTick;
       let tickFraction = 0;
-      if (isPlaying) {
+      if (state.isPlaying) {
         const now = performance.now();
-        const timeSinceLastTick = now - lastTickTime;
+        const timeSinceLastTick = now - state.lastTickTime;
         // Combine client-side elapsed time with server's time_since_tick offset
         // Guard against negative values (can happen briefly after seeks or state updates)
-        const totalElapsed = Math.max(0, timeSinceLastTick + timeSinceTick);
-        // Allow interpolation up to 10 ticks ahead to handle sparse updates
-        tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 10.0);
-        visualTick = currentTick + tickFraction;
+        const totalElapsed = Math.max(0, timeSinceLastTick + state.timeSinceTick);
+        // Allow interpolation up to 100 ticks (10 seconds) to handle sparse updates
+        // This covers even the longest possible moves
+        tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 100.0);
+        visualTick = state.currentTick + tickFraction;
       }
 
       // Convert pieces to renderer format
-      const rendererPieces = pieces.map((p) => ({
+      const rendererPieces = state.pieces.map((p) => ({
         id: p.id,
         type: p.type,
         player: p.player,
@@ -106,7 +134,7 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
       }));
 
       // Convert active moves
-      const rendererMoves = activeMoves.map((m) => ({
+      const rendererMoves = state.activeMoves.map((m) => ({
         pieceId: m.pieceId,
         path: m.path,
         startTick: m.startTick,
@@ -114,7 +142,7 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
 
       // Convert cooldowns with interpolation
       // Subtract elapsed ticks so cooldown timers decrease smoothly between server updates
-      const rendererCooldowns = cooldowns.map((c) => ({
+      const rendererCooldowns = state.cooldowns.map((c) => ({
         pieceId: c.pieceId,
         remainingTicks: Math.max(0, c.remainingTicks - tickFraction),
       }));
@@ -141,7 +169,7 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isReady, pieces, activeMoves, cooldowns, currentTick, lastTickTime, timeSinceTick, isPlaying, speed]);
+  }, [isReady]); // Only restart when renderer becomes ready
 
   // Calculate canvas dimensions
   const boardDims = boardType === 'four_player' ? { width: 12, height: 12 } : { width: 8, height: 8 };

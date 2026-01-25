@@ -150,13 +150,22 @@ class LobbyConnectionManager:
             connections = self.connections.get(code, set()).copy()
 
         data = json.dumps(message)
+        sent = False
 
         for websocket, player_slot in connections:
             if player_slot == slot:
                 try:
                     await websocket.send_text(data)
-                except Exception:
-                    pass  # Will be cleaned up on next broadcast
+                    sent = True
+                    logger.debug(f"Message sent to slot {slot} in lobby {code}: {message.get('type')}")
+                except Exception as e:
+                    logger.warning(f"Failed to send to slot {slot} in lobby {code}: {e}")
+
+        if not sent:
+            logger.warning(
+                f"No connection found for slot {slot} in lobby {code}. "
+                f"Connected slots: {[s for _, s in connections]}"
+            )
 
     async def broadcast_to_others(
         self, code: str, exclude_slot: int, message: dict[str, Any]
@@ -605,10 +614,15 @@ async def _create_game_from_lobby(
     manager._game_to_lobby[game_id_created] = code
 
     # Send game_starting message to ALL human players
+    logger.info(
+        f"Sending game_starting to {len([p for p in lobby.players.values() if not p.is_ai])} "
+        f"human players in lobby {code}"
+    )
     for slot, player in lobby.players.items():
         if not player.is_ai:
             player_game_key = human_player_keys.get(slot)
             if player_game_key:
+                logger.info(f"Sending game_starting to slot {slot} ({player.username})")
                 await lobby_connection_manager.send_to_slot(
                     code,
                     slot,
@@ -618,6 +632,11 @@ async def _create_game_from_lobby(
                         "lobbyCode": code,
                         "playerKey": player_game_key,
                     },
+                )
+            else:
+                logger.warning(
+                    f"No game player key for slot {slot} ({player.username}) - "
+                    f"game_player_keys: {list(game_player_keys.keys())}"
                 )
 
     logger.info(f"Game {game_id_created} created from lobby {code}")

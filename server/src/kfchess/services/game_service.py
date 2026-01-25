@@ -197,6 +197,16 @@ class GameService:
             game_id=game_id,
         )
 
+        # Auto-start the game for lobby games since players already marked ready in lobby
+        # Mark all players as ready and transition to PLAYING
+        for player_num in players.keys():
+            GameEngine.set_player_ready(state, player_num)
+
+        logger.debug(
+            f"Lobby game {game_id} auto-started: status={state.status.value}, "
+            f"ready_players={state.ready_players}"
+        )
+
         # Create managed game with all player keys
         managed_game = ManagedGame(
             state=state,

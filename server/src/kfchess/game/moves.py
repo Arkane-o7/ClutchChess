@@ -511,9 +511,10 @@ def _is_path_clear(
 ) -> bool:
     """Check if a path is clear of blocking pieces.
 
-    - Own stationary pieces block at any point in the path
+    - Intermediate squares: blocked by ANY stationary piece (own or enemy)
+    - Destination square: blocked by own piece only (enemy = capture)
     - Own moving pieces' destinations block our path
-    - Opponent pieces don't block (collision/capture happens during movement)
+    - Moving pieces have vacated their starting squares
     """
     # Build set of destinations for own moving pieces
     own_moving_destinations: set[tuple[int, int]] = set()
@@ -525,17 +526,32 @@ def _is_path_clear(
         if moving_piece is not None and moving_piece.player == player:
             own_moving_destinations.add((int(end_row), int(end_col)))
 
-    # Check all squares in path (excluding start)
-    for row, col in path[1:]:
+    # Check intermediate squares (excluding start and destination)
+    for row, col in path[1:-1]:
         int_row, int_col = int(row), int(col)
 
-        # Check for stationary own piece
+        piece_at = board.get_piece_at(int_row, int_col)
+        if piece_at is not None:
+            # Check if this piece is currently moving (if so, it's not blocking)
+            is_moving = any(m.piece_id == piece_at.id for m in active_moves)
+            if not is_moving:
+                return False  # Blocked by stationary piece (own or enemy)
+
+        # Check for own moving piece destination
+        if (int_row, int_col) in own_moving_destinations:
+            return False  # Can't move through where own piece will end up
+
+    # Check destination square (only blocked by own pieces, enemy = capture)
+    if len(path) >= 2:
+        dest_row, dest_col = path[-1]
+        int_row, int_col = int(dest_row), int(dest_col)
+
         piece_at = board.get_piece_at(int_row, int_col)
         if piece_at is not None and piece_at.player == player:
             # Check if this piece is currently moving (if so, it's not blocking)
             is_moving = any(m.piece_id == piece_at.id for m in active_moves)
             if not is_moving:
-                return False  # Blocked by own stationary piece
+                return False  # Blocked by own stationary piece at destination
 
         # Check for own moving piece destination
         if (int_row, int_col) in own_moving_destinations:

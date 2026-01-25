@@ -39,6 +39,31 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
   const selectPiece = useGameStore((s) => s.selectPiece);
   const makeMove = useGameStore((s) => s.makeMove);
 
+  // Store latest values in refs so the render loop can access them without restarting
+  const gameStateRef = useRef({
+    pieces,
+    activeMoves,
+    cooldowns,
+    currentTick,
+    lastTickTime,
+    timeSinceTick,
+    selectedPieceId,
+    speed,
+    legalMoveTargets: [] as [number, number][],
+  });
+  // Update ref on every render (this doesn't cause re-renders)
+  gameStateRef.current = {
+    pieces,
+    activeMoves,
+    cooldowns,
+    currentTick,
+    lastTickTime,
+    timeSinceTick,
+    selectedPieceId,
+    speed,
+    legalMoveTargets: gameStateRef.current.legalMoveTargets, // Will be updated below
+  };
+
   // Compute legal moves dynamically based on current game state
   // This updates as pieces move and paths open/close
   const ticksPerSquare = speed === 'lightning'
@@ -62,6 +87,9 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       boardType
     );
   }, [selectedPieceId, pieces, activeMoves, currentTick, ticksPerSquare, boardType]);
+
+  // Update ref with legal moves
+  gameStateRef.current.legalMoveTargets = legalMoveTargets;
 
   // Handle piece click
   const handlePieceClick = useCallback(
@@ -146,7 +174,11 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
     handleSquareClickRef.current = handleSquareClick;
   }, [handlePieceClick, handleSquareClick]);
 
-  // Initialize renderer
+  // Store playerNumber in a ref so the init effect doesn't depend on it
+  const playerNumberRef = useRef(playerNumber);
+  playerNumberRef.current = playerNumber;
+
+  // Initialize renderer (only when boardType/squareSize changes, NOT playerNumber)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -154,7 +186,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
     const renderer = new GameRenderer({
       canvas,
       boardType,
-      playerNumber: playerNumber || 1, // Spectators use player 1 view
+      playerNumber: playerNumberRef.current || 1, // Use ref for initial value
       squareSize,
       // Use wrapper functions that call the refs
       onSquareClick: (row, col) => handleSquareClickRef.current(row, col),
@@ -179,35 +211,47 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       rendererRef.current = null;
       setIsReady(false);
     };
-  }, [boardType, squareSize, playerNumber]);
+  }, [boardType, squareSize]); // Removed playerNumber - use setPlayerNumber instead
+
+  // Update player number without recreating renderer
+  useEffect(() => {
+    if (rendererRef.current && playerNumber) {
+      rendererRef.current.setPlayerNumber(playerNumber);
+    }
+  }, [playerNumber]);
 
   // Render loop with visual tick interpolation
+  // Uses refs to read latest state without restarting the animation loop
   useEffect(() => {
     if (!isReady || !rendererRef.current) return;
-
-    // Get timing constants based on speed
-    const ticksPerSquare = speed === 'lightning'
-      ? TIMING.LIGHTNING_TICKS_PER_SQUARE
-      : TIMING.STANDARD_TICKS_PER_SQUARE;
 
     const render = () => {
       const renderer = rendererRef.current;
       if (!renderer) return;
 
+      // Read latest state from ref (avoids effect restart on state change)
+      const state = gameStateRef.current;
+
+      // Get timing constants based on speed
+      const ticksPerSquare = state.speed === 'lightning'
+        ? TIMING.LIGHTNING_TICKS_PER_SQUARE
+        : TIMING.STANDARD_TICKS_PER_SQUARE;
+
       // Calculate visual tick for smooth 60fps animation
       // Interpolate between server ticks (which may now arrive less frequently due to optimization)
       // Account for server's time_since_tick to stay in sync
       const now = performance.now();
-      const timeSinceLastTick = now - lastTickTime;
+      const timeSinceLastTick = now - state.lastTickTime;
       // Combine client-side elapsed time with server's time_since_tick offset
       // Guard against negative values (can happen briefly after state updates)
-      const totalElapsed = Math.max(0, timeSinceLastTick + timeSinceTick);
-      // Allow interpolation up to 10 ticks ahead to handle sparse updates
-      const tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 10.0);
-      const visualTick = currentTick + tickFraction;
+      const totalElapsed = Math.max(0, timeSinceLastTick + state.timeSinceTick);
+      // Allow interpolation up to 100 ticks (10 seconds) to handle sparse updates
+      // This covers even the longest possible moves (7 squares at 10 ticks/square = 70 ticks)
+      const tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 100.0);
+      const visualTick = state.currentTick + tickFraction;
 
       // Convert pieces to renderer format
-      const rendererPieces = pieces.map((p) => ({
+      const rendererPieces = state.pieces.map((p) => ({
         id: p.id,
         type: p.type,
         player: p.player,
@@ -219,7 +263,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       }));
 
       // Convert active moves
-      const rendererMoves = activeMoves.map((m) => ({
+      const rendererMoves = state.activeMoves.map((m) => ({
         pieceId: m.pieceId,
         path: m.path,
         startTick: m.startTick,
@@ -227,7 +271,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
 
       // Convert cooldowns with interpolation
       // Subtract elapsed ticks so cooldown timers decrease smoothly between server updates
-      const rendererCooldowns = cooldowns.map((c) => ({
+      const rendererCooldowns = state.cooldowns.map((c) => ({
         pieceId: c.pieceId,
         remainingTicks: Math.max(0, c.remainingTicks - tickFraction),
       }));
@@ -242,12 +286,12 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       );
 
       // Update highlights (pass selected piece info for ghost rendering on hover)
-      const selectedPiece = selectedPieceId
-        ? pieces.find((p) => p.id === selectedPieceId)
+      const selectedPiece = state.selectedPieceId
+        ? state.pieces.find((p) => p.id === state.selectedPieceId)
         : null;
       renderer.highlightSelection(
-        selectedPieceId,
-        legalMoveTargets,
+        state.selectedPieceId,
+        state.legalMoveTargets,
         selectedPiece?.type,
         selectedPiece?.player
       );
@@ -262,7 +306,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isReady, pieces, activeMoves, cooldowns, currentTick, lastTickTime, timeSinceTick, selectedPieceId, legalMoveTargets, speed]);
+  }, [isReady]); // Only restart when renderer becomes ready
 
   // Calculate canvas dimensions
   const boardDims = boardType === 'four_player' ? { width: 12, height: 12 } : { width: 8, height: 8 };

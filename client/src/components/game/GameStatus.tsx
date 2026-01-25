@@ -10,7 +10,6 @@ export function GameStatus() {
   const status = useGameStore((s) => s.status);
   const connectionState = useGameStore((s) => s.connectionState);
   const playerNumber = useGameStore((s) => s.playerNumber);
-  const currentTick = useGameStore((s) => s.currentTick);
   const lastError = useGameStore((s) => s.lastError);
 
   const getStatusText = () => {
@@ -80,12 +79,6 @@ export function GameStatus() {
         <span className="game-status-value">{getPlayerLabel()}</span>
       </div>
 
-      {status === 'playing' && (
-        <div className="game-status-row">
-          <span className="game-status-label">Tick:</span>
-          <span className="game-status-value">{currentTick}</span>
-        </div>
-      )}
 
       {lastError && (
         <div className="game-status-error">

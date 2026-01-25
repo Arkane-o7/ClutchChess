@@ -10,6 +10,7 @@ import type { ApiPiece, ApiActiveMove, ApiCooldown, CreateGameRequest } from '..
 import { GameWebSocketClient } from '../ws/client';
 import type {
   ConnectionState,
+  JoinedMessage,
   StateUpdateMessage,
   GameStartedMessage,
   GameOverMessage,
@@ -96,6 +97,7 @@ interface GameActions {
 
   // Internal updates
   updateFromStateMessage: (msg: StateUpdateMessage) => void;
+  handleJoined: (msg: JoinedMessage) => void;
   handleGameStarted: (msg: GameStartedMessage) => void;
   handleGameOver: (msg: GameOverMessage) => void;
   handleMoveRejected: (msg: MoveRejectedMessage) => void;
@@ -281,7 +283,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { gameId, playerKey, wsClient, connectionState } = get();
 
     if (!gameId) {
-      console.warn('Cannot connect: no gameId');
       return;
     }
 
@@ -300,6 +301,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameId,
       playerKey: playerKey ?? undefined,
       onStateUpdate: (msg) => get().updateFromStateMessage(msg),
+      onJoined: (msg) => get().handleJoined(msg),
       onGameStarted: (msg) => get().handleGameStarted(msg),
       onGameOver: (msg) => get().handleGameOver(msg),
       onMoveRejected: (msg) => get().handleMoveRejected(msg),
@@ -462,6 +464,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeMoves,
       cooldowns,
       selectedPieceId: newSelectedPieceId,
+    });
+  },
+
+  handleJoined: (msg) => {
+    set({
+      playerNumber: msg.player_number,
     });
   },
 

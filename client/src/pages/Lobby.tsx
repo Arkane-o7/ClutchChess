@@ -5,7 +5,7 @@
  * Handles both direct URL navigation and navigation from create/join flows.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useLobbyStore,
@@ -283,11 +283,16 @@ export function Lobby() {
   }, [urlCode, code, playerKey, connectionState, connect]);
 
   // Navigate to game when it starts
+  // Track if we've already navigated to prevent double navigation
+  const hasNavigatedRef = useRef(false);
   useEffect(() => {
-    if (pendingGameId && lobby?.status === 'in_game') {
+    // Navigate when we have a pending game ID (don't require lobby.status check)
+    // The pendingGameId is only set by game_starting message, so it's safe to navigate
+    if (pendingGameId && !hasNavigatedRef.current) {
+      hasNavigatedRef.current = true;
       navigate(`/game/${pendingGameId}`);
     }
-  }, [pendingGameId, lobby?.status, navigate]);
+  }, [pendingGameId, navigate]);
 
   // Cleanup on unmount (unless navigating to game)
   useEffect(() => {
@@ -379,6 +384,17 @@ export function Lobby() {
     );
   }
 
+  // If we have a pending game, show a message while navigating
+  if (pendingGameId) {
+    return (
+      <div className="lobby-page">
+        <div className="lobby-loading">
+          <p>Starting game...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Loading state
   if (!lobby) {
     return (
@@ -386,6 +402,7 @@ export function Lobby() {
         <div className="lobby-loading">
           {connectionState === 'connecting' && <p>Connecting to lobby...</p>}
           {connectionState === 'reconnecting' && <p>Reconnecting...</p>}
+          {connectionState === 'connected' && <p>Loading lobby...</p>}
           {connectionState === 'disconnected' && error && (
             <div className="lobby-error">
               <p>{error}</p>

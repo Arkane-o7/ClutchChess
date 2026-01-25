@@ -431,6 +431,13 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
         break;
 
       case 'game_starting':
+        // Store player key and lobby code in sessionStorage FIRST for game page
+        if (data.gameId && data.playerKey) {
+          sessionStorage.setItem(`playerKey_${data.gameId}`, data.playerKey);
+        }
+        if (data.lobbyCode) {
+          sessionStorage.setItem(`lobbyCode_${data.gameId}`, data.lobbyCode);
+        }
         // Store game info for navigation
         set((state) => ({
           // Preserve lobbyCode from message in case state was lost
@@ -445,13 +452,6 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
           pendingGameId: data.gameId,
           pendingGamePlayerKey: data.playerKey,
         }));
-        // Store player key and lobby code in sessionStorage for game page
-        if (data.gameId && data.playerKey) {
-          sessionStorage.setItem(`playerKey_${data.gameId}`, data.playerKey);
-        }
-        if (data.lobbyCode) {
-          sessionStorage.setItem(`lobbyCode_${data.gameId}`, data.lobbyCode);
-        }
         break;
 
       case 'game_ended':

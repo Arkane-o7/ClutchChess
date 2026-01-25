@@ -52,6 +52,11 @@ export type WsGameEvent = WsCaptureEvent | WsPromotionEvent;
 // Server -> Client Messages
 // ============================================
 
+export interface JoinedMessage {
+  type: 'joined';
+  player_number: number; // 0 = spectator, 1-4 = player
+}
+
 export interface StateUpdateMessage {
   type: 'state';
   tick: number;
@@ -89,6 +94,7 @@ export interface ErrorMessage {
 }
 
 export type ServerMessage =
+  | JoinedMessage
   | StateUpdateMessage
   | GameStartedMessage
   | GameOverMessage
@@ -126,6 +132,7 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 export interface WebSocketClientOptions {
   gameId: string;
   playerKey?: string;
+  onJoined?: (msg: JoinedMessage) => void;
   onStateUpdate?: (msg: StateUpdateMessage) => void;
   onGameStarted?: (msg: GameStartedMessage) => void;
   onGameOver?: (msg: GameOverMessage) => void;

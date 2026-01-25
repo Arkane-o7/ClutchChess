@@ -99,7 +99,9 @@ function isLegalMoveNoCross(
     }
   }
 
-  // Check that destination isn't on the future path of same player's active moves
+  // Check that destination isn't the FINAL destination of same player's active moves
+  // (We can move through squares that friendly pieces are passing through, just not
+  // where they will end up)
   const destRow = piece.row + rowDir * steps;
   const destCol = piece.col + colDir * steps;
 
@@ -107,13 +109,10 @@ function isLegalMoveNoCross(
     const movingPiece = pieces.find((p) => p.id === move.pieceId);
     if (!movingPiece || movingPiece.player !== piece.player) continue;
 
-    const tickDelta = currentTick - move.startTick;
-    const movements = Math.floor((tickDelta + ticksPerSquare - 1) / ticksPerSquare);
-
-    for (let j = movements; j < move.path.length; j++) {
-      if (move.path[j][0] === destRow && move.path[j][1] === destCol) {
-        return false;
-      }
+    // Only check the final destination, not the entire path
+    const endPos = move.path[move.path.length - 1];
+    if (endPos[0] === destRow && endPos[1] === destCol) {
+      return false;
     }
   }
 

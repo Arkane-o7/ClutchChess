@@ -208,6 +208,12 @@ class GameEngine:
         if state.status != GameStatus.PLAYING:
             return None
 
+        # Check if player is eliminated (king captured) - applies to 4-player mode
+        king = state.board.get_king(player)
+        if king is None or king.captured:
+            logger.warning(f"Move rejected: player {player} is eliminated (king captured)")
+            return None
+
         # Find the piece
         piece = state.board.get_piece_by_id(piece_id)
         if piece is None:
@@ -555,6 +561,11 @@ class GameEngine:
             List of (piece_id, to_row, to_col) tuples
         """
         legal_moves: list[tuple[str, int, int]] = []
+
+        # Check if player is eliminated (king captured) - no moves available
+        king = state.board.get_king(player)
+        if king is None or king.captured:
+            return legal_moves
 
         for piece in state.board.get_pieces_for_player(player):
             if piece.captured:

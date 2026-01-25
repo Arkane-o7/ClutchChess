@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class ServerMessageType(Enum):
     """Types of messages sent from server to client."""
 
+    JOINED = "joined"
     STATE = "state"
     GAME_STARTED = "game_started"
     GAME_OVER = "game_over"
@@ -26,6 +27,13 @@ class ClientMessageType(Enum):
 
 
 # Server -> Client Messages
+
+
+class JoinedMessage(BaseModel):
+    """Sent when client successfully joins a game via WebSocket."""
+
+    type: str = "joined"
+    player_number: int  # 0 = spectator, 1-4 = player
 
 
 class StateUpdateMessage(BaseModel):

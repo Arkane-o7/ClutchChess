@@ -214,6 +214,39 @@ class TestValidateMove:
         move = GameEngine.validate_move(state, 1, pawn.id, 5, 4)
         assert move is None
 
+    def test_validate_move_blocked_by_enemy_piece(self):
+        """Test cannot move through a stationary enemy piece."""
+        board = Board.create_empty()
+        # Rook at (4,0), enemy pawn at (4,3), trying to move to (4,7)
+        white_rook = Piece.create(PieceType.ROOK, player=1, row=4, col=0)
+        black_pawn = Piece.create(PieceType.PAWN, player=2, row=4, col=3)
+        white_king = Piece.create(PieceType.KING, player=1, row=7, col=4)
+        black_king = Piece.create(PieceType.KING, player=2, row=0, col=4)
+        board.add_piece(white_rook)
+        board.add_piece(black_pawn)
+        board.add_piece(white_king)
+        board.add_piece(black_king)
+
+        state = GameEngine.create_game_from_board(
+            speed=Speed.STANDARD,
+            players={1: "u:1", 2: "u:2"},
+            board=board,
+        )
+        state, _ = GameEngine.set_player_ready(state, 1)
+        state, _ = GameEngine.set_player_ready(state, 2)
+
+        # Cannot move through enemy pawn to (4,7)
+        move = GameEngine.validate_move(state, 1, white_rook.id, 4, 7)
+        assert move is None
+
+        # Can move to enemy pawn's square (capture)
+        move = GameEngine.validate_move(state, 1, white_rook.id, 4, 3)
+        assert move is not None
+
+        # Can move to empty square before enemy pawn
+        move = GameEngine.validate_move(state, 1, white_rook.id, 4, 2)
+        assert move is not None
+
 
 class TestApplyMove:
     """Tests for applying moves."""
@@ -560,12 +593,13 @@ class TestCaptureFlow:
         state, _ = GameEngine.set_player_ready(state, 1)
         state, _ = GameEngine.set_player_ready(state, 2)
 
-        # Move queen through pawn's position
-        move = GameEngine.validate_move(state, 1, white_queen.id, 4, 7)
+        # Move queen TO pawn's position (capture move)
+        # Note: can't move THROUGH enemy piece, only TO it
+        move = GameEngine.validate_move(state, 1, white_queen.id, 4, 3)
         assert move is not None
         state, _ = GameEngine.apply_move(state, move)
 
-        # Tick until queen passes pawn (around tick 30-40)
+        # Tick until queen reaches pawn
         capture_event = None
         for _ in range(50):
             state, events = GameEngine.tick(state)
@@ -734,9 +768,12 @@ class TestCastlingCapture:
         rook = Piece.create(PieceType.ROOK, player=1, row=7, col=7)
         # Enemy rook on row 7, will collide with king during castling
         enemy_rook = Piece.create(PieceType.ROOK, player=2, row=7, col=0)
+        # Enemy king required for move validation (far from action)
+        enemy_king = Piece.create(PieceType.KING, player=2, row=0, col=4)
         board.add_piece(king)
         board.add_piece(rook)
         board.add_piece(enemy_rook)
+        board.add_piece(enemy_king)
 
         state = GameEngine.create_game_from_board(
             speed=Speed.STANDARD,

@@ -29,7 +29,12 @@ class ClientMessageType(Enum):
 
 
 class StateUpdateMessage(BaseModel):
-    """Game state update sent every tick."""
+    """Game state update sent when state changes.
+
+    Note: With the state optimization, updates are only sent when the game state
+    meaningfully changes (events, active moves, or cooldowns change). Clients
+    should use time_since_tick for smooth interpolation between updates.
+    """
 
     type: str = "state"
     tick: int
@@ -37,6 +42,7 @@ class StateUpdateMessage(BaseModel):
     active_moves: list[dict[str, Any]]
     cooldowns: list[dict[str, Any]]
     events: list[dict[str, Any]]
+    time_since_tick: float = 0.0  # Milliseconds since tick started (0-100)
 
 
 class GameStartedMessage(BaseModel):

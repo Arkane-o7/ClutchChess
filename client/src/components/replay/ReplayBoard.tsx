@@ -25,20 +25,10 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
   const activeMoves = useReplayStore((s) => s.activeMoves);
   const cooldowns = useReplayStore((s) => s.cooldowns);
   const currentTick = useReplayStore((s) => s.currentTick);
+  const lastTickTime = useReplayStore((s) => s.lastTickTime);
+  const timeSinceTick = useReplayStore((s) => s.timeSinceTick);
   const isPlaying = useReplayStore((s) => s.isPlaying);
   const speed = useReplayStore((s) => s.speed);
-
-  // Track last tick time for interpolation
-  const lastTickTimeRef = useRef<number>(performance.now());
-  const lastTickRef = useRef<number>(currentTick);
-
-  // Update tick tracking when tick changes
-  useEffect(() => {
-    if (currentTick !== lastTickRef.current) {
-      lastTickTimeRef.current = performance.now();
-      lastTickRef.current = currentTick;
-    }
-  }, [currentTick]);
 
   // Initialize renderer
   useEffect(() => {
@@ -91,10 +81,15 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
       // Calculate visual tick for smooth animation
       // Only interpolate if playing
       let visualTick = currentTick;
+      let tickFraction = 0;
       if (isPlaying) {
         const now = performance.now();
-        const timeSinceLastTick = now - lastTickTimeRef.current;
-        const tickFraction = Math.min(timeSinceLastTick / TIMING.TICK_PERIOD_MS, 1.0);
+        const timeSinceLastTick = now - lastTickTime;
+        // Combine client-side elapsed time with server's time_since_tick offset
+        // Guard against negative values (can happen briefly after seeks or state updates)
+        const totalElapsed = Math.max(0, timeSinceLastTick + timeSinceTick);
+        // Allow interpolation up to 10 ticks ahead to handle sparse updates
+        tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 10.0);
         visualTick = currentTick + tickFraction;
       }
 
@@ -117,10 +112,11 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
         startTick: m.startTick,
       }));
 
-      // Convert cooldowns
+      // Convert cooldowns with interpolation
+      // Subtract elapsed ticks so cooldown timers decrease smoothly between server updates
       const rendererCooldowns = cooldowns.map((c) => ({
         pieceId: c.pieceId,
-        remainingTicks: c.remainingTicks,
+        remainingTicks: Math.max(0, c.remainingTicks - tickFraction),
       }));
 
       // Render pieces
@@ -145,7 +141,7 @@ export function ReplayBoard({ boardType, squareSize = 64 }: ReplayBoardProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isReady, pieces, activeMoves, cooldowns, currentTick, isPlaying, speed]);
+  }, [isReady, pieces, activeMoves, cooldowns, currentTick, lastTickTime, timeSinceTick, isPlaying, speed]);
 
   // Calculate canvas dimensions
   const boardDims = boardType === 'four_player' ? { width: 12, height: 12 } : { width: 8, height: 8 };

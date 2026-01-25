@@ -79,6 +79,11 @@ class ReplaySession:
         self._cached_state: GameState | None = None
         self._cached_tick: int = -1  # The tick that _cached_state represents
 
+        # Track previous state for change detection optimization
+        self._prev_active_move_ids: set[str] = set()
+        self._prev_cooldown_ids: set[str] = set()
+        self._is_first_tick: bool = True
+
     async def start(self) -> None:
         """Initialize session and send replay info.
 
@@ -219,13 +224,20 @@ class ReplaySession:
 
         Runs at the configured tick rate (typically 10 ticks/second).
         Stops when reaching the end or when paused.
+
+        Only sends state updates when state changes (active moves or cooldowns changed).
         """
+        import time
+
         config = SPEED_CONFIGS[self.replay.speed]
         tick_interval = config.tick_period_ms / 1000.0
+        tick_interval_ms = float(config.tick_period_ms)
 
         try:
             while True:
                 await asyncio.sleep(tick_interval)
+                # Track when this tick started (after sleep completes)
+                tick_start_time = time.monotonic()
 
                 async with self._lock:
                     if not self.is_playing or self._closed:
@@ -236,7 +248,9 @@ class ReplaySession:
 
                     self.current_tick += 1
                     try:
-                        await self._send_state_at_tick(self.current_tick)
+                        await self._send_state_at_tick_if_changed(
+                            self.current_tick, tick_start_time, tick_interval_ms
+                        )
                     except Exception as e:
                         logger.warning(f"Replay {self.game_id}: send failed, closing: {e}")
                         self._closed = True
@@ -265,7 +279,7 @@ class ReplaySession:
                     except Exception as e:
                         logger.warning(f"Replay {self.game_id}: status send failed: {e}")
 
-    async def _send_state_at_tick(self, tick: int) -> None:
+    async def _send_state_at_tick(self, tick: int, time_since_tick: float = 0.0) -> None:
         """Compute and send state at the given tick.
 
         This method uses incremental state advancement when possible for O(1)
@@ -278,6 +292,7 @@ class ReplaySession:
 
         Args:
             tick: The tick to compute state for
+            time_since_tick: Milliseconds elapsed since tick started (for client interpolation)
 
         Uses the same state message format as live games.
 
@@ -293,8 +308,54 @@ class ReplaySession:
             return
 
         state = self._get_state_at_tick(tick)
-        message = self._format_state_update(state)
+        message = self._format_state_update(state, time_since_tick)
         await self.websocket.send_json(message)
+
+    async def _send_state_at_tick_if_changed(
+        self, tick: int, tick_start_time: float, tick_interval_ms: float
+    ) -> None:
+        """Send state at the given tick only if state has changed.
+
+        This optimization reduces bandwidth by only sending updates when:
+        - It's the first tick after starting playback
+        - Active moves have changed (piece started/finished moving)
+        - Cooldowns have changed (piece entered/exited cooldown)
+
+        Args:
+            tick: The tick to compute state for
+            tick_start_time: Monotonic time when this tick started (from time.monotonic())
+            tick_interval_ms: Tick interval in milliseconds (for clamping time_since_tick)
+        """
+        import time
+
+        if self._closed:
+            return
+
+        state = self._get_state_at_tick(tick)
+
+        # Get current state IDs for change detection
+        curr_active_move_ids = {m.piece_id for m in state.active_moves}
+        curr_cooldown_ids = {c.piece_id for c in state.cooldowns}
+
+        # Check if state has changed
+        state_changed = (
+            self._is_first_tick
+            or self._prev_active_move_ids != curr_active_move_ids
+            or self._prev_cooldown_ids != curr_cooldown_ids
+        )
+
+        if state_changed:
+            # Calculate time_since_tick right before sending (captures actual elapsed time)
+            elapsed_in_tick = (time.monotonic() - tick_start_time) * 1000  # Convert to ms
+            time_since_tick = min(elapsed_in_tick, tick_interval_ms)
+
+            message = self._format_state_update(state, time_since_tick)
+            await self.websocket.send_json(message)
+
+        # Update previous state tracking
+        self._prev_active_move_ids = curr_active_move_ids
+        self._prev_cooldown_ids = curr_cooldown_ids
+        self._is_first_tick = False
 
     def _get_state_at_tick(self, tick: int) -> GameState:
         """Get game state at the given tick, using cache when possible.
@@ -345,7 +406,7 @@ class ReplaySession:
         return self._cached_state
 
     def _invalidate_cache(self) -> None:
-        """Invalidate the cached state.
+        """Invalidate the cached state and change detection tracking.
 
         Called when seeking to a non-sequential tick. The next call to
         _get_state_at_tick will trigger a full recomputation.
@@ -355,12 +416,17 @@ class ReplaySession:
         """
         self._cached_state = None
         self._cached_tick = -1
+        # Reset change detection - force state to be sent after seek
+        self._prev_active_move_ids = set()
+        self._prev_cooldown_ids = set()
+        self._is_first_tick = True
 
-    def _format_state_update(self, state: GameState) -> dict[str, Any]:
+    def _format_state_update(self, state: GameState, time_since_tick: float = 0.0) -> dict[str, Any]:
         """Format game state as a state message.
 
         Args:
             state: The game state to format
+            time_since_tick: Milliseconds elapsed since tick started (for client interpolation)
 
         Returns:
             Dictionary in the same format as live game state messages
@@ -426,6 +492,7 @@ class ReplaySession:
             "active_moves": active_moves_data,
             "cooldowns": cooldowns_data,
             "events": [],  # Include empty events array for consistency with live games
+            "time_since_tick": time_since_tick,
         }
 
     async def _send_replay_info(self) -> None:

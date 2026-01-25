@@ -59,6 +59,7 @@ export interface StateUpdateMessage {
   active_moves: WsActiveMove[];
   cooldowns: WsCooldown[];
   events: WsGameEvent[];
+  time_since_tick?: number; // Milliseconds since tick started (0-100), optional for backwards compatibility
 }
 
 export interface GameStartedMessage {

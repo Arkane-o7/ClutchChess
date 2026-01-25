@@ -30,6 +30,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
   const cooldowns = useGameStore((s) => s.cooldowns);
   const currentTick = useGameStore((s) => s.currentTick);
   const lastTickTime = useGameStore((s) => s.lastTickTime);
+  const timeSinceTick = useGameStore((s) => s.timeSinceTick);
   const selectedPieceId = useGameStore((s) => s.selectedPieceId);
   const playerNumber = useGameStore((s) => s.playerNumber);
   const status = useGameStore((s) => s.status);
@@ -194,10 +195,15 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       if (!renderer) return;
 
       // Calculate visual tick for smooth 60fps animation
-      // Interpolate between server ticks (which arrive at 10Hz)
+      // Interpolate between server ticks (which may now arrive less frequently due to optimization)
+      // Account for server's time_since_tick to stay in sync
       const now = performance.now();
       const timeSinceLastTick = now - lastTickTime;
-      const tickFraction = Math.min(timeSinceLastTick / TIMING.TICK_PERIOD_MS, 1.0);
+      // Combine client-side elapsed time with server's time_since_tick offset
+      // Guard against negative values (can happen briefly after state updates)
+      const totalElapsed = Math.max(0, timeSinceLastTick + timeSinceTick);
+      // Allow interpolation up to 10 ticks ahead to handle sparse updates
+      const tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 10.0);
       const visualTick = currentTick + tickFraction;
 
       // Convert pieces to renderer format
@@ -219,10 +225,11 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
         startTick: m.startTick,
       }));
 
-      // Convert cooldowns
+      // Convert cooldowns with interpolation
+      // Subtract elapsed ticks so cooldown timers decrease smoothly between server updates
       const rendererCooldowns = cooldowns.map((c) => ({
         pieceId: c.pieceId,
-        remainingTicks: c.remainingTicks,
+        remainingTicks: Math.max(0, c.remainingTicks - tickFraction),
       }));
 
       // Render pieces with visual tick for smooth animation
@@ -255,7 +262,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isReady, pieces, activeMoves, cooldowns, currentTick, lastTickTime, selectedPieceId, legalMoveTargets, speed]);
+  }, [isReady, pieces, activeMoves, cooldowns, currentTick, lastTickTime, timeSinceTick, selectedPieceId, legalMoveTargets, speed]);
 
   // Calculate canvas dimensions
   const boardDims = boardType === 'four_player' ? { width: 12, height: 12 } : { width: 8, height: 8 };

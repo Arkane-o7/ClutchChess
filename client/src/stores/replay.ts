@@ -30,6 +30,8 @@ interface ReplayState {
 
   // Playback state (from server)
   currentTick: number;
+  lastTickTime: number; // timestamp when currentTick was last updated
+  timeSinceTick: number; // milliseconds since tick started, from server (0-100)
   isPlaying: boolean;
 
   // Game state (from server, same as live game)
@@ -78,6 +80,8 @@ const initialState: ReplayState = {
   winner: null,
   winReason: null,
   currentTick: 0,
+  lastTickTime: 0,
+  timeSinceTick: 0,
   isPlaying: false,
   pieces: [],
   activeMoves: [],
@@ -183,6 +187,8 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         case 'state':
           set({
             currentTick: message.tick,
+            lastTickTime: performance.now(),
+            timeSinceTick: message.time_since_tick ?? 0,
             pieces: message.pieces.map(convertPiece),
             activeMoves: message.active_moves.map(convertActiveMove),
             cooldowns: message.cooldowns.map(convertCooldown),

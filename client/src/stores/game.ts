@@ -64,6 +64,7 @@ interface GameState {
   status: GameStatus;
   currentTick: number;
   lastTickTime: number; // timestamp when currentTick was last updated
+  timeSinceTick: number; // milliseconds since tick started, from server (0-100)
   winner: number | null;
   winReason: string | null;
   pieces: Piece[];
@@ -119,6 +120,7 @@ const initialState: GameState = {
   status: 'waiting',
   currentTick: 0,
   lastTickTime: 0,
+  timeSinceTick: 0,
   winner: null,
   winReason: null,
   pieces: [],
@@ -455,6 +457,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       currentTick: msg.tick,
       lastTickTime: performance.now(),
+      timeSinceTick: msg.time_since_tick ?? 0,
       pieces: updatedPieces,
       activeMoves,
       cooldowns,

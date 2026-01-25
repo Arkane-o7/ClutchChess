@@ -454,12 +454,16 @@ class TestReplaySessionPlaybackLoop:
     @pytest.mark.asyncio
     async def test_playback_handles_send_failure(self, mock_websocket: AsyncMock):
         """Test that playback loop handles WebSocket send failures gracefully."""
+        # Include moves to trigger state changes (optimization only sends when state changes)
         replay = Replay(
             version=2,
             speed=Speed.LIGHTNING,
             board_type=BoardType.STANDARD,
             players={1: "p1", 2: "p2"},
-            moves=[],
+            moves=[
+                ReplayMove(tick=1, piece_id="P:1:6:4", to_row=5, to_col=4, player=1),
+                ReplayMove(tick=2, piece_id="P:2:1:4", to_row=2, to_col=4, player=2),
+            ],
             total_ticks=10,
             winner=None,
             win_reason=None,

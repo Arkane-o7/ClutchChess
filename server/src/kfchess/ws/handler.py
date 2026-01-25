@@ -26,6 +26,46 @@ logger = logging.getLogger(__name__)
 _game_loop_locks: dict[str, asyncio.Lock] = {}
 
 
+def _has_state_changed(
+    prev_active_move_ids: set[str],
+    prev_cooldown_ids: set[str],
+    curr_active_move_ids: set[str],
+    curr_cooldown_ids: set[str],
+    has_events: bool,
+) -> bool:
+    """Check if game state has meaningfully changed since last broadcast.
+
+    This function determines whether a state update needs to be sent to clients.
+    We only broadcast when:
+    - There are events (captures, promotions, etc.)
+    - Active moves have changed (piece started/finished moving)
+    - Cooldowns have changed (piece entered/exited cooldown)
+
+    Args:
+        prev_active_move_ids: Set of piece IDs that were moving in the previous tick
+        prev_cooldown_ids: Set of piece IDs that were on cooldown in the previous tick
+        curr_active_move_ids: Set of piece IDs currently moving
+        curr_cooldown_ids: Set of piece IDs currently on cooldown
+        has_events: Whether there are any events to broadcast
+
+    Returns:
+        True if state has changed and should be broadcast
+    """
+    # Always send if there are events
+    if has_events:
+        return True
+
+    # Check if active moves changed
+    if prev_active_move_ids != curr_active_move_ids:
+        return True
+
+    # Check if cooldowns changed (piece entered/exited cooldown)
+    if prev_cooldown_ids != curr_cooldown_ids:
+        return True
+
+    return False
+
+
 class ConnectionManager:
     """Manages WebSocket connections for games.
 
@@ -487,7 +527,12 @@ async def _run_game_loop(game_id: str) -> None:
     """Run the game tick loop.
 
     This runs at 10 ticks/second (100ms per tick) and broadcasts
-    state updates to all connected clients.
+    state updates to all connected clients only when state changes.
+
+    The optimization reduces bandwidth and CPU by only sending updates when:
+    - There are events (captures, promotions, etc.)
+    - Active moves have changed (piece started/finished moving)
+    - Cooldowns have changed (piece entered/exited cooldown)
     """
     from kfchess.game.collision import (
         get_interpolated_position,
@@ -499,12 +544,18 @@ async def _run_game_loop(game_id: str) -> None:
 
     service = get_game_service()
     tick_interval = 0.1  # 100ms
+    tick_interval_ms = 100.0  # For time_since_tick calculation
+
+    # Track previous state for change detection
+    prev_active_move_ids: set[str] = set()
+    prev_cooldown_ids: set[str] = set()
+    is_first_tick = True
 
     logger.info(f"Starting game loop for game {game_id}")
 
     try:
         while True:
-            start_time = time.monotonic()
+            tick_start_time = time.monotonic()
 
             # Get game state
             managed_game = service.get_managed_game(game_id)
@@ -531,82 +582,106 @@ async def _run_game_loop(game_id: str) -> None:
 
             config = state.config
 
-            # Build state update message
-            pieces_data = []
-            for piece in state.board.pieces:
-                if piece.captured:
-                    # Only include captured pieces that were just captured
-                    was_just_captured = any(
-                        e.type.value == "capture" and e.data.get("captured_piece_id") == piece.id
-                        for e in events
-                    )
-                    if not was_just_captured:
-                        continue
+            # Get current state IDs for change detection
+            curr_active_move_ids = {m.piece_id for m in state.active_moves}
+            curr_cooldown_ids = {c.piece_id for c in state.cooldowns}
 
-                pos = get_interpolated_position(
-                    piece, state.active_moves, state.current_tick, config.ticks_per_square
-                )
-                pieces_data.append(
-                    {
-                        "id": piece.id,
-                        "type": piece.type.value,
-                        "player": piece.player,
-                        "row": pos[0],
-                        "col": pos[1],
-                        "captured": piece.captured,
-                        "moving": is_piece_moving(piece.id, state.active_moves),
-                        "on_cooldown": is_piece_on_cooldown(
-                            piece.id, state.cooldowns, state.current_tick
-                        ),
-                        "moved": piece.moved,
-                    }
-                )
-
-            active_moves_data = []
-            for move in state.active_moves:
-                total_ticks = (len(move.path) - 1) * config.ticks_per_square
-                elapsed = max(0, state.current_tick - move.start_tick)
-                progress = min(1.0, elapsed / total_ticks) if total_ticks > 0 else 1.0
-                active_moves_data.append(
-                    {
-                        "piece_id": move.piece_id,
-                        "path": move.path,
-                        "start_tick": move.start_tick,
-                        "progress": progress,
-                    }
-                )
-
-            cooldowns_data = []
-            for cd in state.cooldowns:
-                remaining = max(0, (cd.start_tick + cd.duration) - state.current_tick)
-                cooldowns_data.append(
-                    {
-                        "piece_id": cd.piece_id,
-                        "remaining_ticks": remaining,
-                    }
-                )
-
-            events_data = []
-            for event in events:
-                events_data.append(
-                    {
-                        "type": event.type.value,
-                        "tick": event.tick,
-                        **event.data,
-                    }
-                )
-
-            # Broadcast state update
-            await connection_manager.broadcast(
-                game_id,
-                StateUpdateMessage(
-                    tick=state.current_tick,
-                    pieces=pieces_data,
-                    active_moves=active_moves_data,
-                    cooldowns=cooldowns_data,
-                    events=events_data,
-                ).model_dump(),
+            # Check if state has changed (always send on first tick)
+            state_changed = is_first_tick or _has_state_changed(
+                prev_active_move_ids,
+                prev_cooldown_ids,
+                curr_active_move_ids,
+                curr_cooldown_ids,
+                bool(events),
             )
+
+            if state_changed:
+                # Build state update message
+                pieces_data = []
+                for piece in state.board.pieces:
+                    if piece.captured:
+                        # Only include captured pieces that were just captured
+                        was_just_captured = any(
+                            e.type.value == "capture" and e.data.get("captured_piece_id") == piece.id
+                            for e in events
+                        )
+                        if not was_just_captured:
+                            continue
+
+                    pos = get_interpolated_position(
+                        piece, state.active_moves, state.current_tick, config.ticks_per_square
+                    )
+                    pieces_data.append(
+                        {
+                            "id": piece.id,
+                            "type": piece.type.value,
+                            "player": piece.player,
+                            "row": pos[0],
+                            "col": pos[1],
+                            "captured": piece.captured,
+                            "moving": is_piece_moving(piece.id, state.active_moves),
+                            "on_cooldown": is_piece_on_cooldown(
+                                piece.id, state.cooldowns, state.current_tick
+                            ),
+                            "moved": piece.moved,
+                        }
+                    )
+
+                active_moves_data = []
+                for move in state.active_moves:
+                    total_ticks = (len(move.path) - 1) * config.ticks_per_square
+                    elapsed = max(0, state.current_tick - move.start_tick)
+                    progress = min(1.0, elapsed / total_ticks) if total_ticks > 0 else 1.0
+                    active_moves_data.append(
+                        {
+                            "piece_id": move.piece_id,
+                            "path": move.path,
+                            "start_tick": move.start_tick,
+                            "progress": progress,
+                        }
+                    )
+
+                cooldowns_data = []
+                for cd in state.cooldowns:
+                    remaining = max(0, (cd.start_tick + cd.duration) - state.current_tick)
+                    cooldowns_data.append(
+                        {
+                            "piece_id": cd.piece_id,
+                            "remaining_ticks": remaining,
+                        }
+                    )
+
+                events_data = []
+                for event in events:
+                    events_data.append(
+                        {
+                            "type": event.type.value,
+                            "tick": event.tick,
+                            **event.data,
+                        }
+                    )
+
+                # Calculate time_since_tick right before sending (captures actual elapsed time)
+                elapsed_in_tick = (time.monotonic() - tick_start_time) * 1000  # Convert to ms
+                time_since_tick = min(elapsed_in_tick, tick_interval_ms)
+
+                # Broadcast state update
+                await connection_manager.broadcast(
+                    game_id,
+                    StateUpdateMessage(
+                        tick=state.current_tick,
+                        pieces=pieces_data,
+                        active_moves=active_moves_data,
+                        cooldowns=cooldowns_data,
+                        events=events_data,
+                        time_since_tick=time_since_tick,
+                    ).model_dump(),
+                )
+
+            # Update previous state for next iteration
+            prev_active_move_ids = curr_active_move_ids
+            prev_cooldown_ids = curr_cooldown_ids
+            is_first_tick = False
 
             # Check for game over after tick
             if state.status == GameStatus.FINISHED:
@@ -631,7 +706,7 @@ async def _run_game_loop(game_id: str) -> None:
                 break
 
             # Sleep for remainder of tick interval
-            elapsed = time.monotonic() - start_time
+            elapsed = time.monotonic() - tick_start_time
             if elapsed < tick_interval:
                 await asyncio.sleep(tick_interval - elapsed)
 

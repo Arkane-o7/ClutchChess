@@ -41,6 +41,7 @@ export interface ApiBoard {
 export interface ApiGameState {
   game_id: string;
   status: 'waiting' | 'playing' | 'finished';
+  speed: 'standard' | 'lightning';
   current_tick: number;
   winner: number | null;
   board: ApiBoard;
@@ -252,7 +253,6 @@ export interface CreateLobbyRequest {
   settings?: Partial<LobbySettings>;
   addAi?: boolean;
   aiType?: string;
-  username?: string;
   guestId?: string;
 }
 
@@ -268,7 +268,6 @@ export interface CreateLobbyResponse {
 // Join lobby request
 export interface JoinLobbyRequest {
   preferredSlot?: number;
-  username?: string;
   guestId?: string;
 }
 

@@ -7,25 +7,33 @@ import random
 
 from kfchess.ai.base import AIPlayer
 from kfchess.game.engine import GameEngine
-from kfchess.game.state import GameState
+from kfchess.game.state import GameState, Speed
+
+# Move intervals in seconds for each speed
+MOVE_INTERVAL_SECONDS = {
+    Speed.STANDARD: 4.0,  # 1 move every 4 seconds
+    Speed.LIGHTNING: 2.0,  # 1 move every 2 seconds
+}
+TICKS_PER_SECOND = 10
 
 
 class DummyAI(AIPlayer):
     """AI that makes random valid moves at random intervals."""
 
-    def __init__(self, move_probability: float = 0.1):
+    def __init__(self, speed: Speed = Speed.STANDARD):
         """Initialize the dummy AI.
 
         Args:
-            move_probability: Probability of attempting a move each tick (0.0-1.0).
-                             Default 0.1 means ~1 move per second at 10 ticks/sec.
+            speed: Game speed, used to determine move frequency.
+                   Standard: ~1 move every 4 seconds
+                   Lightning: ~1 move every 2 seconds
         """
-        self.move_probability = move_probability
+        interval = MOVE_INTERVAL_SECONDS.get(speed, 4.0)
+        ticks_between_moves = interval * TICKS_PER_SECOND
+        self.move_probability = 1.0 / ticks_between_moves
 
     def should_move(self, state: GameState, player: int, current_tick: int) -> bool:
         """Randomly decide whether to move this tick."""
-        # Always try to move if we haven't moved recently
-        # Random chance to move based on probability
         return random.random() < self.move_probability
 
     def get_move(self, state: GameState, player: int) -> tuple[str, int, int] | None:

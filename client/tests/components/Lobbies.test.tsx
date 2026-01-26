@@ -259,7 +259,7 @@ describe('Lobbies Page', () => {
       expect(screen.getByText(/standard, 2 players/)).toBeInTheDocument();
     });
 
-    it('shows username input for guests in join modal', () => {
+    it('shows guest notice for non-logged-in users in join modal', () => {
       useLobbyStore.setState({
         isLoadingLobbies: false,
         publicLobbies: [createMockLobbyListItem()],
@@ -269,7 +269,7 @@ describe('Lobbies Page', () => {
       const joinButtons = screen.getAllByRole('button', { name: 'Join' });
       fireEvent.click(joinButtons[0]);
 
-      expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
+      expect(screen.getByText(/You will join as Guest/i)).toBeInTheDocument();
     });
 
     it('closes modal when Cancel is clicked', () => {

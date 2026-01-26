@@ -264,6 +264,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         playerKey: playerKey ?? null,
         playerNumber: playerKey ? 1 : 0, // Will be determined by server
         boardType: gameState.board.board_type,
+        speed: gameState.speed,
         status: gameState.status,
         currentTick: gameState.current_tick,
         winner: gameState.winner,
@@ -332,6 +333,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const gameState = await api.getGameState(gameId);
       set({
         status: gameState.status,
+        speed: gameState.speed,
         currentTick: gameState.current_tick,
         winner: gameState.winner,
         pieces: gameState.board.pieces.map(convertApiPiece),
@@ -533,4 +535,16 @@ export const selectCanSelectPiece = (pieceId: string) => (state: GameStore) => {
     !piece.onCooldown &&
     state.status === 'playing'
   );
+};
+
+/**
+ * Check if the current player has been eliminated (their king is captured)
+ * This is relevant for 4-player mode where players can be knocked out while the game continues
+ */
+export const selectIsPlayerEliminated = (state: GameStore) => {
+  if (state.playerNumber === 0) return false; // Spectators can't be eliminated
+  const myKing = state.pieces.find(
+    (p) => p.type === 'K' && p.player === state.playerNumber
+  );
+  return myKing?.captured === true;
 };

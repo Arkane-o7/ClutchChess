@@ -29,6 +29,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.session import async_session_factory
 from kfchess.replay.session import ReplaySession
+from kfchess.utils.display_name import resolve_player_names
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +81,17 @@ async def handle_replay_websocket(websocket: WebSocket, game_id: str) -> None:
 
     await websocket.accept()
 
-    # Load replay from database
+    # Load replay from database and resolve player names
     replay = None
+    resolved_players: dict[int, str] | None = None
     try:
         async with async_session_factory() as db_session:
             repository = ReplayRepository(db_session)
             replay = await repository.get_by_id(game_id)
+
+            if replay is not None:
+                # Resolve player display names while we have the session
+                resolved_players = await resolve_player_names(db_session, replay.players)
     except Exception as e:
         logger.exception(f"Failed to load replay {game_id}: {e}")
         await _send_error_and_close(websocket, "Failed to load replay")
@@ -99,7 +105,7 @@ async def handle_replay_websocket(websocket: WebSocket, game_id: str) -> None:
     logger.info(f"Loaded replay {game_id}: {len(replay.moves)} moves, {replay.total_ticks} ticks")
 
     # Create session and start
-    session = ReplaySession(replay, websocket, game_id)
+    session = ReplaySession(replay, websocket, game_id, resolved_players)
 
     try:
         await session.start()

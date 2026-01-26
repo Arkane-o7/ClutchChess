@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.session import async_session_factory
+from kfchess.utils.display_name import resolve_player_names
 
 router = APIRouter(prefix="/replays", tags=["replays"])
 
@@ -43,25 +44,31 @@ async def list_replays(
         offset: Number of replays to skip
 
     Returns:
-        List of replay summaries
+        List of replay summaries with resolved player display names
     """
     async with async_session_factory() as session:
         repository = ReplayRepository(session)
         replays_with_ids = await repository.list_recent(limit=limit, offset=offset)
         total = await repository.count_public()
 
-    summaries = [
-        ReplaySummary(
-            game_id=game_id,
-            speed=replay.speed.value,
-            board_type=replay.board_type.value,
-            players={str(k): v for k, v in replay.players.items()},
-            total_ticks=replay.total_ticks,
-            winner=replay.winner,
-            win_reason=replay.win_reason,
-            created_at=replay.created_at,
-        )
-        for game_id, replay in replays_with_ids
-    ]
+        # Resolve player display names for all replays
+        summaries = []
+        for game_id, replay in replays_with_ids:
+            # Convert string keys back to int for resolve_player_names
+            players_int_keys = {int(k): v for k, v in replay.players.items()}
+            resolved_players = await resolve_player_names(session, players_int_keys)
+
+            summaries.append(
+                ReplaySummary(
+                    game_id=game_id,
+                    speed=replay.speed.value,
+                    board_type=replay.board_type.value,
+                    players={str(k): v for k, v in resolved_players.items()},
+                    total_ticks=replay.total_ticks,
+                    winner=replay.winner,
+                    win_reason=replay.win_reason,
+                    created_at=replay.created_at,
+                )
+            )
 
     return ReplayListResponse(replays=summaries, total=total)

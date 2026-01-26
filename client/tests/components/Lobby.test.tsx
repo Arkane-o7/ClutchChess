@@ -119,7 +119,7 @@ describe('Lobby Page', () => {
       expect(screen.getByText('Lobby Code: ABC123')).toBeInTheDocument();
     });
 
-    it('shows username input for guests', () => {
+    it('shows guest notice for non-logged-in users', () => {
       useLobbyStore.setState({
         code: null,
         playerKey: null,
@@ -127,7 +127,7 @@ describe('Lobby Page', () => {
       });
 
       renderWithRouter(<Lobby />);
-      expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
+      expect(screen.getByText(/You will join as Guest/i)).toBeInTheDocument();
     });
   });
 
@@ -169,7 +169,8 @@ describe('Lobby Page', () => {
     it('shows player name in slot', () => {
       const lobby = createMockLobby({
         players: {
-          1: createMockPlayer(1, { username: 'TestPlayer' }),
+          // userId must be set for username to display (otherwise shows "Guest")
+          1: createMockPlayer(1, { username: 'TestPlayer', userId: 1 }),
         },
       });
       useLobbyStore.setState({

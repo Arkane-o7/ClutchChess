@@ -4,29 +4,76 @@
  * Playback controls for replay: play/pause button, seek slider, time display.
  */
 
-import { useCallback, useState } from 'react';
-import { useReplayStore, selectFormattedTime, selectFormattedTotalTime } from '../../stores/replay';
+import { useCallback, useState, useEffect, useRef } from 'react';
+import { useReplayStore, selectFormattedTotalTime } from '../../stores/replay';
+import { TIMING } from '../../game';
 import './ReplayControls.css';
 
 export function ReplayControls() {
   const currentTick = useReplayStore((s) => s.currentTick);
+  const lastTickTime = useReplayStore((s) => s.lastTickTime);
+  const timeSinceTick = useReplayStore((s) => s.timeSinceTick);
   const totalTicks = useReplayStore((s) => s.totalTicks);
   const isPlaying = useReplayStore((s) => s.isPlaying);
   const connectionState = useReplayStore((s) => s.connectionState);
+
+  // Interpolated visual tick for smooth progress bar
+  const [visualTick, setVisualTick] = useState(0);
+  const animationRef = useRef<number | null>(null);
+
+  // Store latest values in ref for animation loop
+  const stateRef = useRef({ currentTick, lastTickTime, timeSinceTick, isPlaying, totalTicks });
+  stateRef.current = { currentTick, lastTickTime, timeSinceTick, isPlaying, totalTicks };
+
+  // Animation loop to interpolate visual tick
+  useEffect(() => {
+    const animate = () => {
+      const state = stateRef.current;
+
+      if (state.isPlaying) {
+        const now = performance.now();
+        const timeSinceLastTick = now - state.lastTickTime;
+        const totalElapsed = Math.max(0, timeSinceLastTick + state.timeSinceTick);
+        const tickFraction = Math.min(totalElapsed / TIMING.TICK_PERIOD_MS, 100.0);
+        const interpolated = Math.min(state.currentTick + tickFraction, state.totalTicks);
+        setVisualTick(interpolated);
+      } else {
+        setVisualTick(state.currentTick);
+      }
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []); // Run once, uses refs for state
 
   const play = useReplayStore((s) => s.play);
   const pause = useReplayStore((s) => s.pause);
   const seek = useReplayStore((s) => s.seek);
 
-  const formattedTime = useReplayStore(selectFormattedTime);
   const formattedTotalTime = useReplayStore(selectFormattedTotalTime);
+
+  // Format time from visual tick
+  const formatTime = (ticks: number) => {
+    const seconds = Math.floor(ticks / 10);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+  const formattedTime = formatTime(visualTick);
 
   // Track dragging state for the slider - only seek on release
   const [isDragging, setIsDragging] = useState(false);
   const [dragTick, setDragTick] = useState(0);
 
   const isConnected = connectionState === 'connected';
-  const isAtEnd = currentTick >= totalTicks;
+  const isAtEnd = visualTick >= totalTicks;
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -81,8 +128,8 @@ export function ReplayControls() {
     seek(0);
   }, [seek]);
 
-  // Use drag position during drag, otherwise current tick
-  const displayTick = isDragging ? dragTick : currentTick;
+  // Use drag position during drag, otherwise interpolated visual tick
+  const displayTick = isDragging ? dragTick : visualTick;
   // Calculate progress percentage for the slider track fill
   const progress = totalTicks > 0 ? (displayTick / totalTicks) * 100 : 0;
 
@@ -95,7 +142,7 @@ export function ReplayControls() {
           className="replay-slider"
           min={0}
           max={totalTicks}
-          value={displayTick}
+          value={Math.floor(displayTick)}
           onMouseDown={handleSliderMouseDown}
           onChange={handleSliderChange}
           onMouseUp={handleSliderMouseUp}

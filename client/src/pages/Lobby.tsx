@@ -17,6 +17,7 @@ import {
 } from '../stores/lobby';
 import { useAuthStore } from '../stores/auth';
 import type { LobbyPlayer, LobbySettings as LobbySettingsType } from '../api/types';
+import { formatDisplayName } from '../utils/displayName';
 import './Lobby.css';
 
 // ============================================
@@ -63,7 +64,7 @@ function PlayerSlot({ slot, player, isHost, isMe, canKick, onKick }: PlayerSlotP
         {player.isAi && <span className="ai-badge">AI</span>}
         {isDisconnected && <span className="disconnected-badge">Offline</span>}
       </div>
-      <div className="player-name">{player.username}</div>
+      <div className="player-name">{formatDisplayName(player)}</div>
       <div className="player-status">
         {isDisconnected ? (
           <span className="status-disconnected">Disconnected</span>
@@ -155,7 +156,7 @@ function LobbySettings({ settings, isHost, disabled, canEnableRated, onUpdate }:
 
 interface JoinModalProps {
   code: string;
-  onJoin: (username?: string) => void;
+  onJoin: () => void;
   onCancel: () => void;
   isJoining: boolean;
   error: string | null;
@@ -163,11 +164,10 @@ interface JoinModalProps {
 
 function JoinModal({ code, onJoin, onCancel, isJoining, error }: JoinModalProps) {
   const user = useAuthStore((s) => s.user);
-  const [username, setUsername] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onJoin(user ? undefined : username || undefined);
+    onJoin();
   };
 
   return (
@@ -180,20 +180,7 @@ function JoinModal({ code, onJoin, onCancel, isJoining, error }: JoinModalProps)
 
         <form onSubmit={handleSubmit} className="auth-form">
           {!user && (
-            <div className="form-group">
-              <label htmlFor="username">
-                Display Name <span className="optional">(optional)</span>
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Guest"
-                disabled={isJoining}
-                maxLength={20}
-              />
-            </div>
+            <p className="guest-notice">You will join as Guest</p>
           )}
 
           <div className="modal-actions">
@@ -307,14 +294,14 @@ export function Lobby() {
   }, []);
 
   const handleJoin = useCallback(
-    async (username?: string) => {
+    async () => {
       if (!urlCode) return;
 
       setIsJoining(true);
       setJoinError(null);
 
       try {
-        await joinLobby(urlCode, username);
+        await joinLobby(urlCode);
         setShowJoinModal(false);
 
         // Connect WebSocket

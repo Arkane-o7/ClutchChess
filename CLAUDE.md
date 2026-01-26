@@ -10,6 +10,7 @@
 ```bash
 # Quick start
 ./scripts/dev.sh             # Start docker + both servers
+./scripts/restart-dev.sh     # Kill and restart dev servers in background (for Claude)
 
 # Backend (uses uv, not pip)
 cd server

@@ -272,6 +272,7 @@ async def get_game(game_id: str) -> dict[str, Any]:
     return {
         "game_id": state.game_id,
         "status": state.status.value,
+        "speed": state.speed.value,
         "current_tick": state.current_tick,
         "winner": state.winner,
         "board": {

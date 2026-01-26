@@ -38,6 +38,10 @@ export const RENDER = {
   COOLDOWN_OVERLAY_ALPHA: 0.5,
   COOLDOWN_OVERLAY_COLOR: 0x7fff00, // Green, same as selection
   SELECTION_STROKE_WIDTH: 4, // Width of selection outline
+  // Offset to center pieces within squares (compensates for sprite artwork positioning)
+  // Positive values move pieces right/down, negative values move them left/up
+  PIECE_OFFSET_X: -2, // Shift left to center
+  PIECE_OFFSET_Y: -2, // Shift up to center
 } as const;
 
 /**

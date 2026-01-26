@@ -58,8 +58,8 @@ function isMoving(activeMoves: ActiveMove[], pieceId: string): boolean {
 function isLegalMoveNoCross(
   pieces: Piece[],
   activeMoves: ActiveMove[],
-  currentTick: number,
-  ticksPerSquare: number,
+  _currentTick: number,
+  _ticksPerSquare: number,
   piece: Piece,
   rowDir: number,
   colDir: number,

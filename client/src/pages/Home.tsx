@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLobbyStore } from '../stores/lobby';
-import { useAuthStore } from '../stores/auth';
 
 type BoardType = 'standard' | 'four_player';
 
@@ -9,7 +8,6 @@ function Home() {
   const navigate = useNavigate();
   const createLobby = useLobbyStore((s) => s.createLobby);
   const connect = useLobbyStore((s) => s.connect);
-  const user = useAuthStore((s) => s.user);
 
   const [isCreating, setIsCreating] = useState(false);
   const [selectedBoardType, setSelectedBoardType] = useState<BoardType>('standard');
@@ -36,8 +34,7 @@ function Home() {
           playerCount,
           isRanked: false,
         },
-        true, // Add AI to fill slots
-        user?.username
+        true // Add AI to fill slots
       );
 
       const state = useLobbyStore.getState();
@@ -74,8 +71,7 @@ function Home() {
           playerCount: 2,
           isRanked: false,
         },
-        addAiToLobby,
-        user?.username
+        addAiToLobby
       );
 
       const state = useLobbyStore.getState();
@@ -91,7 +87,7 @@ function Home() {
       setShowCreateLobbyModal(false);
       setAddAiToLobby(false);
     }
-  }, [createLobby, connect, navigate, user?.username, addAiToLobby, isCreatingLobby]);
+  }, [createLobby, connect, navigate, addAiToLobby, isCreatingLobby]);
 
   return (
     <div className="home-page">

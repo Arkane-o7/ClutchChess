@@ -585,8 +585,10 @@ async def _create_game_from_lobby(
     speed = Speed.LIGHTNING if lobby.settings.speed == "lightning" else Speed.STANDARD
     board_type = BoardType.FOUR_PLAYER if lobby.settings.player_count == 4 else BoardType.STANDARD
 
-    # Separate human players and AI players
+    # Build player info: keys for auth, IDs for replay storage
+    manager = get_lobby_manager()
     human_player_keys: dict[int, str] = {}
+    human_player_ids: dict[int, str] = {}
     ai_players_config: dict[int, str] = {}
 
     for slot, player in lobby.players.items():
@@ -596,13 +598,26 @@ async def _create_game_from_lobby(
         else:
             # Use the lobby-generated keys for human players
             if slot in game_player_keys:
-                human_player_keys[slot] = game_player_keys[slot]
+                key = game_player_keys[slot]
+                human_player_keys[slot] = key
+                # Look up the actual player_id from the lobby manager
+                # This will be like "u:123" for users or "guest:xxx" for guests
+                player_id = manager._key_to_player_id.get(key)
+                if player_id:
+                    human_player_ids[slot] = player_id
+                elif player.user_id:
+                    # Fallback: construct from user_id if available
+                    human_player_ids[slot] = f"u:{player.user_id}"
+                else:
+                    # Guest without tracked player_id - use a placeholder
+                    human_player_ids[slot] = "guest:unknown"
 
-    # Create the game with all player keys registered
+    # Create the game with all player keys and IDs registered
     game_id_created = service.create_lobby_game(
         speed=speed,
         board_type=board_type,
         player_keys=human_player_keys,
+        player_ids=human_player_ids,
         ai_players_config=ai_players_config if ai_players_config else None,
     )
 
@@ -610,7 +625,6 @@ async def _create_game_from_lobby(
     lobby.current_game_id = game_id_created
 
     # Update the game-to-lobby mapping
-    manager = get_lobby_manager()
     manager._game_to_lobby[game_id_created] = code
 
     # Send game_starting message to ALL human players

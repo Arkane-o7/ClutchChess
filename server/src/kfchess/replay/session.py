@@ -55,17 +55,25 @@ class ReplaySession:
         is_playing: Whether playback is currently running
     """
 
-    def __init__(self, replay: Replay, websocket: WebSocket, game_id: str) -> None:
+    def __init__(
+        self,
+        replay: Replay,
+        websocket: WebSocket,
+        game_id: str,
+        resolved_players: dict[int, str] | None = None,
+    ) -> None:
         """Initialize the replay session.
 
         Args:
             replay: The replay data to play back
             websocket: WebSocket connection to the client
             game_id: The game ID for logging
+            resolved_players: Pre-resolved display names for players (optional)
         """
         self.replay = replay
         self.websocket = websocket
         self.game_id = game_id
+        self.resolved_players = resolved_players
         self.engine = ReplayEngine(replay)
         self.current_tick = 0
         self.is_playing = False
@@ -500,13 +508,16 @@ class ReplaySession:
         if self._closed:
             return
 
+        # Use resolved player names if available, otherwise fall back to raw IDs
+        players_to_send = self.resolved_players or self.replay.players
+
         await self.websocket.send_json(
             {
                 "type": "replay_info",
                 "game_id": self.game_id,
                 "speed": self.replay.speed.value,
                 "board_type": self.replay.board_type.value,
-                "players": {str(k): v for k, v in self.replay.players.items()},
+                "players": {str(k): v for k, v in players_to_send.items()},
                 "total_ticks": self.replay.total_ticks,
                 "winner": self.replay.winner,
                 "win_reason": self.replay.win_reason,

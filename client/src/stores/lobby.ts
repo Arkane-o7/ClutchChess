@@ -49,8 +49,8 @@ interface LobbyState {
   pendingGamePlayerKey: string | null;
 
   // Actions - REST
-  createLobby: (settings?: Partial<LobbySettings>, addAi?: boolean, username?: string) => Promise<string>;
-  joinLobby: (code: string, username?: string) => Promise<void>;
+  createLobby: (settings?: Partial<LobbySettings>, addAi?: boolean) => Promise<string>;
+  joinLobby: (code: string) => Promise<void>;
   fetchPublicLobbies: (speed?: string, playerCount?: number, isRanked?: boolean) => Promise<void>;
 
   // Actions - WebSocket
@@ -117,13 +117,12 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
   // REST API Actions
   // ============================================
 
-  createLobby: async (settings, addAi = false, username) => {
+  createLobby: async (settings, addAi = false) => {
     const guestId = getOrCreateGuestId();
     const response = await api.createLobby({
       settings,
       addAi,
       aiType: 'bot:dummy',
-      username,
       guestId,
     });
 
@@ -141,10 +140,9 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     return response.code;
   },
 
-  joinLobby: async (code, username) => {
+  joinLobby: async (code) => {
     const guestId = getOrCreateGuestId();
     const response = await api.joinLobby(code, {
-      username,
       guestId,
     });
 

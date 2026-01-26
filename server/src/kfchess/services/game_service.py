@@ -137,7 +137,7 @@ class GameService:
         # Set up AI instances
         ai_players: dict[int, AIPlayer] = {}
         for bot_player in bot_players:
-            ai_players[bot_player] = self._create_ai(bot_name)
+            ai_players[bot_player] = self._create_ai(bot_name, speed)
         logger.debug(f"AI players created: {list(ai_players.keys())}")
 
         # Create managed game
@@ -157,6 +157,7 @@ class GameService:
         speed: Speed,
         board_type: BoardType,
         player_keys: dict[int, str],
+        player_ids: dict[int, str] | None = None,
         ai_players_config: dict[int, str] | None = None,
     ) -> str:
         """Create a game from a lobby with multiple human players.
@@ -165,6 +166,8 @@ class GameService:
             speed: Game speed setting
             board_type: Type of board (standard or four_player)
             player_keys: Map of player number to pre-generated player key
+            player_ids: Map of player number to player ID (e.g., "u:123", "guest:xxx")
+                        Used for replay storage. If not provided, falls back to key-based IDs.
             ai_players_config: Map of player number to AI type (e.g., {2: "dummy"})
 
         Returns:
@@ -176,16 +179,22 @@ class GameService:
         while game_id in self.games:
             game_id = _generate_game_id()
 
-        # Build players dict
+        # Build players dict using proper player IDs for replay storage
+        player_ids = player_ids or {}
         players: dict[int, str] = {}
-        for player_num, key in player_keys.items():
-            players[player_num] = f"u:{key}"
+        for player_num in player_keys.keys():
+            # Use provided player_id if available, otherwise fall back to key-based ID
+            if player_num in player_ids:
+                players[player_num] = player_ids[player_num]
+            else:
+                # Fallback for backwards compatibility
+                players[player_num] = f"u:{player_keys[player_num]}"
 
         ai_players_config = ai_players_config or {}
         ai_instances: dict[int, AIPlayer] = {}
         for player_num, ai_type in ai_players_config.items():
             players[player_num] = f"bot:{ai_type}"
-            ai_instances[player_num] = self._create_ai(ai_type)
+            ai_instances[player_num] = self._create_ai(ai_type, speed)
 
         logger.debug(f"Creating lobby game with players: {players}")
 
@@ -219,19 +228,20 @@ class GameService:
 
         return game_id
 
-    def _create_ai(self, bot_name: str) -> AIPlayer:
+    def _create_ai(self, bot_name: str, speed: Speed = Speed.STANDARD) -> AIPlayer:
         """Create an AI instance based on bot name.
 
         Args:
             bot_name: Name of the bot (e.g., "dummy", "random")
+            speed: Game speed, passed to AI for move timing
 
         Returns:
             AI player instance
         """
         if bot_name == "dummy":
-            return DummyAI()
+            return DummyAI(speed=speed)
         # Default to dummy for MVP
-        return DummyAI()
+        return DummyAI(speed=speed)
 
     def get_game(self, game_id: str) -> GameState | None:
         """Get the current game state.

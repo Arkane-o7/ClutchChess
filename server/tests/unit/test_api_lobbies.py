@@ -35,7 +35,7 @@ class TestCreateLobby:
         """Test creating a lobby with defaults."""
         response = client.post(
             "/api/lobbies",
-            json={"username": "TestHost"},
+            json={},
         )
 
         assert response.status_code == 200
@@ -51,13 +51,14 @@ class TestCreateLobby:
         assert lobby["settings"]["speed"] == "standard"
         assert lobby["settings"]["playerCount"] == 2
         assert lobby["status"] == "waiting"
+        # Unauthenticated users show as "Guest"
+        assert lobby["players"]["1"]["username"] == "Guest"
 
     def test_create_lobby_with_settings(self, client: TestClient) -> None:
         """Test creating a lobby with custom settings."""
         response = client.post(
             "/api/lobbies",
             json={
-                "username": "TestHost",
                 "settings": {
                     "isPublic": False,
                     "speed": "lightning",
@@ -79,7 +80,6 @@ class TestCreateLobby:
         response = client.post(
             "/api/lobbies",
             json={
-                "username": "TestHost",
                 "addAi": True,
                 "aiType": "bot:dummy",
             },
@@ -101,7 +101,6 @@ class TestCreateLobby:
         response = client.post(
             "/api/lobbies",
             json={
-                "username": "TestHost",
                 "settings": {"playerCount": 4},
                 "addAi": True,
             },
@@ -120,7 +119,6 @@ class TestCreateLobby:
         response = client.post(
             "/api/lobbies",
             json={
-                "username": "TestHost",
                 "settings": {"speed": "invalid"},
             },
         )
@@ -132,7 +130,6 @@ class TestCreateLobby:
         response = client.post(
             "/api/lobbies",
             json={
-                "username": "TestHost",
                 "settings": {"playerCount": 3},
             },
         )
@@ -146,7 +143,7 @@ class TestCreateLobby:
         # Create first lobby
         response1 = client.post(
             "/api/lobbies",
-            json={"username": "TestHost", "guestId": guest_id},
+            json={"guestId": guest_id},
         )
         assert response1.status_code == 200
         code1 = response1.json()["code"]
@@ -154,7 +151,7 @@ class TestCreateLobby:
         # Create second lobby with same guest
         response2 = client.post(
             "/api/lobbies",
-            json={"username": "TestHost", "guestId": guest_id},
+            json={"guestId": guest_id},
         )
         assert response2.status_code == 200
         code2 = response2.json()["code"]
@@ -183,7 +180,7 @@ class TestListLobbies:
         # Create a public lobby
         client.post(
             "/api/lobbies",
-            json={"username": "Host1"},
+            json={},
         )
 
         response = client.get("/api/lobbies")
@@ -193,7 +190,7 @@ class TestListLobbies:
         assert len(data["lobbies"]) == 1
         lobby = data["lobbies"][0]
         assert "code" in lobby
-        assert lobby["hostUsername"] == "Host1"
+        assert lobby["hostUsername"] == "Guest"
         assert lobby["currentPlayers"] == 1
 
     def test_list_lobbies_excludes_private(self, client: TestClient) -> None:
@@ -202,7 +199,6 @@ class TestListLobbies:
         client.post(
             "/api/lobbies",
             json={
-                "username": "Host1",
                 "settings": {"isPublic": False},
             },
         )
@@ -218,12 +214,12 @@ class TestListLobbies:
         # Create standard lobby
         client.post(
             "/api/lobbies",
-            json={"username": "Host1", "settings": {"speed": "standard"}},
+            json={"settings": {"speed": "standard"}},
         )
         # Create lightning lobby
         client.post(
             "/api/lobbies",
-            json={"username": "Host2", "settings": {"speed": "lightning"}},
+            json={"settings": {"speed": "lightning"}},
         )
 
         # Filter by standard
@@ -239,12 +235,12 @@ class TestListLobbies:
         # Create 2-player lobby
         client.post(
             "/api/lobbies",
-            json={"username": "Host1", "settings": {"playerCount": 2}},
+            json={"settings": {"playerCount": 2}},
         )
         # Create 4-player lobby
         client.post(
             "/api/lobbies",
-            json={"username": "Host2", "settings": {"playerCount": 4}},
+            json={"settings": {"playerCount": 4}},
         )
 
         # Filter by 4-player
@@ -264,7 +260,7 @@ class TestGetLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "TestHost"},
+            json={},
         )
         code = create_response.json()["code"]
 
@@ -292,14 +288,14 @@ class TestJoinLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
         code = create_response.json()["code"]
 
         # Join lobby
         response = client.post(
             f"/api/lobbies/{code}/join",
-            json={"username": "Player2"},
+            json={},
         )
 
         assert response.status_code == 200
@@ -308,7 +304,8 @@ class TestJoinLobby:
         assert data["slot"] == 2
         lobby = data["lobby"]
         assert len(lobby["players"]) == 2
-        assert lobby["players"]["2"]["username"] == "Player2"
+        # Unauthenticated users show as "Guest"
+        assert lobby["players"]["2"]["username"] == "Guest"
 
     def test_join_lobby_preferred_slot(self, client: TestClient) -> None:
         """Test joining with preferred slot."""
@@ -316,7 +313,6 @@ class TestJoinLobby:
         create_response = client.post(
             "/api/lobbies",
             json={
-                "username": "Host",
                 "settings": {"playerCount": 4},
             },
         )
@@ -325,7 +321,7 @@ class TestJoinLobby:
         # Join with preferred slot 3
         response = client.post(
             f"/api/lobbies/{code}/join",
-            json={"username": "Player", "preferredSlot": 3},
+            json={"preferredSlot": 3},
         )
 
         assert response.status_code == 200
@@ -336,7 +332,7 @@ class TestJoinLobby:
         """Test joining nonexistent lobby."""
         response = client.post(
             "/api/lobbies/NOTFOUND/join",
-            json={"username": "Player"},
+            json={},
         )
 
         assert response.status_code == 404
@@ -347,7 +343,6 @@ class TestJoinLobby:
         create_response = client.post(
             "/api/lobbies",
             json={
-                "username": "Host",
                 "addAi": True,
             },
         )
@@ -356,7 +351,7 @@ class TestJoinLobby:
         # Try to join full lobby
         response = client.post(
             f"/api/lobbies/{code}/join",
-            json={"username": "Player"},
+            json={},
         )
 
         assert response.status_code == 409
@@ -369,27 +364,27 @@ class TestJoinLobby:
         # Create first lobby
         response1 = client.post(
             "/api/lobbies",
-            json={"username": "Host1"},
+            json={},
         )
         code1 = response1.json()["code"]
 
         # Create second lobby
         response2 = client.post(
             "/api/lobbies",
-            json={"username": "Host2"},
+            json={},
         )
         code2 = response2.json()["code"]
 
         # Join first lobby
         client.post(
             f"/api/lobbies/{code1}/join",
-            json={"username": "Player", "guestId": guest_id},
+            json={"guestId": guest_id},
         )
 
         # Join second lobby with same guest
         join_response = client.post(
             f"/api/lobbies/{code2}/join",
-            json={"username": "Player", "guestId": guest_id},
+            json={"guestId": guest_id},
         )
 
         assert join_response.status_code == 200
@@ -408,7 +403,6 @@ class TestJoinLobby:
         create_response = client.post(
             "/api/lobbies",
             json={
-                "username": "Host",
                 "settings": {"isPublic": False},
             },
         )
@@ -417,7 +411,7 @@ class TestJoinLobby:
         # Join the private lobby (allowed with direct code)
         response = client.post(
             f"/api/lobbies/{code}/join",
-            json={"username": "Player2"},
+            json={},
         )
 
         assert response.status_code == 200
@@ -434,7 +428,7 @@ class TestDeleteLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
         data = create_response.json()
         code = data["code"]
@@ -458,14 +452,14 @@ class TestDeleteLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
         code = create_response.json()["code"]
 
         # Another player joins
         join_response = client.post(
             f"/api/lobbies/{code}/join",
-            json={"username": "Player2"},
+            json={},
         )
         player2_key = join_response.json()["playerKey"]
 
@@ -482,7 +476,7 @@ class TestDeleteLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
         code = create_response.json()["code"]
 
@@ -510,7 +504,7 @@ class TestDeleteLobby:
         # Create a lobby
         create_response = client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
         data = create_response.json()
         code = data["code"]
@@ -547,7 +541,7 @@ class TestLiveGames:
         # Create a lobby (waiting status)
         client.post(
             "/api/lobbies",
-            json={"username": "Host"},
+            json={},
         )
 
         response = client.get("/api/games/live")
@@ -564,7 +558,6 @@ class TestLiveGames:
         create_response = client.post(
             "/api/lobbies",
             json={
-                "username": "Host",
                 "settings": {"isPublic": False},
             },
         )

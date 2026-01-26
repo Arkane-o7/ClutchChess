@@ -4,15 +4,21 @@
  * Displays current game status and connection state.
  */
 
-import { useGameStore } from '../../stores/game';
+import { useGameStore, selectIsPlayerEliminated } from '../../stores/game';
 
 export function GameStatus() {
   const status = useGameStore((s) => s.status);
   const connectionState = useGameStore((s) => s.connectionState);
   const playerNumber = useGameStore((s) => s.playerNumber);
   const lastError = useGameStore((s) => s.lastError);
+  const boardType = useGameStore((s) => s.boardType);
+  const isEliminated = useGameStore(selectIsPlayerEliminated);
 
   const getStatusText = () => {
+    // In 4-player mode, show "You Lost!" if eliminated but game continues
+    if (status === 'playing' && boardType === 'four_player' && isEliminated) {
+      return 'You Lost! (Spectating)';
+    }
     switch (status) {
       case 'waiting':
         return 'Waiting to start...';

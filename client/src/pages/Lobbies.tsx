@@ -17,7 +17,7 @@ import './Lobby.css';
 
 interface JoinModalProps {
   lobby: LobbyListItem;
-  onJoin: (username?: string) => void;
+  onJoin: () => void;
   onCancel: () => void;
   isJoining: boolean;
   error: string | null;
@@ -25,11 +25,10 @@ interface JoinModalProps {
 
 function JoinModal({ lobby, onJoin, onCancel, isJoining, error }: JoinModalProps) {
   const user = useAuthStore((s) => s.user);
-  const [username, setUsername] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onJoin(user ? undefined : username || undefined);
+    onJoin();
   };
 
   return (
@@ -44,20 +43,7 @@ function JoinModal({ lobby, onJoin, onCancel, isJoining, error }: JoinModalProps
 
         <form onSubmit={handleSubmit} className="auth-form">
           {!user && (
-            <div className="form-group">
-              <label htmlFor="username">
-                Display Name <span className="optional">(optional)</span>
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Guest"
-                disabled={isJoining}
-                maxLength={20}
-              />
-            </div>
+            <p className="guest-notice">You will join as Guest</p>
           )}
 
           <div className="modal-actions">
@@ -94,8 +80,6 @@ export function Lobbies() {
   const connect = useLobbyStore((s) => s.connect);
   const createLobby = useLobbyStore((s) => s.createLobby);
 
-  const user = useAuthStore((s) => s.user);
-
   // Local state
   const [speedFilter, setSpeedFilter] = useState<string>('');
   const [playerCountFilter, setPlayerCountFilter] = useState<number | undefined>();
@@ -122,14 +106,14 @@ export function Lobbies() {
   }, [fetchPublicLobbies, speedFilter, playerCountFilter, ratedFilter]);
 
   const handleJoinLobby = useCallback(
-    async (username?: string) => {
+    async () => {
       if (!selectedLobby) return;
 
       setIsJoining(true);
       setJoinError(null);
 
       try {
-        await joinLobby(selectedLobby.code, username);
+        await joinLobby(selectedLobby.code);
         const state = useLobbyStore.getState();
         if (state.playerKey) {
           connect(selectedLobby.code, state.playerKey);
@@ -160,7 +144,7 @@ export function Lobbies() {
     setIsCreating(true);
     setCreateError(null);
     try {
-      const code = await createLobby({ isPublic: false }, false, user?.username);
+      const code = await createLobby({ isPublic: false }, false);
       const state = useLobbyStore.getState();
       if (state.playerKey) {
         connect(code, state.playerKey);
@@ -171,7 +155,7 @@ export function Lobbies() {
     } finally {
       setIsCreating(false);
     }
-  }, [createLobby, connect, navigate, user?.username]);
+  }, [createLobby, connect, navigate]);
 
   return (
     <div className="lobbies-page">

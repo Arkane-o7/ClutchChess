@@ -20,6 +20,10 @@ import {
   transformToViewCoords,
   transformToGameCoords,
 } from './constants';
+
+// Piece centering offset (applied to sprite position within container)
+const PIECE_OFFSET_X = RENDER.PIECE_OFFSET_X ?? 0;
+const PIECE_OFFSET_Y = RENDER.PIECE_OFFSET_Y ?? 0;
 import { interpolatePiecePosition, calculateCooldownProgress, type ActiveMove } from './interpolation';
 
 // Types
@@ -329,8 +333,10 @@ export class GameRenderer {
       pieceSprite.container.y = viewPosition.row * this.squareSize;
 
       // Update cooldown overlay
+      // Cooldown duration is always 10x the ticks per square (100 for standard, 20 for lightning)
+      const totalCooldownTicks = ticksPerSquare * 10;
       const cooldown = cooldownMap.get(piece.id);
-      this.updateCooldownOverlay(pieceSprite, cooldown);
+      this.updateCooldownOverlay(pieceSprite, cooldown, totalCooldownTicks);
     }
 
     // Remove sprites for pieces no longer present
@@ -359,10 +365,10 @@ export class GameRenderer {
     const scale = targetSize / Math.max(texture.width, texture.height);
     sprite.scale.set(scale);
 
-    // Use center anchor for centering
+    // Use center anchor for centering, with offset to compensate for sprite artwork
     sprite.anchor.set(0.5, 0.5);
-    sprite.x = this.squareSize / 2;
-    sprite.y = this.squareSize / 2;
+    sprite.x = this.squareSize / 2 + PIECE_OFFSET_X;
+    sprite.y = this.squareSize / 2 + PIECE_OFFSET_Y;
 
     // Apply player tint only for players 3 and 4 (red/blue)
     // Players 1 and 2 use white/black sprites directly without tinting
@@ -392,10 +398,10 @@ export class GameRenderer {
       const scale = targetSize / Math.max(texture.width, texture.height);
       pieceSprite.sprite.scale.set(scale);
 
-      // Use center anchor for centering
+      // Use center anchor for centering, with offset to compensate for sprite artwork
       pieceSprite.sprite.anchor.set(0.5, 0.5);
-      pieceSprite.sprite.x = this.squareSize / 2;
-      pieceSprite.sprite.y = this.squareSize / 2;
+      pieceSprite.sprite.x = this.squareSize / 2 + PIECE_OFFSET_X;
+      pieceSprite.sprite.y = this.squareSize / 2 + PIECE_OFFSET_Y;
     }
     // Apply tinting only for players 3 and 4 (red/blue)
     if (piece.player >= 3) {
@@ -410,7 +416,8 @@ export class GameRenderer {
    */
   private updateCooldownOverlay(
     pieceSprite: PieceSprite,
-    cooldown: RendererCooldown | undefined
+    cooldown: RendererCooldown | undefined,
+    totalCooldownTicks: number
   ): void {
     const overlay = pieceSprite.cooldownOverlay;
 
@@ -420,7 +427,7 @@ export class GameRenderer {
     }
 
     // Calculate cooldown progress (0 = full cooldown, 1 = done)
-    const progress = calculateCooldownProgress(cooldown.remainingTicks);
+    const progress = calculateCooldownProgress(cooldown.remainingTicks, totalCooldownTicks);
 
     // Draw overlay that drains downward (top disappears first, bottom remains)
     const remainingHeight = this.squareSize * (1 - progress);
@@ -520,10 +527,10 @@ export class GameRenderer {
         const scale = targetSize / Math.max(texture.width, texture.height);
         ghostSprite.scale.set(scale);
 
-        // Use center anchor for centering
+        // Use center anchor for centering, with offset to compensate for sprite artwork
         ghostSprite.anchor.set(0.5, 0.5);
-        ghostSprite.x = this.squareSize / 2;
-        ghostSprite.y = this.squareSize / 2;
+        ghostSprite.x = this.squareSize / 2 + PIECE_OFFSET_X;
+        ghostSprite.y = this.squareSize / 2 + PIECE_OFFSET_Y;
 
         // Apply tinting only for players 3 and 4 (red/blue)
         if (selectedPiecePlayer >= 3) {

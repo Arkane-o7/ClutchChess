@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGameStore } from '../../stores/game';
+import { useGameStore, selectIsPlayerEliminated } from '../../stores/game';
 import { GameRenderer, type BoardType, TIMING, getLegalMovesForPiece } from '../../game';
 
 interface GameBoardProps {
@@ -38,6 +38,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
 
   const selectPiece = useGameStore((s) => s.selectPiece);
   const makeMove = useGameStore((s) => s.makeMove);
+  const isEliminated = useGameStore(selectIsPlayerEliminated);
 
   // Store latest values in refs so the render loop can access them without restarting
   const gameStateRef = useRef({
@@ -94,7 +95,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
   // Handle piece click
   const handlePieceClick = useCallback(
     (pieceId: string) => {
-      if (status !== 'playing' || playerNumber === 0) return;
+      if (status !== 'playing' || playerNumber === 0 || isEliminated) return;
 
       const piece = pieces.find((p) => p.id === pieceId);
       if (!piece) return;
@@ -124,13 +125,13 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
         }
       }
     },
-    [status, playerNumber, pieces, selectedPieceId, selectPiece, legalMoveTargets, makeMove]
+    [status, playerNumber, isEliminated, pieces, selectedPieceId, selectPiece, legalMoveTargets, makeMove]
   );
 
   // Handle square click
   const handleSquareClick = useCallback(
     (row: number, col: number) => {
-      if (status !== 'playing' || playerNumber === 0) return;
+      if (status !== 'playing' || playerNumber === 0 || isEliminated) return;
 
       // If no piece selected, try to select a piece at this square
       if (!selectedPieceId) {
@@ -165,7 +166,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       // Deselect
       selectPiece(null);
     },
-    [status, playerNumber, selectedPieceId, pieces, legalMoveTargets, makeMove, selectPiece]
+    [status, playerNumber, isEliminated, selectedPieceId, pieces, legalMoveTargets, makeMove, selectPiece]
   );
 
   // Keep refs updated with latest callbacks

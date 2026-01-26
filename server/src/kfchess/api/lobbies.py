@@ -1,11 +1,13 @@
 """Lobby API endpoints."""
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from kfchess.auth import optional_current_user
+from kfchess.db.models import User
 from kfchess.lobby.manager import LobbyError, get_lobby_manager
 from kfchess.lobby.models import LobbySettings, LobbyStatus
 
@@ -31,7 +33,6 @@ class CreateLobbyRequest(BaseModel):
     settings: CreateLobbySettingsRequest | None = None
     add_ai: bool = Field(default=False, alias="addAi")
     ai_type: str = Field(default="bot:dummy", alias="aiType")
-    username: str | None = None
     guest_id: str | None = Field(default=None, alias="guestId")
 
     model_config = {"populate_by_name": True}
@@ -53,7 +54,6 @@ class JoinLobbyRequest(BaseModel):
     """Request body for joining a lobby."""
 
     preferred_slot: int | None = Field(default=None, alias="preferredSlot")
-    username: str | None = None
     guest_id: str | None = Field(default=None, alias="guestId")
 
     model_config = {"populate_by_name": True}
@@ -90,11 +90,14 @@ class LobbyListResponse(BaseModel):
 
 
 @router.post("", response_model=CreateLobbyResponse)
-async def create_lobby(request: CreateLobbyRequest) -> CreateLobbyResponse:
+async def create_lobby(
+    request: CreateLobbyRequest,
+    user: Annotated[User | None, Depends(optional_current_user)],
+) -> CreateLobbyResponse:
     """Create a new lobby.
 
     If authenticated, the user becomes the host. If not authenticated,
-    a guest lobby is created with the provided username.
+    a guest lobby is created.
     """
     manager = get_lobby_manager()
 
@@ -112,11 +115,15 @@ async def create_lobby(request: CreateLobbyRequest) -> CreateLobbyResponse:
     else:
         settings = LobbySettings()
 
-    # Determine player identity
-    # TODO: Get user from auth when implemented
-    user_id = None
-    username = request.username or "Guest"
-    player_id = f"guest:{request.guest_id}" if request.guest_id else None
+    # Determine player identity from auth
+    if user:
+        user_id = user.id
+        username = user.username
+        player_id = f"u:{user.id}"
+    else:
+        user_id = None
+        username = "Guest"
+        player_id = f"guest:{request.guest_id}" if request.guest_id else None
 
     result = await manager.create_lobby(
         host_user_id=user_id,
@@ -198,7 +205,11 @@ async def get_lobby(code: str) -> dict[str, Any]:
 
 
 @router.post("/{code}/join", response_model=JoinLobbyResponse)
-async def join_lobby(code: str, request: JoinLobbyRequest) -> JoinLobbyResponse:
+async def join_lobby(
+    code: str,
+    request: JoinLobbyRequest,
+    user: Annotated[User | None, Depends(optional_current_user)],
+) -> JoinLobbyResponse:
     """Join an existing lobby.
 
     Returns the player key needed for WebSocket authentication.
@@ -212,11 +223,15 @@ async def join_lobby(code: str, request: JoinLobbyRequest) -> JoinLobbyResponse:
     if lobby is None:
         raise HTTPException(status_code=404, detail="Lobby not found")
 
-    # Determine player identity
-    # TODO: Get user from auth when implemented
-    user_id = None
-    username = request.username or "Guest"
-    player_id = f"guest:{request.guest_id}" if request.guest_id else None
+    # Determine player identity from auth
+    if user:
+        user_id = user.id
+        username = user.username
+        player_id = f"u:{user.id}"
+    else:
+        user_id = None
+        username = "Guest"
+        player_id = f"guest:{request.guest_id}" if request.guest_id else None
 
     result = await manager.join_lobby(
         code=code,

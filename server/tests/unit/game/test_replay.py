@@ -6,7 +6,7 @@ from kfchess.game.board import Board, BoardType
 from kfchess.game.engine import GameEngine
 from kfchess.game.pieces import Piece, PieceType
 from kfchess.game.replay import Replay, ReplayEngine, _convert_v1_to_v2
-from kfchess.game.state import GameStatus, ReplayMove, Speed
+from kfchess.game.state import GameStatus, ReplayMove, Speed, WinReason
 
 
 class TestReplayDataclass:
@@ -45,6 +45,7 @@ class TestReplayDataclass:
         # Mark as finished for test purposes
         state.status = GameStatus.FINISHED
         state.winner = 1
+        state.win_reason = WinReason.KING_CAPTURED
         state.finished_at = datetime.now(UTC)
 
         # Create replay from state

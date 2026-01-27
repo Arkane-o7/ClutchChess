@@ -50,14 +50,6 @@ class Replay:
     @staticmethod
     def from_game_state(state: "GameState") -> "Replay":
         """Create a replay from a completed game state."""
-        # Determine win reason based on game state
-        win_reason = None
-        if state.winner is not None:
-            if state.winner == 0:
-                win_reason = "draw"
-            else:
-                win_reason = "king_captured"
-
         return Replay(
             version=2,
             speed=state.speed,
@@ -66,7 +58,7 @@ class Replay:
             moves=list(state.replay_moves),
             total_ticks=state.current_tick,
             winner=state.winner,
-            win_reason=win_reason,
+            win_reason=state.win_reason.value if state.win_reason else None,
             created_at=state.finished_at,
         )
 

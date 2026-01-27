@@ -5,7 +5,7 @@ from kfchess.game.board import Board
 from kfchess.game.engine import GameEngine, GameEventType
 from kfchess.game.moves import Cooldown, Move
 from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameStatus, Speed
+from kfchess.game.state import GameStatus, Speed, WinReason
 
 
 class TestCreateGame:
@@ -456,8 +456,9 @@ class TestCheckWinner:
         king2 = state.board.get_king(2)
         king2.captured = True
 
-        winner = GameEngine.check_winner(state)
+        winner, win_reason = GameEngine.check_winner(state)
         assert winner == 1
+        assert win_reason == WinReason.KING_CAPTURED
 
     def test_no_winner_ongoing(self):
         """Test no winner when game is ongoing."""
@@ -468,8 +469,9 @@ class TestCheckWinner:
         state, _ = GameEngine.set_player_ready(state, 1)
         state, _ = GameEngine.set_player_ready(state, 2)
 
-        winner = GameEngine.check_winner(state)
+        winner, win_reason = GameEngine.check_winner(state)
         assert winner is None
+        assert win_reason is None
 
 
 class TestGetLegalMoves:
@@ -692,8 +694,9 @@ class TestWinnerCheck:
         king1.captured = True
         king2.captured = True
 
-        winner = GameEngine.check_winner(state)
+        winner, win_reason = GameEngine.check_winner(state)
         assert winner == 0  # Draw
+        assert win_reason == WinReason.DRAW
 
     def test_winner_with_multiple_players(self):
         """Test winner detection works correctly with more than 2 players."""
@@ -719,7 +722,9 @@ class TestWinnerCheck:
         state, _ = GameEngine.set_player_ready(state, 4)
 
         # All kings alive - no winner
-        assert GameEngine.check_winner(state) is None
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner is None
+        assert win_reason is None
 
         # Eliminate players 2, 3, 4 - player 1 wins
         # Get pieces from state's board (not original references)
@@ -727,7 +732,9 @@ class TestWinnerCheck:
         state.board.get_king(3).captured = True
         state.board.get_king(4).captured = True
 
-        assert GameEngine.check_winner(state) == 1
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner == 1
+        assert win_reason == WinReason.KING_CAPTURED
 
     def test_two_players_remaining(self):
         """Test game continues when 2+ players still have kings."""
@@ -750,11 +757,15 @@ class TestWinnerCheck:
 
         # Eliminate player 3 - game continues with 2 players
         state.board.get_king(3).captured = True
-        assert GameEngine.check_winner(state) is None
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner is None
+        assert win_reason is None
 
         # Eliminate player 2 - player 1 wins
         state.board.get_king(2).captured = True
-        assert GameEngine.check_winner(state) == 1
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner == 1
+        assert win_reason == WinReason.KING_CAPTURED
 
 
 class TestCastlingCapture:

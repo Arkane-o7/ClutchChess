@@ -33,6 +33,7 @@ from kfchess.game.state import (  # noqa: E402
     GameStatus,
     ReplayMove,
     Speed,
+    WinReason,
 )
 
 
@@ -481,11 +482,12 @@ class GameEngine:
         state.cooldowns = [c for c in state.cooldowns if c.is_active(state.current_tick)]
 
         # 5. Check win/draw conditions
-        winner = GameEngine.check_winner(state)
+        winner, win_reason = GameEngine.check_winner(state)
         if winner is not None:
             state.status = GameStatus.FINISHED
             state.finished_at = datetime.now(UTC)
             state.winner = winner
+            state.win_reason = win_reason
 
             if winner == 0:
                 events.append(
@@ -507,13 +509,13 @@ class GameEngine:
         return state, events
 
     @staticmethod
-    def check_winner(state: GameState) -> int | None:
+    def check_winner(state: GameState) -> tuple[int | None, WinReason | None]:
         """Check if the game has a winner.
 
         Returns:
-            None if game is ongoing
-            0 for draw
-            1-4 for the winning player number
+            Tuple of (winner, win_reason) where:
+            - winner: None if game is ongoing, 0 for draw, 1-4 for winning player
+            - win_reason: None if ongoing, otherwise WinReason enum value
         """
         config = state.config
 
@@ -526,16 +528,16 @@ class GameEngine:
 
         # If only one player has their king, they win
         if len(players_with_king) == 1:
-            return players_with_king[0]
+            return players_with_king[0], WinReason.KING_CAPTURED
 
         # If no players have their king (simultaneous capture), it's a draw
         if len(players_with_king) == 0:
-            return 0
+            return 0, WinReason.DRAW
 
         # Multiple players still have their kings - check draw conditions
         # Only check after minimum game length
         if state.current_tick < config.min_draw_ticks:
-            return None
+            return None, None
 
         ticks_since_move = state.current_tick - state.last_move_tick
         ticks_since_capture = state.current_tick - state.last_capture_tick
@@ -545,9 +547,9 @@ class GameEngine:
             ticks_since_move >= config.draw_no_move_ticks
             and ticks_since_capture >= config.draw_no_capture_ticks
         ):
-            return 0
+            return 0, WinReason.DRAW
 
-        return None
+        return None, None
 
     @staticmethod
     def get_legal_moves(state: GameState, player: int) -> list[tuple[str, int, int]]:

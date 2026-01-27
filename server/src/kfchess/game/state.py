@@ -24,6 +24,25 @@ class GameStatus(Enum):
     FINISHED = "finished"  # Game has ended
 
 
+class WinReason(Enum):
+    """Reason for game ending.
+
+    Used to determine if a game should affect ratings.
+    - KING_CAPTURED and DRAW are rated (normal game endings)
+    - RESIGNATION is rated (player chose to forfeit)
+    - INVALID is not rated (abandoned, cancelled, error, etc.)
+    """
+
+    KING_CAPTURED = "king_captured"  # A king was captured
+    DRAW = "draw"  # Game ended in a draw (stalemate, simultaneous capture, etc.)
+    RESIGNATION = "resignation"  # A player resigned
+    INVALID = "invalid"  # Game ended abnormally (abandoned, cancelled, error)
+
+    def is_rated(self) -> bool:
+        """Return True if this win reason should affect ratings."""
+        return self in (WinReason.KING_CAPTURED, WinReason.DRAW, WinReason.RESIGNATION)
+
+
 @dataclass
 class SpeedConfig:
     """Configuration for a game speed.
@@ -101,6 +120,7 @@ class GameState:
         started_at: When the game started
         finished_at: When the game finished
         winner: Winner (0=draw, 1-4=player number, None=ongoing)
+        win_reason: Reason for game end (WinReason enum)
         last_move_tick: Tick of the last move made
         last_capture_tick: Tick of the last capture
         replay_moves: Recorded moves for replay
@@ -118,6 +138,7 @@ class GameState:
     started_at: datetime | None = None
     finished_at: datetime | None = None
     winner: int | None = None
+    win_reason: WinReason | None = None
     last_move_tick: int = 0
     last_capture_tick: int = 0
     replay_moves: list[ReplayMove] = field(default_factory=list)
@@ -178,6 +199,7 @@ class GameState:
             started_at=self.started_at,
             finished_at=self.finished_at,
             winner=self.winner,
+            win_reason=self.win_reason,
             last_move_tick=self.last_move_tick,
             last_capture_tick=self.last_capture_tick,
             replay_moves=[
@@ -202,6 +224,7 @@ class GameState:
             "current_tick": self.current_tick,
             "status": self.status.value,
             "winner": self.winner,
+            "win_reason": self.win_reason.value if self.win_reason else None,
             "board": {
                 "board_type": self.board.board_type.value,
                 "width": self.board.width,

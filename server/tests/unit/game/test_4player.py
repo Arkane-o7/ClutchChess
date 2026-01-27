@@ -11,7 +11,7 @@ from kfchess.game.moves import (
     should_promote_pawn,
 )
 from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameStatus, Speed
+from kfchess.game.state import GameStatus, Speed, WinReason
 
 
 class TestBoard4Player:
@@ -422,17 +422,23 @@ class TestGameEngine4Player:
             state, _ = GameEngine.set_player_ready(state, p)
 
         # No winner initially
-        assert GameEngine.check_winner(state) is None
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner is None
+        assert win_reason is None
 
         # Eliminate players 2, 3, 4
         state.board.get_king(2).captured = True
-        assert GameEngine.check_winner(state) is None  # Still 3 kings
+        winner, _ = GameEngine.check_winner(state)
+        assert winner is None  # Still 3 kings
 
         state.board.get_king(3).captured = True
-        assert GameEngine.check_winner(state) is None  # Still 2 kings
+        winner, _ = GameEngine.check_winner(state)
+        assert winner is None  # Still 2 kings
 
         state.board.get_king(4).captured = True
-        assert GameEngine.check_winner(state) == 1  # Player 1 wins
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner == 1  # Player 1 wins
+        assert win_reason == WinReason.KING_CAPTURED
 
     def test_4player_draw_all_kings_captured(self):
         """Test draw when all kings captured simultaneously."""
@@ -448,7 +454,9 @@ class TestGameEngine4Player:
         for p in [1, 2, 3, 4]:
             state.board.get_king(p).captured = True
 
-        assert GameEngine.check_winner(state) == 0  # Draw
+        winner, win_reason = GameEngine.check_winner(state)
+        assert winner == 0  # Draw
+        assert win_reason == WinReason.DRAW
 
     def test_4player_pawn_promotion_engine(self):
         """Test pawn promotion through the engine in 4-player mode."""

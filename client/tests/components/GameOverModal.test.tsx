@@ -235,4 +235,169 @@ describe('GameOverModal', () => {
       expect(screen.getByText('White Wins!')).toBeInTheDocument();
     });
   });
+
+  describe('Rating Change Display', () => {
+    it('shows rating change when ratingChange is set', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1200,
+          newRating: 1215,
+          oldBelt: 'green',
+          newBelt: 'green',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('Rating')).toBeInTheDocument();
+      expect(screen.getByText('+15')).toBeInTheDocument();
+      expect(screen.getByText('1200')).toBeInTheDocument();
+      expect(screen.getByText('1215')).toBeInTheDocument();
+    });
+
+    it('does not show rating change when ratingChange is null', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: null,
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.queryByText('Rating')).not.toBeInTheDocument();
+    });
+
+    it('shows positive change with correct class', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1200,
+          newRating: 1220,
+          oldBelt: 'green',
+          newBelt: 'green',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      const changeElement = screen.getByText('+20');
+      expect(changeElement).toHaveClass('rating-change-positive');
+    });
+
+    it('shows negative change with correct class', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 2,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1200,
+          newRating: 1185,
+          oldBelt: 'green',
+          newBelt: 'green',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      const changeElement = screen.getByText('-15');
+      expect(changeElement).toHaveClass('rating-change-negative');
+    });
+
+    it('displays old and new rating values', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1350,
+          newRating: 1380,
+          oldBelt: 'purple',
+          newBelt: 'purple',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('1350')).toBeInTheDocument();
+      expect(screen.getByText('1380')).toBeInTheDocument();
+    });
+
+    it('shows belt change UI when beltChanged is true', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1290,
+          newRating: 1315,
+          oldBelt: 'green',
+          newBelt: 'purple',
+          beltChanged: true,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('New Belt!')).toBeInTheDocument();
+      expect(screen.getByText('Purple')).toBeInTheDocument();
+      // Check for belt icon
+      const beltIcon = screen.getByAltText('purple');
+      expect(beltIcon).toBeInTheDocument();
+      expect(beltIcon).toHaveAttribute('src', expect.stringContaining('belt-purple.png'));
+    });
+
+    it('does not show belt change UI when beltChanged is false', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1200,
+          newRating: 1215,
+          oldBelt: 'green',
+          newBelt: 'green',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.queryByText('New Belt!')).not.toBeInTheDocument();
+    });
+
+    it('does not show rating change for spectators', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 0, // Spectator
+        ratingChange: null, // Spectators won't have rating changes
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.queryByText('Rating')).not.toBeInTheDocument();
+    });
+
+    it('handles draw with rating change', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 0, // Draw
+        playerNumber: 1,
+        ratingChange: {
+          oldRating: 1200,
+          newRating: 1200, // No change in draw
+          oldBelt: 'green',
+          newBelt: 'green',
+          beltChanged: false,
+        },
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('Draw!')).toBeInTheDocument();
+      expect(screen.getByText('Rating')).toBeInTheDocument();
+      expect(screen.getByText('0')).toBeInTheDocument();
+    });
+  });
 });

@@ -78,6 +78,19 @@ export interface GameOverMessage {
   reason: 'king_captured' | 'draw_timeout' | 'resignation';
 }
 
+export interface RatingChangePayload {
+  old_rating: number;
+  new_rating: number;
+  old_belt: string;
+  new_belt: string;
+  belt_changed: boolean;
+}
+
+export interface RatingUpdateMessage {
+  type: 'rating_update';
+  ratings: Record<string, RatingChangePayload>; // player_num (as string) -> rating change
+}
+
 export interface MoveRejectedMessage {
   type: 'move_rejected';
   piece_id: string;
@@ -98,6 +111,7 @@ export type ServerMessage =
   | StateUpdateMessage
   | GameStartedMessage
   | GameOverMessage
+  | RatingUpdateMessage
   | MoveRejectedMessage
   | PongMessage
   | ErrorMessage;
@@ -136,6 +150,7 @@ export interface WebSocketClientOptions {
   onStateUpdate?: (msg: StateUpdateMessage) => void;
   onGameStarted?: (msg: GameStartedMessage) => void;
   onGameOver?: (msg: GameOverMessage) => void;
+  onRatingUpdate?: (msg: RatingUpdateMessage) => void;
   onMoveRejected?: (msg: MoveRejectedMessage) => void;
   onError?: (msg: ErrorMessage) => void;
   onConnectionChange?: (state: ConnectionState) => void;

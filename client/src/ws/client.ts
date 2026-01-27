@@ -169,6 +169,9 @@ export class GameWebSocketClient {
       case 'game_over':
         this.options.onGameOver?.(data);
         break;
+      case 'rating_update':
+        this.options.onRatingUpdate?.(data);
+        break;
       case 'move_rejected':
         this.options.onMoveRejected?.(data);
         break;

@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/auth';
+import { useAuthStore, UserRatingStats } from '../stores/auth';
 import * as api from '../api/client';
+import {
+  RATING_MODES,
+  formatModeName,
+  getBelt,
+  getBeltIconUrl,
+  DEFAULT_RATING,
+} from '../utils/ratings';
+import type { ApiRatingStats } from '../api/types';
 
 /**
  * User Profile page
@@ -61,13 +69,25 @@ function Profile() {
 
     try {
       const updatedUser = await api.updateUser({ username: trimmedUsername });
+
+      // Convert ratings to the proper format
+      const ratings: Record<string, UserRatingStats> = {};
+      for (const [mode, value] of Object.entries(updatedUser.ratings)) {
+        if (typeof value === 'number') {
+          ratings[mode] = { rating: value, games: 0, wins: 0 };
+        } else {
+          const stats = value as ApiRatingStats;
+          ratings[mode] = { rating: stats.rating, games: stats.games, wins: stats.wins };
+        }
+      }
+
       // Update the store with the new user data
       setUser({
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
         pictureUrl: updatedUser.picture_url,
-        ratings: updatedUser.ratings,
+        ratings,
         isVerified: updatedUser.is_verified,
       });
       setIsEditing(false);
@@ -159,19 +179,31 @@ function Profile() {
             )}
           </div>
 
-          {Object.keys(user.ratings).length > 0 && (
-            <div className="profile-field">
-              <label>Ratings</label>
-              <div className="profile-ratings">
-                {Object.entries(user.ratings).map(([mode, rating]) => (
-                  <div key={mode} className="profile-rating">
-                    <span className="rating-mode">{mode}</span>
-                    <span className="rating-value">{rating}</span>
+          <div className="profile-field">
+            <label>Ratings</label>
+            <div className="profile-ratings">
+              {RATING_MODES.map((mode) => {
+                const stats = user.ratings[mode] || { rating: DEFAULT_RATING, games: 0, wins: 0 };
+                const belt = getBelt(stats.rating);
+                return (
+                  <div key={mode} className="profile-rating-card">
+                    <img
+                      src={getBeltIconUrl(belt)}
+                      alt={belt}
+                      className="belt-icon"
+                    />
+                    <div className="rating-mode">{formatModeName(mode)}</div>
+                    <div className="rating-value">{stats.rating}</div>
+                    {stats.games > 0 && (
+                      <div className="rating-stats">
+                        {stats.wins}W / {stats.games - stats.wins}L ({stats.games} games)
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

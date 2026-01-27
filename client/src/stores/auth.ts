@@ -1,24 +1,50 @@
 import { create } from 'zustand';
 import * as api from '../api/client';
-import type { ApiUser } from '../api/types';
+import type { ApiUser, ApiRatingStats } from '../api/types';
+
+export interface UserRatingStats {
+  rating: number;
+  games: number;
+  wins: number;
+}
 
 export interface User {
   id: number;
   username: string;
   email: string;
   pictureUrl: string | null;
-  ratings: Record<string, number>;
+  ratings: Record<string, UserRatingStats>;
   isVerified: boolean;
+}
+
+// Convert API rating to UserRatingStats, handling both old and new formats
+function toRatingStats(value: ApiRatingStats | number): UserRatingStats {
+  if (typeof value === 'number') {
+    // Old format: just a number rating
+    return { rating: value, games: 0, wins: 0 };
+  }
+  // New format: full stats object
+  return {
+    rating: value.rating,
+    games: value.games,
+    wins: value.wins,
+  };
 }
 
 // Convert API user to store user
 function toUser(apiUser: ApiUser): User {
+  // Convert ratings to new format
+  const ratings: Record<string, UserRatingStats> = {};
+  for (const [mode, value] of Object.entries(apiUser.ratings)) {
+    ratings[mode] = toRatingStats(value);
+  }
+
   return {
     id: apiUser.id,
     username: apiUser.username,
     email: apiUser.email,
     pictureUrl: apiUser.picture_url,
-    ratings: apiUser.ratings,
+    ratings,
     isVerified: apiUser.is_verified,
   };
 }

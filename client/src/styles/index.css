@@ -673,11 +673,53 @@ a:hover {
 }
 
 .profile-ratings {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
 }
 
+@media (max-width: 480px) {
+  .profile-ratings {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-rating-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.profile-rating-card .belt-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.profile-rating-card .rating-mode {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: none;
+}
+
+.profile-rating-card .rating-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.profile-rating-card .rating-stats {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* Legacy styles for backwards compatibility */
 .profile-rating {
   display: flex;
   justify-content: space-between;
@@ -696,4 +738,96 @@ a:hover {
 .rating-value {
   font-weight: 600;
   color: var(--color-text);
+}
+
+/* Belt Icon */
+.belt-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.belt-icon-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.belt-icon-lg {
+  width: 48px;
+  height: 48px;
+}
+
+/* Rating Change Display */
+.rating-change-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.rating-change-header {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rating-change-value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.rating-change-positive {
+  color: #4ade80;
+}
+
+.rating-change-negative {
+  color: #f87171;
+}
+
+.rating-change-neutral {
+  color: var(--color-text-muted);
+}
+
+.rating-change-details {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+}
+
+.rating-change-arrow {
+  color: var(--color-text-muted);
+}
+
+.belt-change-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(250, 204, 21, 0.1);
+  border: 1px solid #facc15;
+  border-radius: 6px;
+}
+
+.belt-change-label {
+  font-size: 0.875rem;
+  color: #facc15;
+  font-weight: 600;
+}
+
+.belt-change-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-transform: capitalize;
 }

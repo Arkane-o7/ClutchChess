@@ -14,9 +14,11 @@ import type {
   StateUpdateMessage,
   GameStartedMessage,
   GameOverMessage,
+  RatingUpdateMessage,
   MoveRejectedMessage,
   WsPieceState,
 } from '../ws/types';
+import type { RatingChangeData } from '../utils/ratings';
 
 // ============================================
 // Types
@@ -77,6 +79,9 @@ interface GameState {
   lastError: string | null;
   countdown: number | null; // Countdown seconds before game starts (null = no countdown)
 
+  // Rating change (for ranked games)
+  ratingChange: RatingChangeData | null;
+
   // Audio events (for sound effects)
   captureCount: number; // Increments on each capture (for triggering capture sounds)
 
@@ -103,6 +108,7 @@ interface GameActions {
   handleJoined: (msg: JoinedMessage) => void;
   handleGameStarted: (msg: GameStartedMessage) => void;
   handleGameOver: (msg: GameOverMessage) => void;
+  handleRatingUpdate: (msg: RatingUpdateMessage) => void;
   handleMoveRejected: (msg: MoveRejectedMessage) => void;
   setConnectionState: (state: ConnectionState) => void;
   setError: (error: string | null) => void;
@@ -134,6 +140,7 @@ const initialState: GameState = {
   selectedPieceId: null,
   lastError: null,
   countdown: null,
+  ratingChange: null,
   captureCount: 0,
   wsClient: null,
 };
@@ -309,6 +316,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       onJoined: (msg) => get().handleJoined(msg),
       onGameStarted: (msg) => get().handleGameStarted(msg),
       onGameOver: (msg) => get().handleGameOver(msg),
+      onRatingUpdate: (msg) => get().handleRatingUpdate(msg),
       onMoveRejected: (msg) => get().handleMoveRejected(msg),
       onError: (msg) => get().setError(msg.message),
       onConnectionChange: (state) => get().setConnectionState(state),
@@ -498,6 +506,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
       winner: msg.winner,
       winReason: msg.reason,
     });
+  },
+
+  handleRatingUpdate: (msg) => {
+    const { playerNumber } = get();
+    const playerKey = String(playerNumber);
+    const ratingData = msg.ratings[playerKey];
+
+    if (ratingData) {
+      set({
+        ratingChange: {
+          oldRating: ratingData.old_rating,
+          newRating: ratingData.new_rating,
+          oldBelt: ratingData.old_belt,
+          newBelt: ratingData.new_belt,
+          beltChanged: ratingData.belt_changed,
+        },
+      });
+    }
   },
 
   handleMoveRejected: (msg) => {

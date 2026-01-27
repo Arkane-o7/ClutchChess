@@ -173,6 +173,13 @@ export interface ApiReplayListResponse {
 // Auth Types
 // ============================================
 
+// Rating stats for a single mode
+export interface ApiRatingStats {
+  rating: number;
+  games: number;
+  wins: number;
+}
+
 // User data from server (matches UserRead schema)
 export interface ApiUser {
   id: number;
@@ -180,7 +187,7 @@ export interface ApiUser {
   username: string;
   picture_url: string | null;
   google_id: string | null;
-  ratings: Record<string, number>;
+  ratings: Record<string, ApiRatingStats | number>; // Can be old format (number) or new format (RatingStats)
   created_at: string;
   last_online: string;
   is_active: boolean;

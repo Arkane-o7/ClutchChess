@@ -7,6 +7,12 @@
 import { useGameStore } from '../../stores/game';
 import { useLobbyStore } from '../../stores/lobby';
 import { useNavigate } from 'react-router-dom';
+import {
+  formatRatingChange,
+  getRatingChangeClass,
+  getBeltIconUrl,
+  getBeltDisplayName,
+} from '../../utils/ratings';
 
 export function GameOverModal() {
   const navigate = useNavigate();
@@ -16,6 +22,7 @@ export function GameOverModal() {
   const playerNumber = useGameStore((s) => s.playerNumber);
   const reset = useGameStore((s) => s.reset);
   const gameId = useGameStore((s) => s.gameId);
+  const ratingChange = useGameStore((s) => s.ratingChange);
 
   // Lobby state for returning to lobby
   const lobbyCode = useLobbyStore((s) => s.code);
@@ -107,6 +114,42 @@ export function GameOverModal() {
       <div className={`game-over-modal ${getResultClass()}`}>
         <h2 className="game-over-title">{getResultText()}</h2>
         {winReason && <p className="game-over-reason">{getReasonText()}</p>}
+
+        {/* Rating Change Display */}
+        {ratingChange && (
+          <div className="rating-change-display">
+            <div className="rating-change-header">Rating</div>
+            <div
+              className={`rating-change-value ${getRatingChangeClass(
+                ratingChange.oldRating,
+                ratingChange.newRating
+              )}`}
+            >
+              {formatRatingChange(ratingChange.oldRating, ratingChange.newRating)}
+            </div>
+            <div className="rating-change-details">
+              <span>{ratingChange.oldRating}</span>
+              <span className="rating-change-arrow">&rarr;</span>
+              <span>{ratingChange.newRating}</span>
+            </div>
+
+            {/* Belt Change */}
+            {ratingChange.beltChanged && (
+              <div className="belt-change-display">
+                <span className="belt-change-label">New Belt!</span>
+                <img
+                  src={getBeltIconUrl(ratingChange.newBelt)}
+                  alt={ratingChange.newBelt}
+                  className="belt-icon belt-icon-lg"
+                />
+                <span className="belt-change-name">
+                  {getBeltDisplayName(ratingChange.newBelt)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="game-over-actions">
           {hasLobby && (
             <button className="game-over-button primary" onClick={handleReturnToLobby}>

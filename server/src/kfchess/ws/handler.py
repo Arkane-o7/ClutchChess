@@ -496,6 +496,9 @@ async def _handle_ready(
 async def _save_replay(game_id: str, service: Any) -> None:
     """Save the game replay to the database.
 
+    Saves to both game_replays and user_game_history tables.
+    The user_game_history table provides O(1) match history lookups.
+
     Args:
         game_id: The game ID
         service: The game service
@@ -508,12 +511,50 @@ async def _save_replay(game_id: str, service: Any) -> None:
 
         # Save to database
         from kfchess.db.repositories.replays import ReplayRepository
+        from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
         from kfchess.db.session import async_session_factory
 
         async with async_session_factory() as session:
             try:
+                # Save the replay
                 repository = ReplayRepository(session)
                 await repository.save(game_id, replay)
+
+                # Save to user_game_history for each human player
+                from datetime import UTC, datetime
+
+                history_repo = UserGameHistoryRepository(session)
+                game_time = replay.created_at or datetime.now(UTC)
+
+                for player_num, player_id in replay.players.items():
+                    # Only save history for registered users (u:123 format)
+                    if not player_id.startswith("u:"):
+                        continue
+
+                    try:
+                        user_id = int(player_id[2:])
+                    except ValueError:
+                        continue
+
+                    # Build opponents list (all other players)
+                    opponents = [
+                        pid for pnum, pid in replay.players.items()
+                        if pnum != player_num
+                    ]
+
+                    game_info = {
+                        "speed": replay.speed.value,
+                        "boardType": replay.board_type.value,
+                        "player": player_num,
+                        "winner": replay.winner,
+                        "winReason": replay.win_reason,
+                        "gameId": game_id,
+                        "ticks": replay.total_ticks,
+                        "opponents": opponents,
+                    }
+
+                    await history_repo.add(user_id, game_time, game_info)
+
                 await session.commit()
                 logger.info(f"Saved replay for game {game_id} ({len(replay.moves)} moves)")
             except Exception as e:

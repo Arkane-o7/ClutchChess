@@ -195,6 +195,16 @@ export interface ApiUser {
   is_superuser: boolean;
 }
 
+// Public user profile (excludes email and sensitive fields)
+export interface ApiPublicUser {
+  id: number;
+  username: string;
+  picture_url: string | null;
+  ratings: Record<string, ApiRatingStats | number>;
+  created_at: string;
+  last_online: string;
+}
+
 // Login request
 export interface LoginRequest {
   username: string; // FastAPI-Users uses 'username' field for email

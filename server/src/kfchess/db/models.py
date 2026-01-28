@@ -207,3 +207,49 @@ class GameReplay(Base):
     )
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     tick_rate_hz: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+
+
+class GameHistory(Base):
+    """Legacy replay storage from original kfchess.
+
+    This table stores replays in the original format (single JSONB column).
+    Used for backwards compatibility with legacy replays.
+
+    Attributes:
+        id: Auto-incrementing primary key
+        replay: Complete replay data in legacy JSONB format
+    """
+
+    __tablename__ = "game_history"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    replay: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
+class UserGameHistory(Base):
+    """Denormalized user match history for fast lookups.
+
+    This table provides O(1) access to a user's match history via
+    the (user_id, game_time) index. Each row represents one player's
+    participation in a game.
+
+    Attributes:
+        id: Auto-incrementing primary key
+        user_id: The user who played in this game
+        game_time: When the game was played
+        game_info: Game summary including:
+            - speed: Game speed
+            - player: This player's position (1-4)
+            - winner: Winner position (0=draw)
+            - historyId: ID of game_history entry (for legacy replays)
+            - gameId: ID of game_replays entry (for new replays)
+            - ticks: Game duration
+            - opponents: List of opponent identifiers
+    """
+
+    __tablename__ = "user_game_history"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    game_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    game_info: Mapped[dict] = mapped_column(JSONB, nullable=False)

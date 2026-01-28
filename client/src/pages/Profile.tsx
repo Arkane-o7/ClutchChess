@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuthStore, UserRatingStats } from '../stores/auth';
 import * as api from '../api/client';
 import {
@@ -9,36 +9,102 @@ import {
   getBeltIconUrl,
   DEFAULT_RATING,
 } from '../utils/ratings';
-import type { ApiRatingStats } from '../api/types';
+import { formatDate, formatDuration, formatWinReason } from '../utils/format';
+import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/types';
 
 /**
  * User Profile page
  *
- * Allows users to view and edit their profile information.
+ * Displays user profile information and match history.
+ * Supports viewing own profile (with edit) or other users' profiles (read-only).
  */
 function Profile() {
   const navigate = useNavigate();
-  const { user, setUser } = useAuthStore();
+  const { userId } = useParams<{ userId?: string }>();
+  const { user: currentUser, setUser } = useAuthStore();
 
-  const [username, setUsername] = useState(user?.username || '');
+  // Determine if viewing own profile
+  const targetUserId = userId ? parseInt(userId) : currentUser?.id;
+  const isOwnProfile = !userId || (currentUser && currentUser.id === parseInt(userId));
+
+  // State for public profile data (when viewing others)
+  const [publicUser, setPublicUser] = useState<ApiPublicUser | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!isOwnProfile);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // State for match history
+  const [replays, setReplays] = useState<ApiReplaySummary[]>([]);
+  const [replaysTotal, setReplaysTotal] = useState(0);
+  const [replaysPage, setReplaysPage] = useState(0);
+  const [isLoadingReplays, setIsLoadingReplays] = useState(false);
+  const pageSize = 10;
+  const totalPages = Math.ceil(replaysTotal / pageSize);
+
+  // State for editing (only for own profile)
+  const [username, setUsername] = useState(currentUser?.username || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Redirect if not logged in
+  // Redirect to login if viewing own profile without auth
   useEffect(() => {
-    if (!user) {
+    if (isOwnProfile && !currentUser) {
       navigate('/login', { replace: true });
     }
-  }, [user, navigate]);
+  }, [isOwnProfile, currentUser, navigate]);
 
   // Reset form when user changes
   useEffect(() => {
-    if (user) {
-      setUsername(user.username);
+    if (currentUser) {
+      setUsername(currentUser.username);
     }
-  }, [user]);
+  }, [currentUser]);
+
+  // Fetch public profile if viewing another user
+  useEffect(() => {
+    if (!isOwnProfile && targetUserId) {
+      setIsLoadingProfile(true);
+      setProfileError(null);
+
+      api.getPublicUser(targetUserId)
+        .then((userData) => {
+          setPublicUser(userData);
+        })
+        .catch((err) => {
+          if (err instanceof api.ApiClientError && err.status === 404) {
+            setProfileError('User not found');
+          } else {
+            setProfileError('Failed to load profile');
+          }
+        })
+        .finally(() => setIsLoadingProfile(false));
+    }
+  }, [isOwnProfile, targetUserId]);
+
+  // Fetch replays for the user
+  const fetchReplays = useCallback(async () => {
+    if (!targetUserId) return;
+
+    setIsLoadingReplays(true);
+    try {
+      const response = await api.getUserReplays(
+        targetUserId,
+        pageSize,
+        replaysPage * pageSize
+      );
+      setReplays(response.replays);
+      setReplaysTotal(response.total);
+    } catch {
+      // Silently fail - replays are not critical
+    } finally {
+      setIsLoadingReplays(false);
+    }
+  }, [targetUserId, replaysPage]);
+
+  useEffect(() => {
+    fetchReplays();
+  }, [fetchReplays]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +125,7 @@ function Profile() {
     }
 
     // No change
-    if (trimmedUsername === user?.username) {
+    if (trimmedUsername === currentUser?.username) {
       setIsEditing(false);
       return;
     }
@@ -108,32 +174,81 @@ function Profile() {
   };
 
   const handleCancel = () => {
-    setUsername(user?.username || '');
+    setUsername(currentUser?.username || '');
     setIsEditing(false);
     setError(null);
   };
 
-  if (!user) {
+  // Loading state for public profiles
+  if (isLoadingProfile) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card profile-card">
+          <div className="profile-loading">Loading profile...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state for public profiles
+  if (profileError) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card profile-card">
+          <div className="profile-error">
+            <p>{profileError}</p>
+            <Link to="/" className="btn btn-primary">Go Home</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Determine which user data to display
+  const displayUser = isOwnProfile ? currentUser : publicUser;
+
+  if (!displayUser) {
     return null;
   }
 
+  // Get ratings based on which user we're viewing
+  const displayRatings = isOwnProfile
+    ? currentUser?.ratings
+    : publicUser?.ratings;
+
+  // Normalize ratings format
+  const getRatingStats = (mode: string): UserRatingStats => {
+    const value = displayRatings?.[mode];
+    if (!value) {
+      return { rating: DEFAULT_RATING, games: 0, wins: 0 };
+    }
+    if (typeof value === 'number') {
+      return { rating: value, games: 0, wins: 0 };
+    }
+    return { rating: value.rating, games: value.games, wins: value.wins };
+  };
+
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>Profile</h1>
+      <div className="auth-card profile-card">
+        <h1>{isOwnProfile ? 'Profile' : displayUser.username}</h1>
 
         {error && <div className="auth-error" role="alert">{error}</div>}
         {success && <div className="auth-success" role="status">{success}</div>}
 
         <div className="profile-section">
-          <div className="profile-field">
-            <label>Email</label>
-            <div className="profile-value">{user.email}</div>
-          </div>
+          {/* Email - only show for own profile */}
+          {isOwnProfile && currentUser && (
+            <div className="profile-field">
+              <label>Email</label>
+              <div className="profile-value">{currentUser.email}</div>
+            </div>
+          )}
 
+          {/* Username - editable only for own profile */}
           <div className="profile-field">
             <label htmlFor="username">Username</label>
-            {isEditing ? (
+            {isOwnProfile && isEditing ? (
               <form onSubmit={handleSubmit} className="profile-edit-form">
                 <input
                   type="text"
@@ -167,23 +282,26 @@ function Profile() {
               </form>
             ) : (
               <div className="profile-value-row">
-                <span className="profile-value">{user.username}</span>
-                <button
-                  type="button"
-                  className="btn btn-link btn-sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  Edit
-                </button>
+                <span className="profile-value">{displayUser.username}</span>
+                {isOwnProfile && (
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             )}
           </div>
 
+          {/* Ratings */}
           <div className="profile-field">
             <label>Ratings</label>
             <div className="profile-ratings">
               {RATING_MODES.map((mode) => {
-                const stats = user.ratings[mode] || { rating: DEFAULT_RATING, games: 0, wins: 0 };
+                const stats = getRatingStats(mode);
                 const belt = getBelt(stats.rating);
                 return (
                   <div key={mode} className="profile-rating-card">
@@ -202,6 +320,75 @@ function Profile() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Match History */}
+          <div className="profile-field">
+            <label>Match History</label>
+            <div className="profile-match-history">
+              {isLoadingReplays && replays.length === 0 ? (
+                <div className="match-history-loading">Loading matches...</div>
+              ) : replays.length === 0 ? (
+                <div className="match-history-empty">No matches played yet</div>
+              ) : (
+                <>
+                  <div className="match-history-list">
+                    {replays.map((replay) => (
+                      <Link
+                        key={replay.game_id}
+                        to={`/replay/${replay.game_id}`}
+                        className="match-history-item"
+                      >
+                        <div className="match-info">
+                          <span className="match-date">{formatDate(replay.created_at)}</span>
+                          <span className="match-speed">{replay.speed}</span>
+                        </div>
+                        <div className="match-players">
+                          {Object.entries(replay.players).map(([num, name]) => (
+                            <span
+                              key={num}
+                              className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+                            >
+                              {name || `Player ${num}`}
+                              {replay.winner === parseInt(num) && ' (W)'}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="match-result">
+                          <span className="match-duration">{formatDuration(replay.total_ticks)}</span>
+                          {replay.win_reason && (
+                            <span className="match-reason">{formatWinReason(replay.win_reason)}</span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="match-history-pagination">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setReplaysPage((p) => Math.max(0, p - 1))}
+                        disabled={replaysPage === 0 || isLoadingReplays}
+                      >
+                        Previous
+                      </button>
+                      <span className="page-info">
+                        Page {replaysPage + 1} of {totalPages}
+                      </span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setReplaysPage((p) => Math.min(totalPages - 1, p + 1))}
+                        disabled={replaysPage >= totalPages - 1 || isLoadingReplays}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

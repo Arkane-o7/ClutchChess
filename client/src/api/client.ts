@@ -16,6 +16,7 @@ import type {
   ApiReplay,
   ApiReplayListResponse,
   ApiUser,
+  ApiPublicUser,
   RegisterRequest,
   UpdateUserRequest,
   CreateLobbyRequest,
@@ -354,6 +355,27 @@ export async function updateUser(req: UpdateUserRequest): Promise<ApiUser> {
     body: JSON.stringify(req),
     credentials: 'include',
   });
+}
+
+/**
+ * Get public profile for any user
+ * Returns user info excluding email and other private fields
+ */
+export async function getPublicUser(userId: number): Promise<ApiPublicUser> {
+  return request<ApiPublicUser>(`/users/${userId}`);
+}
+
+/**
+ * Get replays for a specific user
+ */
+export async function getUserReplays(
+  userId: number,
+  limit: number = 10,
+  offset: number = 0
+): Promise<ApiReplayListResponse> {
+  return request<ApiReplayListResponse>(
+    `/users/${userId}/replays?limit=${limit}&offset=${offset}`
+  );
 }
 
 /**

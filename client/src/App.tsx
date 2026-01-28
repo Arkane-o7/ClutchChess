@@ -34,13 +34,13 @@ function App() {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="profile/:userId" element={<Profile />} />
           <Route path="lobby/:code" element={<Lobby />} />
           <Route path="lobbies" element={<Lobbies />} />
           <Route path="about" element={<About />} />
           <Route path="privacy" element={<Privacy />} />
           {/* TODO: Add routes */}
           {/* <Route path="campaign" element={<Campaign />} /> */}
-          {/* <Route path="profile/:userId" element={<Profile />} /> */}
         </Route>
       </Routes>
     </AuthProvider>

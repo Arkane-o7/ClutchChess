@@ -6,9 +6,9 @@ import {
   RATING_MODES,
   formatModeName,
   getBelt,
-  getBeltIconUrl,
   DEFAULT_RATING,
 } from '../utils/ratings';
+import BeltIcon from '../components/BeltIcon';
 import { formatDate, formatDuration, formatWinReason } from '../utils/format';
 import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/types';
 
@@ -305,11 +305,7 @@ function Profile() {
                 const belt = getBelt(stats.rating);
                 return (
                   <div key={mode} className="profile-rating-card">
-                    <img
-                      src={getBeltIconUrl(belt)}
-                      alt={belt}
-                      className="belt-icon"
-                    />
+                    <BeltIcon belt={belt} size="lg" />
                     <div className="rating-mode">{formatModeName(mode)}</div>
                     <div className="rating-value">{stats.rating}</div>
                     {stats.games > 0 && (
@@ -345,15 +341,18 @@ function Profile() {
                           <span className="match-speed">{replay.speed}</span>
                         </div>
                         <div className="match-players">
-                          {Object.entries(replay.players).map(([num, name]) => (
-                            <span
-                              key={num}
-                              className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                            >
-                              {name || `Player ${num}`}
-                              {replay.winner === parseInt(num) && ' (W)'}
-                            </span>
-                          ))}
+                          {Object.entries(replay.players).map(([num, player]) => {
+                            const displayName = typeof player === 'string' ? player : (player as unknown as { name: string })?.name;
+                            return (
+                              <span
+                                key={num}
+                                className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+                              >
+                                {displayName || `Player ${num}`}
+                                {replay.winner === parseInt(num) && ' (W)'}
+                              </span>
+                            );
+                          })}
                         </div>
                         <div className="match-result">
                           <span className="match-duration">{formatDuration(replay.total_ticks)}</span>

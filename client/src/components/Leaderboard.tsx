@@ -9,7 +9,8 @@ import { Link } from 'react-router-dom';
 import { getLeaderboard, getMyRank } from '../api/client';
 import type { LeaderboardEntry, MyRankResponse } from '../api/types';
 import { useAuthStore } from '../stores/auth';
-import { RATING_MODES, formatModeName, getBeltIconUrl, type RatingMode } from '../utils/ratings';
+import { RATING_MODES, formatModeName, type RatingMode } from '../utils/ratings';
+import BeltIcon from './BeltIcon';
 import './Leaderboard.css';
 
 interface LeaderboardProps {
@@ -79,11 +80,7 @@ export function Leaderboard({ initialMode = '2p_standard' }: LeaderboardProps) {
         <div className="my-rank-card">
           <div className="my-rank-header">Your Ranking</div>
           <div className="my-rank-content">
-            <img
-              src={getBeltIconUrl(myRank.belt)}
-              alt={myRank.belt}
-              className="my-rank-belt"
-            />
+            <BeltIcon belt={myRank.belt} size="lg" />
             <div className="my-rank-info">
               <div className="my-rank-rating">{myRank.rating}</div>
               {myRank.rank !== null ? (
@@ -142,11 +139,7 @@ export function Leaderboard({ initialMode = '2p_standard' }: LeaderboardProps) {
                 >
                   <td className="col-rank">{entry.rank}</td>
                   <td className="col-belt">
-                    <img
-                      src={getBeltIconUrl(entry.belt)}
-                      alt={entry.belt}
-                      className="belt-icon"
-                    />
+                    <BeltIcon belt={entry.belt} />
                   </td>
                   <td className="col-player">{entry.username}</td>
                   <td className="col-rating">{entry.rating}</td>

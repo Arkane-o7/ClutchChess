@@ -77,15 +77,18 @@ export function Replays() {
               </div>
 
               <div className="replay-card-players">
-                {Object.entries(replay.players).map(([num, name]) => (
-                  <span
-                    key={num}
-                    className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                  >
-                    {name || `Player ${num}`}
-                    {replay.winner === parseInt(num) && ' (W)'}
-                  </span>
-                ))}
+                {Object.entries(replay.players).map(([num, player]) => {
+                  const displayName = typeof player === 'string' ? player : (player as unknown as { name: string })?.name;
+                  return (
+                    <span
+                      key={num}
+                      className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+                    >
+                      {displayName || `Player ${num}`}
+                      {replay.winner === parseInt(num) && ' (W)'}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="replay-card-footer">

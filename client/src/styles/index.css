@@ -873,6 +873,39 @@ a:hover {
   height: 48px;
 }
 
+.belt-icon-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.belt-icon-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: #333;
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  margin-bottom: 4px;
+  z-index: 10;
+}
+
+.belt-icon-wrapper:hover .belt-icon-tooltip,
+.belt-icon-wrapper:focus-within .belt-icon-tooltip {
+  opacity: 1;
+}
+
+.belt-icon-wrapper:focus {
+  outline: none;
+}
+
 /* Rating Change Display */
 .rating-change-display {
   display: flex;
@@ -945,4 +978,46 @@ a:hover {
   font-weight: 700;
   color: var(--color-text);
   text-transform: capitalize;
+}
+
+/* PlayerBadge */
+.player-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.player-badge-avatar {
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.player-badge-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.player-badge-link:hover {
+  opacity: 1;
+}
+
+.player-badge-link:hover .player-badge-name {
+  color: var(--color-secondary);
+}
+
+.player-badge-sm {
+  font-size: 0.8rem;
+}
+
+.player-badge-md {
+  font-size: 0.9rem;
+}
+
+.player-badge-lg {
+  font-size: 1.25rem;
+  font-weight: 600;
+  gap: 12px;
 }

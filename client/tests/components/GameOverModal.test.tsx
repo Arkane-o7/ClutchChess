@@ -345,7 +345,7 @@ describe('GameOverModal', () => {
       expect(screen.getByText('New Belt!')).toBeInTheDocument();
       expect(screen.getByText('Purple')).toBeInTheDocument();
       // Check for belt icon
-      const beltIcon = screen.getByAltText('purple');
+      const beltIcon = screen.getByAltText('Purple Belt');
       expect(beltIcon).toBeInTheDocument();
       expect(beltIcon).toHaveAttribute('src', expect.stringContaining('belt-purple.png'));
     });

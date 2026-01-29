@@ -10,9 +10,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   formatRatingChange,
   getRatingChangeClass,
-  getBeltIconUrl,
   getBeltDisplayName,
 } from '../../utils/ratings';
+import BeltIcon from '../BeltIcon';
 
 export function GameOverModal() {
   const navigate = useNavigate();
@@ -137,11 +137,7 @@ export function GameOverModal() {
             {ratingChange.beltChanged && (
               <div className="belt-change-display">
                 <span className="belt-change-label">New Belt!</span>
-                <img
-                  src={getBeltIconUrl(ratingChange.newBelt)}
-                  alt={ratingChange.newBelt}
-                  className="belt-icon belt-icon-lg"
-                />
+                <BeltIcon belt={ratingChange.newBelt} size="lg" />
                 <span className="belt-change-name">
                   {getBeltDisplayName(ratingChange.newBelt)}
                 </span>

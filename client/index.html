@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clutch Chess - Real-Time Battle Chess</title>
+    <meta name="description"
+        content="Chess with NO TURNS. Move your pieces in real-time, outsmart your opponent, and capture their King.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="./styles/main.css">
+</head>
+
+<body>
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Background Effects -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+
+    <!-- MAIN MENU -->
+    <div id="main-menu" class="screen">
+        <div class="logo-container">
+            <h1 class="logo">
+                <span class="logo-clutch">CLUTCH</span>
+                <span class="logo-chess">CHESS</span>
+            </h1>
+            <div class="tagline">NO TURNS • REAL-TIME • TOTAL CHAOS</div>
+        </div>
+
+        <div id="auth-status" class="auth-status">
+            <div id="guest-view">
+                <button class="btn-text" id="btn-login-open">LOG IN / REGISTER</button>
+            </div>
+            <div id="user-view" class="hidden">
+                <span class="user-greeting">Welcome, <span id="user-name-display" class="highlight">Player</span></span>
+                <span class="user-rating-display">ELO: <span id="user-elo-display">1000</span></span>
+                <button class="btn-text" id="btn-logout">LOG OUT</button>
+            </div>
+        </div>
+
+        <div class="menu-options">
+            <button class="btn btn-primary" id="btn-play">
+                <span class="btn-icon">⚔</span>
+                <span class="btn-text">PLAY ONLINE</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-practice">
+                <span class="btn-icon">🎯</span>
+                <span class="btn-text">PRACTICE vs AI</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-leaderboard">
+                <span class="btn-icon">🏆</span>
+                <span class="btn-text">LEADERBOARD</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-how-to-play">
+                <span class="btn-icon">📖</span>
+                <span class="btn-text">HOW TO PLAY</span>
+            </button>
+        </div>
+
+        <div class="menu-footer">
+            <div class="social-links">
+                <a href="#" class="social-link">Discord</a>
+                <a href="#" class="social-link">GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLAY MENU (Online Options) -->
+    <div id="play-menu" class="screen hidden">
+        <button class="btn-back" id="btn-back-play">← BACK</button>
+        <h2 class="screen-title">ONLINE BATTLE</h2>
+
+        <div class="menu-options">
+            <button class="btn btn-primary" id="btn-find-match">
+                <span class="btn-icon">🔍</span>
+                <span class="btn-text">FIND MATCH</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-create-room">
+                <span class="btn-icon">🏠</span>
+                <span class="btn-text">CREATE ROOM</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-join-room">
+                <span class="btn-icon">🚪</span>
+                <span class="btn-text">JOIN ROOM</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MATCHMAKING SCREEN -->
+    <div id="matchmaking-screen" class="screen hidden">
+        <button class="btn-back" id="btn-cancel-match">← CANCEL</button>
+        <div class="matchmaking-container">
+            <div class="searching-animation">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring delay-1"></div>
+                <div class="pulse-ring delay-2"></div>
+                <span class="search-icon">⚔</span>
+            </div>
+            <h2 class="screen-title">SEARCHING FOR OPPONENT</h2>
+            <p class="search-status">Finding a worthy challenger...</p>
+            <div class="queue-info">
+                <span class="queue-time" id="queue-time">0:00</span>
+                <span class="queue-players" id="queue-players">Players in queue: --</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOBBY SCREEN -->
+    <div id="lobby-screen" class="screen hidden">
+        <button class="btn-back" id="btn-leave-lobby">← LEAVE</button>
+        <div class="lobby-container">
+            <h2 class="screen-title">BATTLE ROOM</h2>
+            <div class="room-code-display">
+                <span class="room-code-label">ROOM CODE</span>
+                <span class="room-code" id="room-code">XXXX</span>
+                <button class="btn-copy" id="btn-copy-code">📋</button>
+            </div>
+
+            <div class="players-container">
+                <div class="player-slot" id="player-white">
+                    <div class="player-color white"></div>
+                    <span class="player-name">Waiting...</span>
+                    <span class="player-rating"></span>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="player-slot" id="player-black">
+                    <div class="player-color black"></div>
+                    <span class="player-name">Waiting...</span>
+                    <span class="player-rating"></span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-start-game" disabled>
+                <span class="btn-text">WAITING FOR OPPONENT</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- JOIN ROOM MODAL -->
+    <div id="join-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-close-join">×</button>
+            <h3>JOIN ROOM</h3>
+            <input type="text" id="room-code-input" placeholder="ENTER ROOM CODE" maxlength="6" autocomplete="off">
+            <button class="btn btn-primary" id="btn-submit-join">
+                <span class="btn-text">JOIN</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- HOW TO PLAY MODAL -->
+    <div id="tutorial-modal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <button class="modal-close" id="btn-close-tutorial">×</button>
+            <h3>HOW TO PLAY</h3>
+            <div class="tutorial-content">
+                <div class="tutorial-section">
+                    <span class="tutorial-icon">⚡</span>
+                    <h4>REAL-TIME COMBAT</h4>
+                    <p>No turns! Both players move simultaneously. Speed and strategy matter equally.</p>
+                </div>
+                <div class="tutorial-section">
+                    <span class="tutorial-icon">💎</span>
+                    <h4>MANA SYSTEM</h4>
+                    <p>Each move costs 1 mana. Mana regenerates over time. Manage it wisely!</p>
+                </div>
+                <div class="tutorial-section">
+                    <span class="tutorial-icon">💥</span>
+                    <h4>COLLISIONS</h4>
+                    <p>Moving piece hits stationary enemy = enemy destroyed. Two moving pieces collide = both explode!
+                    </p>
+                </div>
+                <div class="tutorial-section">
+                    <span class="tutorial-icon">🐴</span>
+                    <h4>KNIGHTS JUMP</h4>
+                    <p>Knights are airborne during movement. They can't be hit and can't hit others mid-jump.</p>
+                </div>
+                <div class="tutorial-section">
+                    <span class="tutorial-icon">👑</span>
+                    <h4>OBJECTIVE</h4>
+                    <p>Destroy the enemy King to win. Protect yours at all costs!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="game-over" class="screen hidden">
+        <div class="game-over-content">
+            <h1 id="game-over-title" class="victory">VICTORY</h1>
+            <p id="game-over-subtitle">You have conquered!</p>
+
+            <div class="game-stats">
+                <div class="stat">
+                    <span class="stat-value" id="stat-duration">0:00</span>
+                    <span class="stat-label">Duration</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-captures">0</span>
+                    <span class="stat-label">Pieces Captured</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-elo-change">+0</span>
+                    <span class="stat-label">Rating Change</span>
+                </div>
+            </div>
+
+            <div class="menu-options">
+                <button class="btn btn-primary" id="btn-rematch">
+                    <span class="btn-text">REMATCH</span>
+                </button>
+                <button class="btn btn-secondary" id="btn-return-menu">
+                    <span class="btn-text">MAIN MENU</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IN-GAME HUD -->
+    <div id="hud" class="hidden">
+        <!-- Player 1 (White/You) - Bottom Left -->
+        <div class="hud-player hud-player-white">
+            <div class="player-info">
+                <span class="player-label">YOU</span>
+                <span class="player-username" id="hud-white-name">Player 1</span>
+            </div>
+            <div class="mana-bar-container">
+                <div class="mana-bar">
+                    <div class="mana-fill" id="white-mana-fill"></div>
+                    <div class="mana-segments">
+                        <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+                <span class="mana-label">MANA</span>
+            </div>
+        </div>
+
+        <!-- Player 2 (Black/Opponent) - Top Right -->
+        <div class="hud-player hud-player-black">
+            <div class="player-info">
+                <span class="player-label">ENEMY</span>
+                <span class="player-username" id="hud-black-name">Opponent</span>
+            </div>
+            <div class="mana-bar-container">
+                <div class="mana-bar enemy">
+                    <div class="mana-fill" id="black-mana-fill"></div>
+                    <div class="mana-segments">
+                        <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+                <span class="mana-label">MANA</span>
+            </div>
+        </div>
+
+        <!-- Game Timer -->
+        <div class="game-timer" id="game-timer">0:00</div>
+
+        <!-- Controls Hint -->
+        <div class="controls-hint">
+            <span>🖱️ Click to Select</span>
+            <span>🖱️ Click tile to Move</span>
+        </div>
+    </div>
+
+    <!-- AUTH MODAL -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-close-auth">×</button>
+            <h3 id="auth-title">LOGIN</h3>
+
+            <div class="auth-form">
+                <input type="text" id="auth-username" placeholder="USERNAME" autocomplete="off">
+                <input type="password" id="auth-password" placeholder="PASSWORD">
+                <div class="auth-error hidden" id="auth-error">Error message here</div>
+
+                <button class="btn btn-primary" id="btn-auth-submit">
+                    <span class="btn-text">LOGIN</span>
+                </button>
+
+                <div class="auth-switch">
+                    <span id="auth-switch-text">New here?</span>
+                    <button class="btn-text" id="btn-auth-switch">Create Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEADERBOARD MODAL -->
+    <div id="leaderboard-modal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <button class="modal-close" id="btn-close-leaderboard">×</button>
+            <h3>LEADERBOARD</h3>
+            <div class="leaderboard-list" id="leaderboard-list">
+                <!-- Items injected by JS -->
+                <div class="leaderboard-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="./js/main.js"></script>
+</body>
+
+</html>

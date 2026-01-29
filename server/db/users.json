@@ -1,0 +1,42 @@
+{
+  "233": {
+    "id": "5ca06f4e-889c-4ee6-95bd-5b84277620e0",
+    "username": "233",
+    "password": "$2b$10$1zDvPyHkX6uUD1k4qGTIfupch0Op8yQJmGACJbImHD2K8hysSDQqK",
+    "elo": 1000,
+    "wins": 0,
+    "losses": 0,
+    "matches": 0,
+    "createdAt": 1769709324731
+  },
+  "jikj": {
+    "id": "32997618-43e8-455d-8a7e-bc74d9e4fdb2",
+    "username": "jikj",
+    "password": "$2b$10$gbYJ93E3yJ05H9T9/0KAgujQ7O9dYZeucsWwpcWif5HWAbhOk4c8q",
+    "elo": 1000,
+    "wins": 0,
+    "losses": 0,
+    "matches": 0,
+    "createdAt": 1769694719474
+  },
+  "huhuh": {
+    "id": "fc3bd0c3-fb31-4b97-9763-425b4acc7c78",
+    "username": "huhuh",
+    "password": "$2b$10$PtvcJYwixNSWRi1NtlCpquZSw2pelE7C3VqOsQeBCkf7PjWhS6koa",
+    "elo": 1000,
+    "wins": 0,
+    "losses": 0,
+    "matches": 0,
+    "createdAt": 1769702116487
+  },
+  "testuser_123": {
+    "id": "41ae5e54-6c8e-4c11-99b9-d0cfb9014a22",
+    "username": "testuser_123",
+    "password": "$2b$10$hT04ifXbakeU4B4S.1iLBONTOJ2MXNvfO4C15FwWJNCMOKlTLSq56",
+    "elo": 1000,
+    "wins": 0,
+    "losses": 0,
+    "matches": 0,
+    "createdAt": 1769708744282
+  }
+}

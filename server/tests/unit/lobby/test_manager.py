@@ -989,6 +989,63 @@ class TestLobbyModels:
         assert data["hostSlot"] == 1
         assert len(data["players"]) == 2
 
+    @pytest.mark.asyncio
+    async def test_create_lobby_with_picture_url(self) -> None:
+        """Test that picture_url is stored on LobbyPlayer when creating a lobby."""
+        manager = LobbyManager()
+        result = await manager.create_lobby(
+            host_user_id=1,
+            host_username="host",
+            picture_url="https://pic.com/host.jpg",
+        )
+        assert not isinstance(result, LobbyError)
+        lobby, _ = result
+        assert lobby.players[1].picture_url == "https://pic.com/host.jpg"
+
+    @pytest.mark.asyncio
+    async def test_join_lobby_with_picture_url(self) -> None:
+        """Test that picture_url is stored on LobbyPlayer when joining a lobby."""
+        manager = LobbyManager()
+        result = await manager.create_lobby(host_user_id=1, host_username="host")
+        assert not isinstance(result, LobbyError)
+        lobby, _ = result
+
+        join_result = await manager.join_lobby(
+            code=lobby.code,
+            user_id=2,
+            username="joiner",
+            picture_url="https://pic.com/joiner.jpg",
+        )
+        assert not isinstance(join_result, LobbyError)
+        lobby, _, slot = join_result
+        assert lobby.players[slot].picture_url == "https://pic.com/joiner.jpg"
+
+    @pytest.mark.asyncio
+    async def test_to_dict_includes_picture_url(self) -> None:
+        """Test that to_dict includes pictureUrl for players."""
+        manager = LobbyManager()
+        result = await manager.create_lobby(
+            host_user_id=1,
+            host_username="host",
+            picture_url="https://pic.com/host.jpg",
+        )
+        assert not isinstance(result, LobbyError)
+        lobby, _ = result
+
+        data = lobby.to_dict()
+        assert data["players"][1]["pictureUrl"] == "https://pic.com/host.jpg"
+
+    @pytest.mark.asyncio
+    async def test_to_dict_picture_url_none(self) -> None:
+        """Test that to_dict includes null pictureUrl when not set."""
+        manager = LobbyManager()
+        result = await manager.create_lobby(host_user_id=1, host_username="host")
+        assert not isinstance(result, LobbyError)
+        lobby, _ = result
+
+        data = lobby.to_dict()
+        assert data["players"][1]["pictureUrl"] is None
+
     def test_lobby_settings_validation(self) -> None:
         """Test settings validation."""
         # Valid settings

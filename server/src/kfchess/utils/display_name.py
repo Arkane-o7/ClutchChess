@@ -7,10 +7,19 @@ display names. Player IDs have the format:
 - bot:{type} - AI player (e.g., bot:dummy)
 """
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kfchess.db.models import User
+
+
+class PlayerDisplay(BaseModel):
+    """Resolved player display info for API responses."""
+
+    name: str
+    picture_url: str | None
+    user_id: int | None
 
 
 def format_player_id(player_id: str, username_map: dict[int, str] | None = None) -> str:
@@ -68,47 +77,124 @@ def extract_user_ids(player_ids: list[str]) -> list[int]:
     return user_ids
 
 
-async def fetch_usernames(
+class _UserInfo:
+    """Internal user info from DB query."""
+
+    __slots__ = ("username", "picture_url")
+
+    def __init__(self, username: str, picture_url: str | None) -> None:
+        self.username = username
+        self.picture_url = picture_url
+
+
+async def _fetch_user_info(
     session: AsyncSession, user_ids: list[int]
-) -> dict[int, str]:
-    """Fetch usernames for a list of user IDs.
+) -> dict[int, _UserInfo]:
+    """Fetch user info (username + picture_url) for a list of user IDs.
 
     Args:
         session: Database session
         user_ids: List of user IDs to look up
 
     Returns:
-        Dict mapping user_id -> username
+        Dict mapping user_id -> _UserInfo
     """
     if not user_ids:
         return {}
 
     result = await session.execute(
-        select(User.id, User.username).where(User.id.in_(user_ids))
+        select(User.id, User.username, User.picture_url).where(User.id.in_(user_ids))
     )
-    return {row.id: row.username for row in result.all()}
+    return {
+        row.id: _UserInfo(username=row.username, picture_url=row.picture_url)
+        for row in result.all()
+    }
 
 
-async def resolve_player_names(
+def _resolve_from_info(
+    players: dict[int, str],
+    user_info_map: dict[int, _UserInfo],
+) -> dict[int, PlayerDisplay]:
+    """Resolve player IDs to PlayerDisplay using a pre-fetched user info map.
+
+    Args:
+        players: Dict mapping player number to player ID
+        user_info_map: Pre-fetched user info from _fetch_user_info()
+
+    Returns:
+        Dict mapping player number to PlayerDisplay
+    """
+    result: dict[int, PlayerDisplay] = {}
+    for num, player_id in players.items():
+        if player_id.startswith("u:"):
+            try:
+                uid = int(player_id[2:])
+                info = user_info_map.get(uid)
+                if info:
+                    result[num] = PlayerDisplay(
+                        name=info.username,
+                        picture_url=info.picture_url,
+                        user_id=uid,
+                    )
+                else:
+                    result[num] = PlayerDisplay(
+                        name=f"User {uid}",
+                        picture_url=None,
+                        user_id=uid,
+                    )
+            except ValueError:
+                result[num] = PlayerDisplay(
+                    name=player_id,
+                    picture_url=None,
+                    user_id=None,
+                )
+        else:
+            result[num] = PlayerDisplay(
+                name=format_player_id(player_id),
+                picture_url=None,
+                user_id=None,
+            )
+    return result
+
+
+async def resolve_player_info(
     session: AsyncSession, players: dict[int, str]
-) -> dict[int, str]:
-    """Resolve a dict of player IDs to display names.
+) -> dict[int, PlayerDisplay]:
+    """Resolve a dict of player IDs to PlayerDisplay objects with picture URLs.
 
     Args:
         session: Database session
         players: Dict mapping player number to player ID
 
     Returns:
-        Dict mapping player number to display name
+        Dict mapping player number to PlayerDisplay
     """
-    # Extract all user IDs that need lookup
     user_ids = extract_user_ids(list(players.values()))
+    user_info_map = await _fetch_user_info(session, user_ids)
+    return _resolve_from_info(players, user_info_map)
 
-    # Batch fetch usernames
-    username_map = await fetch_usernames(session, user_ids)
 
-    # Format all player IDs
-    return {
-        num: format_player_id(player_id, username_map)
-        for num, player_id in players.items()
-    }
+async def resolve_player_info_batch(
+    session: AsyncSession,
+    players_list: list[dict[int, str]],
+) -> list[dict[int, PlayerDisplay]]:
+    """Resolve multiple player dicts in a single DB query.
+
+    Args:
+        session: Database session
+        players_list: List of player dicts (each mapping player number to player ID)
+
+    Returns:
+        List of resolved PlayerDisplay dicts, in the same order as input
+    """
+    # Collect all user IDs across all player dicts
+    all_player_ids: list[str] = []
+    for players in players_list:
+        all_player_ids.extend(players.values())
+
+    all_user_ids = extract_user_ids(all_player_ids)
+    # Deduplicate
+    unique_user_ids = list(set(all_user_ids))
+    user_info_map = await _fetch_user_info(session, unique_user_ids)
+
+    return [_resolve_from_info(players, user_info_map) for players in players_list]

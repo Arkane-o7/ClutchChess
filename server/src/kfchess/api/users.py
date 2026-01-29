@@ -28,7 +28,7 @@ from kfchess.services.s3 import (
     S3UploadError,
     upload_profile_picture,
 )
-from kfchess.utils.display_name import resolve_player_names
+from kfchess.utils.display_name import resolve_player_info_batch
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -242,36 +242,41 @@ async def get_user_replays(
     history_entries = await history_repo.list_by_user(user_id, limit=limit, offset=offset)
     total = await history_repo.count_by_user(user_id)
 
-    summaries = []
+    # Build all player dicts first for batch resolution
+    entry_data: list[tuple[str, dict, datetime | None, dict[int, str]]] = []
+    players_list: list[dict[int, str]] = []
     for entry in history_entries:
         info = entry.game_info
         game_id = info.get("gameId") or info.get("historyId")
 
         # Build players dict: this user + opponents
         player_num = info.get("player", 1)
-        players = {player_num: f"u:{user_id}"}
+        players: dict[int, str] = {player_num: f"u:{user_id}"}
         opponents = info.get("opponents", [])
-        # Get available slots (1-4 for 4-player, 1-2 for 2-player) excluding this player's slot
         max_players = 4 if len(opponents) > 1 else 2
         available_slots = [n for n in range(1, max_players + 1) if n != player_num]
         for i, opponent in enumerate(opponents):
             if i < len(available_slots):
                 players[available_slots[i]] = opponent
 
-        # Resolve player display names
-        resolved_players = await resolve_player_names(db, players)
+        entry_data.append((str(game_id) if game_id else "unknown", info, entry.game_time, players))
+        players_list.append(players)
 
-        summaries.append(
-            ReplaySummary(
-                game_id=str(game_id) if game_id else "unknown",
-                speed=info.get("speed", "standard"),
-                board_type=info.get("boardType", "standard"),
-                players={str(k): v for k, v in resolved_players.items()},
-                total_ticks=info.get("ticks", 0),
-                winner=info.get("winner"),
-                win_reason=info.get("winReason"),
-                created_at=entry.game_time,
-            )
+    # Single DB query for all entries
+    resolved_list = await resolve_player_info_batch(db, players_list)
+
+    summaries = [
+        ReplaySummary(
+            game_id=game_id,
+            speed=info.get("speed", "standard"),
+            board_type=info.get("boardType", "standard"),
+            players={str(k): v for k, v in resolved.items()},
+            total_ticks=info.get("ticks", 0),
+            winner=info.get("winner"),
+            win_reason=info.get("winReason"),
+            created_at=game_time,
         )
+        for (game_id, info, game_time, _), resolved in zip(entry_data, resolved_list, strict=True)
+    ]
 
     return ReplayListResponse(replays=summaries, total=total)

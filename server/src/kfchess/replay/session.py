@@ -60,7 +60,7 @@ class ReplaySession:
         replay: Replay,
         websocket: WebSocket,
         game_id: str,
-        resolved_players: dict[int, str] | None = None,
+        resolved_players: dict | None = None,
     ) -> None:
         """Initialize the replay session.
 
@@ -510,8 +510,14 @@ class ReplaySession:
         if self._closed:
             return
 
-        # Use resolved player names if available, otherwise fall back to raw IDs
-        players_to_send = self.resolved_players or self.replay.players
+        # Use resolved player info if available, otherwise fall back to raw IDs
+        if self.resolved_players:
+            players_serialized = {
+                str(k): v.model_dump() if hasattr(v, "model_dump") else v
+                for k, v in self.resolved_players.items()
+            }
+        else:
+            players_serialized = {str(k): v for k, v in self.replay.players.items()}
 
         await self.websocket.send_json(
             {
@@ -519,7 +525,7 @@ class ReplaySession:
                 "game_id": self.game_id,
                 "speed": self.replay.speed.value,
                 "board_type": self.replay.board_type.value,
-                "players": {str(k): v for k, v in players_to_send.items()},
+                "players": players_serialized,
                 "total_ticks": self.replay.total_ticks,
                 "winner": self.replay.winner,
                 "win_reason": self.replay.win_reason,

@@ -25,6 +25,7 @@ class TestLeaderboardModels:
             rank=1,
             user_id=123,
             username="TestUser",
+            picture_url=None,
             rating=1500,
             belt="orange",
             games_played=50,

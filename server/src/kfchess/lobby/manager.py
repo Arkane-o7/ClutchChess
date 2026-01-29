@@ -135,6 +135,7 @@ class LobbyManager:
         add_ai: bool = False,
         ai_type: str = "bot:dummy",
         player_id: str | None = None,
+        picture_url: str | None = None,
     ) -> tuple[Lobby, str] | LobbyError:
         """Create a new lobby.
 
@@ -181,6 +182,7 @@ class LobbyManager:
                 slot=1,
                 user_id=host_user_id,
                 username=host_username,
+                picture_url=picture_url,
             )
             lobby.players[1] = host_player
 
@@ -223,6 +225,7 @@ class LobbyManager:
         username: str,
         player_id: str | None = None,
         preferred_slot: int | None = None,
+        picture_url: str | None = None,
     ) -> tuple[Lobby, str, int] | LobbyError:
         """Join an existing lobby.
 
@@ -275,6 +278,7 @@ class LobbyManager:
                 slot=slot,
                 user_id=user_id,
                 username=username,
+                picture_url=picture_url,
             )
             lobby.players[slot] = player
 

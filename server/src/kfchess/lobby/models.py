@@ -36,6 +36,7 @@ class LobbyPlayer:
     slot: int
     user_id: int | None
     username: str
+    picture_url: str | None = None
     is_ai: bool = False
     ai_type: str | None = None
     _is_ready: bool = field(default=False, repr=False)
@@ -165,6 +166,7 @@ class Lobby:
                     "slot": p.slot,
                     "userId": p.user_id,
                     "username": p.username,
+                    "pictureUrl": p.picture_url,
                     "isAi": p.is_ai,
                     "aiType": p.ai_type,
                     "isReady": p.is_ready,

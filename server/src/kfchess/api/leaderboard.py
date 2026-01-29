@@ -25,6 +25,7 @@ class LeaderboardEntry(BaseModel):
     rank: int
     user_id: int
     username: str
+    picture_url: str | None
     rating: int
     belt: str
     games_played: int
@@ -77,6 +78,7 @@ async def get_leaderboard(
         SELECT
             id,
             username,
+            picture_url,
             (ratings->:mode->>'rating')::int as rating,
             (ratings->:mode->>'games')::int as games_played,
             (ratings->:mode->>'wins')::int as wins
@@ -104,6 +106,7 @@ async def get_leaderboard(
             rank=offset + i + 1,
             user_id=row.id,
             username=row.username,
+            picture_url=row.picture_url,
             rating=row.rating,
             belt=get_belt(row.rating),
             games_played=row.games_played,

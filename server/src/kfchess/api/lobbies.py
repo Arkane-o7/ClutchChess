@@ -75,6 +75,7 @@ class LobbyListItem(BaseModel):
     id: int
     code: str
     host_username: str = Field(alias="hostUsername")
+    host_picture_url: str | None = Field(default=None, alias="hostPictureUrl")
     settings: dict[str, Any]
     player_count: int = Field(alias="playerCount")
     current_players: int = Field(alias="currentPlayers")
@@ -132,6 +133,7 @@ async def create_lobby(
         add_ai=request.add_ai,
         ai_type=request.ai_type,
         player_id=player_id,
+        picture_url=user.picture_url if user else None,
     )
 
     if isinstance(result, LobbyError):
@@ -177,6 +179,7 @@ async def list_lobbies(
                 id=lobby.id,
                 code=lobby.code,
                 host_username=host.username if host else "Unknown",
+                host_picture_url=host.picture_url if host else None,
                 settings={
                     "isPublic": lobby.settings.is_public,
                     "speed": lobby.settings.speed,
@@ -239,6 +242,7 @@ async def join_lobby(
         username=username,
         player_id=player_id,
         preferred_slot=request.preferred_slot,
+        picture_url=user.picture_url if user else None,
     )
 
     if isinstance(result, LobbyError):

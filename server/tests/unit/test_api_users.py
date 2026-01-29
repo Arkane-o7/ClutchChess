@@ -132,7 +132,7 @@ class TestGetUserReplays:
         ) as MockUserRepository, patch(
             "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
-            "kfchess.api.users.resolve_player_names"
+            "kfchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -141,7 +141,12 @@ class TestGetUserReplays:
             mock_history_repo.list_by_user = AsyncMock(return_value=[mock_entry])
             mock_history_repo.count_by_user = AsyncMock(return_value=1)
 
-            mock_resolve.return_value = {1: "player1", 2: "player2"}
+            from kfchess.utils.display_name import PlayerDisplay
+
+            mock_resolve.return_value = [{
+                1: PlayerDisplay(name="player1", picture_url=None, user_id=123),
+                2: PlayerDisplay(name="player2", picture_url=None, user_id=456),
+            }]
 
             response = client.get("/api/users/123/replays")
 
@@ -177,7 +182,7 @@ class TestGetUserReplays:
         ) as MockUserRepository, patch(
             "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
-            "kfchess.api.users.resolve_player_names"
+            "kfchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -186,16 +191,22 @@ class TestGetUserReplays:
             mock_history_repo.list_by_user = AsyncMock(return_value=[mock_entry])
             mock_history_repo.count_by_user = AsyncMock(return_value=1)
 
-            # Mock resolve_player_names to verify correct slot assignment
-            # Should be called with: {3: "u:123", 1: "u:100", 2: "u:200", 4: "u:300"}
-            def verify_players(db, players):
+            from kfchess.utils.display_name import PlayerDisplay
+
+            # Mock resolve_player_info_batch to verify correct slot assignment
+            # Should be called with: [{3: "u:123", 1: "u:100", 2: "u:200", 4: "u:300"}]
+            def verify_players(db, players_list):
+                players = players_list[0]
                 assert 3 in players  # User's slot
                 assert players[3] == "u:123"
                 # Opponents should be in slots 1, 2, 4 (not 3)
                 assert 1 in players
                 assert 2 in players
                 assert 4 in players
-                return {k: f"player{k}" for k in players}
+                return [{
+                    k: PlayerDisplay(name=f"player{k}", picture_url=None, user_id=k)
+                    for k in players
+                }]
 
             mock_resolve.side_effect = verify_players
 

@@ -80,6 +80,29 @@ class TestReplaySessionStart:
         assert replay_info["win_reason"] == "king_captured"
 
     @pytest.mark.asyncio
+    async def test_start_sends_resolved_player_info(self, sample_replay: Replay, mock_websocket: AsyncMock):
+        """Test that start() sends PlayerDisplay objects when resolved_players provided."""
+        from kfchess.utils.display_name import PlayerDisplay
+
+        resolved = {
+            1: PlayerDisplay(name="Alice", picture_url="https://pic.com/a.jpg", user_id=10),
+            2: PlayerDisplay(name="Bob", picture_url=None, user_id=20),
+        }
+        session = ReplaySession(sample_replay, mock_websocket, "TESTGAME", resolved_players=resolved)
+        await session.start()
+
+        calls = mock_websocket.send_json.call_args_list
+        replay_info = calls[0][0][0]
+        assert replay_info["type"] == "replay_info"
+        assert replay_info["players"]["1"]["name"] == "Alice"
+        assert replay_info["players"]["1"]["picture_url"] == "https://pic.com/a.jpg"
+        assert replay_info["players"]["1"]["user_id"] == 10
+        assert replay_info["players"]["2"]["name"] == "Bob"
+        assert replay_info["players"]["2"]["picture_url"] is None
+
+        await session.close()
+
+    @pytest.mark.asyncio
     async def test_start_sends_initial_state(self, sample_replay: Replay, mock_websocket: AsyncMock):
         """Test that start() sends initial state at tick 0."""
         session = ReplaySession(sample_replay, mock_websocket, "TESTGAME")

@@ -37,32 +37,38 @@ async def upload_profile_picture(
 - Update `user.picture_url` via user_manager
 - Return updated user
 
-### Phase 2: Backend — Extend Player Info Resolution
+### Phase 2: Backend — Extend Player Info Resolution ✅
 
-**2a. Extend display_name.py** — Modify: `server/src/kfchess/utils/display_name.py`
-- `fetch_user_info(session, user_ids) -> dict[int, UserInfo]` — returns `{id: {username, picture_url}}`
-- `resolve_player_info(session, players) -> dict[int, PlayerDisplay]` — returns `{slot: {name, picture_url, user_id}}`
-- Keep existing `resolve_player_names()` for backward compat
+**2a. Extend display_name.py** — `server/src/kfchess/utils/display_name.py`
+- `PlayerDisplay` is a Pydantic `BaseModel` (serves both internal use and API serialization)
+- `resolve_player_info(session, players)` — single dict resolution
+- `resolve_player_info_batch(session, players_list)` — batch resolution with single DB query (avoids N+1)
+- `resolve_player_names()` and `fetch_usernames()` removed (fully replaced)
 
-**2b. Update ReplaySummary** — Modify: `server/src/kfchess/api/replays.py`
-- Add `PlayerDisplay` model: `{name: str, picture_url: str | None, user_id: int | None}`
-- Change `ReplaySummary.players` from `dict[str, str]` to `dict[str, PlayerDisplay]`
-- Update `list_replays` and user replays endpoints to use `resolve_player_info()`
+**2b. Update ReplaySummary** — `server/src/kfchess/api/replays.py`
+- `PlayerDisplay` imported from `display_name.py` (no separate `PlayerDisplayModel`)
+- `ReplaySummary.players` changed from `dict[str, str]` to `dict[str, PlayerDisplay]`
+- `list_replays` uses `resolve_player_info_batch()` for single DB query
 
-**2c. Update LeaderboardEntry** — Modify: `server/src/kfchess/api/leaderboard.py`
-- Add `picture_url: str | None` to `LeaderboardEntry`
-- Add `picture_url` to SQL query
+**2c. Update LeaderboardEntry** — `server/src/kfchess/api/leaderboard.py`
+- Added `picture_url: str | None` to `LeaderboardEntry`
+- Added `picture_url` to SQL query
 
-**2d. Update LobbyPlayer** — Modify: `server/src/kfchess/lobby/models.py`
-- Add `picture_url: str | None = None` to `LobbyPlayer` dataclass
-- Add `"pictureUrl": p.picture_url` to `Lobby.to_dict()`
+**2d. Update LobbyPlayer** — `server/src/kfchess/lobby/models.py`
+- Added `picture_url: str | None = None` to `LobbyPlayer` dataclass
+- Added `"pictureUrl": p.picture_url` to `Lobby.to_dict()`
 
-**2e. Update LobbyListItem** — Modify: `server/src/kfchess/api/lobbies.py`
-- Add `host_picture_url: str | None` to `LobbyListItem`
-- Populate from `host.picture_url`
+**2e. Update LobbyListItem** — `server/src/kfchess/api/lobbies.py`
+- Added `host_picture_url: str | None` to `LobbyListItem`
+- Populated from `host.picture_url`
 
-**2f. Update lobby manager** — Modify where `LobbyPlayer` is created
-- Pass `picture_url` from user when joining lobby
+**2f. Update lobby manager** — `server/src/kfchess/lobby/manager.py`
+- `create_lobby()` and `join_lobby()` accept `picture_url` parameter
+- API endpoints pass `user.picture_url` through
+
+**2g. Update replay WebSocket** — `server/src/kfchess/ws/replay_handler.py`
+- Migrated from `resolve_player_names()` to `resolve_player_info()`
+- `ReplaySession` serializes `PlayerDisplay` objects via `model_dump()`
 
 ### Phase 3: Frontend — PlayerBadge Component
 
@@ -134,8 +140,10 @@ Add to `client/src/api/client.ts`:
 |------|---------|
 | `server/src/kfchess/services/s3.py` | **New** — S3 upload service |
 | `server/src/kfchess/api/users.py` | Add `POST /me/picture` upload endpoint |
-| `server/src/kfchess/utils/display_name.py` | Add `fetch_user_info`, `resolve_player_info` |
-| `server/src/kfchess/api/replays.py` | Add `PlayerDisplay`, update `ReplaySummary.players` type |
+| `server/src/kfchess/utils/display_name.py` | `PlayerDisplay` (Pydantic), `resolve_player_info`, `resolve_player_info_batch` |
+| `server/src/kfchess/api/replays.py` | `ReplaySummary.players` uses `PlayerDisplay`, batch resolution |
+| `server/src/kfchess/ws/replay_handler.py` | Migrated to `resolve_player_info` |
+| `server/src/kfchess/replay/session.py` | Serializes `PlayerDisplay` via `model_dump()` |
 | `server/src/kfchess/api/leaderboard.py` | Add `picture_url` to `LeaderboardEntry` + SQL query |
 | `server/src/kfchess/lobby/models.py` | Add `picture_url` to `LobbyPlayer` + `to_dict()` |
 | `server/src/kfchess/api/lobbies.py` | Add `host_picture_url` to `LobbyListItem` |

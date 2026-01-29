@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.session import async_session_factory
-from kfchess.utils.display_name import resolve_player_names
+from kfchess.utils.display_name import PlayerDisplay, resolve_player_info_batch
 
 router = APIRouter(prefix="/replays", tags=["replays"])
 
@@ -18,7 +18,7 @@ class ReplaySummary(BaseModel):
     game_id: str
     speed: str
     board_type: str
-    players: dict[str, str]
+    players: dict[str, PlayerDisplay]
     total_ticks: int
     winner: int | None
     win_reason: str | None
@@ -51,24 +51,27 @@ async def list_replays(
         replays_with_ids = await repository.list_recent(limit=limit, offset=offset)
         total = await repository.count_public()
 
-        # Resolve player display names for all replays
-        summaries = []
-        for game_id, replay in replays_with_ids:
-            # Convert string keys back to int for resolve_player_names
-            players_int_keys = {int(k): v for k, v in replay.players.items()}
-            resolved_players = await resolve_player_names(session, players_int_keys)
+        # Convert all player dicts to int keys for batch resolution
+        players_list = [
+            {int(k): v for k, v in replay.players.items()}
+            for _, replay in replays_with_ids
+        ]
 
-            summaries.append(
-                ReplaySummary(
-                    game_id=game_id,
-                    speed=replay.speed.value,
-                    board_type=replay.board_type.value,
-                    players={str(k): v for k, v in resolved_players.items()},
-                    total_ticks=replay.total_ticks,
-                    winner=replay.winner,
-                    win_reason=replay.win_reason,
-                    created_at=replay.created_at,
-                )
+        # Single DB query for all replays
+        resolved_list = await resolve_player_info_batch(session, players_list)
+
+        summaries = [
+            ReplaySummary(
+                game_id=game_id,
+                speed=replay.speed.value,
+                board_type=replay.board_type.value,
+                players={str(k): v for k, v in resolved.items()},
+                total_ticks=replay.total_ticks,
+                winner=replay.winner,
+                win_reason=replay.win_reason,
+                created_at=replay.created_at,
             )
+            for (game_id, replay), resolved in zip(replays_with_ids, resolved_list, strict=True)
+        ]
 
     return ReplayListResponse(replays=summaries, total=total)

@@ -7,7 +7,7 @@ DEV_MODE authentication bypass for local development.
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,12 @@ from kfchess.auth.users import UserManager
 from kfchess.db.models import User
 from kfchess.db.repositories.users import UserRepository
 from kfchess.db.session import get_db_session
+from kfchess.services.s3 import (
+    ALLOWED_CONTENT_TYPES,
+    MAX_FILE_SIZE,
+    S3UploadError,
+    upload_profile_picture,
+)
 from kfchess.utils.display_name import resolve_player_names
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -99,6 +105,65 @@ async def update_current_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Update failed due to a constraint violation.",
         ) from e
+
+
+@router.post("/me/picture", response_model=UserRead)
+async def upload_picture(
+    file: UploadFile,
+    user: Annotated[User, Depends(get_required_user_with_dev_bypass)],
+    user_manager: Annotated[UserManager, Depends(get_user_manager_dep)],
+) -> User:
+    """Upload a profile picture.
+
+    Accepts JPEG, PNG, GIF, or WebP images up to 64KB.
+    Uploads to S3 and updates the user's picture_url.
+
+    Args:
+        file: The image file to upload.
+        user: Current authenticated user.
+        user_manager: User manager for updating the user.
+
+    Returns:
+        Updated user data.
+    """
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type '{file.content_type}'. Allowed: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}",
+        )
+
+    file_bytes = await file.read()
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is empty.",
+        )
+
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // 1024}KB.",
+        )
+
+    try:
+        import asyncio
+
+        url = await asyncio.to_thread(upload_profile_picture, file_bytes, file.content_type)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except S3UploadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to upload profile picture. Please try again.",
+        ) from e
+
+    update = UserUpdate(picture_url=url)
+    updated_user = await user_manager.update(update, user)
+    return updated_user
 
 
 @router.get("/{user_id}", response_model=PublicUserRead)

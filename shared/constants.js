@@ -13,7 +13,7 @@ export const GAME_CONFIG = {
 
     // Movement
     MOVE_SPEED: 250,
-    PAWN_ATTACK_SPEED: 500,
+    PAWN_ATTACK_SPEED: 500, // Turbo Charge (2x Base Speed)
     KNIGHT_JUMP_HEIGHT: 8,
 
     // Collision

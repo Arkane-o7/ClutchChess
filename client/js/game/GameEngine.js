@@ -470,7 +470,6 @@ export class GameEngine extends EventEmitter {
                 return;
             }
 
-            // Vector Calculation
             const dx = piece.targetX - piece.x;
             const dy = piece.targetY - piece.y;
             const dist = Math.hypot(dx, dy);
@@ -480,17 +479,19 @@ export class GameEngine extends EventEmitter {
             if (piece.type === 'p') {
                 const startCol = Math.round(piece.startX / GAME_CONFIG.TILE_SIZE);
                 const targetCol = Math.floor(piece.targetX / GAME_CONFIG.TILE_SIZE);
+
+                // "Turbo Charge" - Attack moves (diagonal) are Double Speed
+                // Note: startX is where the move STARTED for the piece, not the start of the game.
+                // We need to ensure piece.startX is set correctly when move starts.
                 if (startCol !== targetCol) {
-                    // Pawn Exception: Diagonal Move
                     speed = GAME_CONFIG.PAWN_ATTACK_SPEED;
                 }
             }
 
             const step = speed * dt;
 
-            // Position Update
             if (dist <= step) {
-                // Snap to target
+                // Arrived
                 piece.x = piece.targetX;
                 piece.y = piece.targetY;
                 piece.col = Math.floor(piece.x / GAME_CONFIG.TILE_SIZE);
@@ -498,7 +499,7 @@ export class GameEngine extends EventEmitter {
                 piece.isMoving = false;
                 piece.isAirborne = false;
             } else {
-                // Normalize and add step
+                // Move towards target
                 piece.x += (dx / dist) * step;
                 piece.y += (dy / dist) * step;
             }
@@ -508,7 +509,7 @@ export class GameEngine extends EventEmitter {
             piece.mesh.position.x = worldPos.x;
             piece.mesh.position.z = worldPos.z;
 
-            // Jump arc for knights (Visual only, logic handled by CollisionSystem exclusion)
+            // Jump arc for knights - "Aerial Ace"
             if (piece.isAirborne) {
                 const totalDist = Math.hypot(
                     piece.targetX - piece.startX,
@@ -518,8 +519,13 @@ export class GameEngine extends EventEmitter {
                     piece.x - piece.startX,
                     piece.y - piece.startY
                 );
-                const progress = currentDist / totalDist;
-                piece.mesh.position.y = GAME_CONFIG.KNIGHT_JUMP_HEIGHT * progress * (1 - progress);
+
+                // Parabolic arc
+                if (totalDist > 0) {
+                    const progress = currentDist / totalDist;
+                    // Inverted parabolic: 4 * p * (1-p) maps 0->0, 0.5->1, 1->0
+                    piece.mesh.position.y = GAME_CONFIG.KNIGHT_JUMP_HEIGHT * 4 * progress * (1 - progress);
+                }
             } else {
                 piece.mesh.position.y = 0;
             }

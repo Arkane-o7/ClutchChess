@@ -43,10 +43,8 @@ export class MoveValidator {
         const startRow = piece.isWhite ? 6 : 1;
 
         // Forward 1
+        // Standard rule: Pawns are blocked by physical presence directly in front
         if (this.isValidSquare(col, row + dir)) {
-            // Standard chess: Pawn can't move forward if blocked. 
-            // We keep this rule for target selection to avoid "telefrag ability" on simple moves, 
-            // although physics would resolve it as a collision.
             const blocker = this.getPieceAt(col, row + dir, allPieces);
             if (!blocker) {
                 moves.push({ col, row: row + dir, isAttack: false });
@@ -61,12 +59,17 @@ export class MoveValidator {
             }
         }
 
-        // Diagonal attacks - ALWAYS POSSIBLE in Hyper Chess
+        // Diagonal attacks - "The Missile" / "Turbo Charge"
+        // Always available as targets. 
         [-1, 1].forEach(dc => {
             const newCol = col + dc;
             const newRow = row + dir;
             if (this.isValidSquare(newCol, newRow)) {
-                moves.push({ col: newCol, row: newRow, isAttack: true });
+                // Visual feedback only
+                const target = this.getPieceAt(newCol, newRow, allPieces);
+                const isAttack = !!target;
+
+                moves.push({ col: newCol, row: newRow, isAttack });
             }
         });
     }
@@ -77,21 +80,18 @@ export class MoveValidator {
             let r = row + dr;
 
             while (this.isValidSquare(c, r)) {
-                // In Hyper Chess, pieces don't block path selection.
-                // You can target any square in the line.
-                // Physics will handle what happens if you hit something on the way.
+                // Hyper Chess Logic:
+                // "Pieces... slide across the board... you can move a piece into the path... friendly fire... ICBM Gambit"
+                // This implies you can target ANY square in the line, regardless of obstacles.
+                // The physics engine handles collisions (Rams/Crashes) during transit.
 
-                // We mark it as 'isAttack' if there's an enemy there just for UI feedback,
-                // but strictly speaking any move is valid.
                 const target = this.getPieceAt(c, r, allPieces);
-                const isAttack = target && target.isWhite !== isWhite;
+                const isAttack = !!target; // Visual indicator
 
-                // Optional: Prevent landing explicitly on own pieces?
-                // Spec says "Standard chess movement rules apply for target selection".
-                // In standard chess, you cannot move to a square occupied by a friendly piece.
-                if (!target || target.isWhite !== isWhite) {
-                    moves.push({ col: c, row: r, isAttack });
-                }
+                moves.push({ col: c, row: r, isAttack });
+
+                // DO NOT BREAK. 
+                // We allow targeting "through" pieces to set up rams/crashes.
 
                 c += dc;
                 r += dr;

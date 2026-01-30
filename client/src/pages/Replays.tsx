@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { listReplays } from '../api/client';
 import type { ApiReplaySummary } from '../api/types';
 import { formatDate, formatDuration, formatWinReason } from '../utils/format';
+import PlayerBadge from '../components/PlayerBadge';
 import './Replays.css';
 
 export function Replays() {
@@ -77,18 +78,21 @@ export function Replays() {
               </div>
 
               <div className="replay-card-players">
-                {Object.entries(replay.players).map(([num, player]) => {
-                  const displayName = typeof player === 'string' ? player : (player as unknown as { name: string })?.name;
-                  return (
-                    <span
-                      key={num}
-                      className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                    >
-                      {displayName || `Player ${num}`}
-                      {replay.winner === parseInt(num) && ' (W)'}
-                    </span>
-                  );
-                })}
+                {Object.entries(replay.players).map(([num, player]) => (
+                  <span
+                    key={num}
+                    className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+                  >
+                    <PlayerBadge
+                      userId={player.user_id}
+                      username={player.name || `Player ${num}`}
+                      pictureUrl={player.picture_url}
+                      size="sm"
+                      linkToProfile={false}
+                    />
+                    {replay.winner === parseInt(num) && ' (W)'}
+                  </span>
+                ))}
               </div>
 
               <div className="replay-card-footer">

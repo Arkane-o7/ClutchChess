@@ -11,6 +11,7 @@ import type { LeaderboardEntry, MyRankResponse } from '../api/types';
 import { useAuthStore } from '../stores/auth';
 import { RATING_MODES, formatModeName, type RatingMode } from '../utils/ratings';
 import BeltIcon from './BeltIcon';
+import PlayerBadge from './PlayerBadge';
 import './Leaderboard.css';
 
 interface LeaderboardProps {
@@ -141,7 +142,14 @@ export function Leaderboard({ initialMode = '2p_standard' }: LeaderboardProps) {
                   <td className="col-belt">
                     <BeltIcon belt={entry.belt} />
                   </td>
-                  <td className="col-player">{entry.username}</td>
+                  <td className="col-player">
+                    <PlayerBadge
+                      userId={entry.user_id}
+                      username={entry.username}
+                      pictureUrl={entry.picture_url}
+                      size="sm"
+                    />
+                  </td>
                   <td className="col-rating">{entry.rating}</td>
                   <td className="col-record">
                     {entry.wins}-{entry.games_played - entry.wins}

@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '../stores/auth';
 import type { LobbyPlayer, LobbySettings as LobbySettingsType } from '../api/types';
 import { formatDisplayName } from '../utils/displayName';
+import PlayerBadge from '../components/PlayerBadge';
 import './Lobby.css';
 
 // ============================================
@@ -64,7 +65,15 @@ function PlayerSlot({ slot, player, isHost, isMe, canKick, onKick }: PlayerSlotP
         {player.isAi && <span className="ai-badge">AI</span>}
         {isDisconnected && <span className="disconnected-badge">Offline</span>}
       </div>
-      <div className="player-name">{formatDisplayName(player)}</div>
+      <div className="player-name">
+        <PlayerBadge
+          userId={player.userId}
+          username={formatDisplayName(player)}
+          pictureUrl={player.pictureUrl}
+          size="sm"
+          linkToProfile={!player.isAi}
+        />
+      </div>
       <div className="player-status">
         {isDisconnected ? (
           <span className="status-disconnected">Disconnected</span>

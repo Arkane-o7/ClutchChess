@@ -21,6 +21,7 @@ const createMockPlayer = (slot: number, overrides?: Partial<LobbyPlayer>): Lobby
   slot,
   userId: null,
   username: `Player ${slot}`,
+  pictureUrl: null,
   isAi: false,
   aiType: null,
   isReady: false,

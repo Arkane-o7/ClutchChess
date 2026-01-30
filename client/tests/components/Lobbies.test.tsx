@@ -21,6 +21,7 @@ const createMockLobbyListItem = (overrides?: Partial<LobbyListItem>): LobbyListI
   id: 1,
   code: 'ABC123',
   hostUsername: 'TestHost',
+  hostPictureUrl: null,
   settings: createMockSettings(),
   playerCount: 2,
   currentPlayers: 1,

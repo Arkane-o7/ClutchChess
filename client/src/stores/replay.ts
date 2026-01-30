@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import type { Piece, ActiveMove, Cooldown, BoardType, GameSpeed } from './game';
 import type { ConnectionState } from '../ws/types';
+import type { PlayerDisplay } from '../api/types';
 import { TIMING } from '../game';
 
 // ============================================
@@ -24,7 +25,7 @@ interface ReplayState {
   // Replay metadata (from server)
   speed: GameSpeed | null;
   boardType: BoardType | null;
-  players: Record<string, string> | null;
+  players: Record<string, PlayerDisplay> | null;
   totalTicks: number;
   winner: number | null;
   winReason: string | null;

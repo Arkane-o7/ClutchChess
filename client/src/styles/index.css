@@ -1009,15 +1009,63 @@ a:hover {
 }
 
 .player-badge-sm {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .player-badge-md {
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .player-badge-lg {
   font-size: 1.25rem;
   font-weight: 600;
   gap: 12px;
+}
+
+/* Profile Header Layout */
+.profile-title {
+  text-align: center;
+}
+
+.profile-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.profile-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-avatar-wrapper {
+  flex-shrink: 0;
+}
+
+.profile-avatar-center {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.profile-avatar-lg {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--border);
+}
+
+.profile-avatar-clickable {
+  cursor: pointer;
+}
+
+.profile-avatar-clickable:hover {
+  opacity: 0.8;
+}
+
+.profile-avatar-input {
+  display: none;
 }

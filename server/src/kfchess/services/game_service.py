@@ -7,6 +7,7 @@ when games finish.
 
 import asyncio
 import logging
+import random
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -58,9 +59,13 @@ def _generate_player_key(player: int) -> str:
     return f"p{player}_{secrets.token_urlsafe(16)}"
 
 
+_GAME_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+_GAME_ID_LENGTH = 8
+
+
 def _generate_game_id() -> str:
     """Generate a unique game ID."""
-    return secrets.token_urlsafe(6).upper()[:8]
+    return "".join(random.choices(_GAME_ID_ALPHABET, k=_GAME_ID_LENGTH))
 
 
 class GameService:

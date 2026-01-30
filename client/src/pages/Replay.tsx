@@ -11,6 +11,7 @@ import { ReplayBoard, ReplayControls } from '../components/replay';
 import { AudioControls } from '../components/game';
 import { useAudio } from '../hooks/useAudio';
 import { formatWinReason } from '../utils/format';
+import PlayerBadge from '../components/PlayerBadge';
 import './Replay.css';
 
 export function Replay() {
@@ -150,10 +151,17 @@ export function Replay() {
             )}
             {players && (
               <>
-                {Object.entries(players).map(([playerNum, playerId]) => (
+                {Object.entries(players).map(([playerNum, player]) => (
                   <div key={playerNum} className="replay-info-row">
                     <span className="replay-info-label">Player {playerNum}:</span>
-                    <span className="replay-info-value">{playerId || 'Unknown'}</span>
+                    <span className="replay-info-value">
+                      <PlayerBadge
+                        userId={player.user_id}
+                        username={player.name || 'Unknown'}
+                        pictureUrl={player.picture_url}
+                        size="sm"
+                      />
+                    </span>
                   </div>
                 ))}
               </>

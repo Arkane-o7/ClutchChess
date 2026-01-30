@@ -560,6 +560,37 @@ export async function getMyRank(mode: string): Promise<MyRankResponse> {
   );
 }
 
+/**
+ * Upload a profile picture
+ */
+export async function uploadProfilePicture(file: File): Promise<ApiUser> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/users/me/picture`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const errorBody = await response.json();
+      detail = errorBody.detail;
+    } catch {
+      // Ignore
+    }
+    throw new ApiClientError(
+      `Upload failed: ${response.status}`,
+      response.status,
+      detail
+    );
+  }
+
+  return response.json();
+}
+
 export {
   ApiClientError,
   GameNotFoundError,

@@ -304,7 +304,7 @@ describe('useReplayStore', () => {
           type: 'replay_info',
           speed: 'standard',
           board_type: 'standard',
-          players: { '1': 'Alice', '2': 'Bob' },
+          players: { '1': { name: 'Alice', picture_url: null, user_id: 1 }, '2': { name: 'Bob', picture_url: null, user_id: 2 } },
           total_ticks: 1000,
           winner: 1,
           win_reason: 'checkmate',
@@ -313,7 +313,7 @@ describe('useReplayStore', () => {
         const state = useReplayStore.getState();
         expect(state.speed).toBe('standard');
         expect(state.boardType).toBe('standard');
-        expect(state.players).toEqual({ '1': 'Alice', '2': 'Bob' });
+        expect(state.players).toEqual({ '1': { name: 'Alice', picture_url: null, user_id: 1 }, '2': { name: 'Bob', picture_url: null, user_id: 2 } });
         expect(state.totalTicks).toBe(1000);
         expect(state.winner).toBe(1);
         expect(state.winReason).toBe('checkmate');
@@ -463,7 +463,7 @@ describe('useReplayStore', () => {
         type: 'replay_info',
         speed: 'lightning',
         board_type: 'four_player',
-        players: { '1': 'A', '2': 'B' },
+        players: { '1': { name: 'A', picture_url: null, user_id: null }, '2': { name: 'B', picture_url: null, user_id: null } },
         total_ticks: 500,
         winner: null,
         win_reason: null,

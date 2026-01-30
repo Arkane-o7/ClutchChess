@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuthStore, UserRatingStats } from '../stores/auth';
 import * as api from '../api/client';
@@ -9,7 +9,9 @@ import {
   DEFAULT_RATING,
 } from '../utils/ratings';
 import BeltIcon from '../components/BeltIcon';
+import PlayerBadge from '../components/PlayerBadge';
 import { formatDate, formatDuration, formatWinReason } from '../utils/format';
+import { staticUrl } from '../config';
 import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/types';
 
 /**
@@ -44,8 +46,10 @@ function Profile() {
   const [username, setUsername] = useState(currentUser?.username || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Redirect to login if viewing own profile without auth
   useEffect(() => {
@@ -105,6 +109,49 @@ function Profile() {
   useEffect(() => {
     fetchReplays();
   }, [fetchReplays]);
+
+  const handlePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPicture(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const updatedUser = await api.uploadProfilePicture(file);
+
+      const ratings: Record<string, UserRatingStats> = {};
+      for (const [mode, value] of Object.entries(updatedUser.ratings)) {
+        if (typeof value === 'number') {
+          ratings[mode] = { rating: value, games: 0, wins: 0 };
+        } else {
+          const stats = value as ApiRatingStats;
+          ratings[mode] = { rating: stats.rating, games: stats.games, wins: stats.wins };
+        }
+      }
+
+      setUser({
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        pictureUrl: updatedUser.picture_url,
+        ratings,
+        isVerified: updatedUser.is_verified,
+      });
+      setSuccess('Profile picture updated!');
+    } catch (err) {
+      if (err instanceof api.ApiClientError && err.detail) {
+        setError(err.detail);
+      } else {
+        setError('Failed to upload picture. Max size is 1MB.');
+      }
+    } finally {
+      setIsUploadingPicture(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,70 +278,97 @@ function Profile() {
   return (
     <div className="auth-page">
       <div className="auth-card profile-card">
-        <h1>{isOwnProfile ? 'Profile' : displayUser.username}</h1>
-
         {error && <div className="auth-error" role="alert">{error}</div>}
         {success && <div className="auth-success" role="status">{success}</div>}
 
-        <div className="profile-section">
-          {/* Email - only show for own profile */}
-          {isOwnProfile && currentUser && (
-            <div className="profile-field">
-              <label>Email</label>
-              <div className="profile-value">{currentUser.email}</div>
-            </div>
-          )}
+        <h1 className="profile-title">{isOwnProfile ? 'My Profile' : displayUser.username}</h1>
 
-          {/* Username - editable only for own profile */}
-          <div className="profile-field">
-            <label htmlFor="username">Username</label>
-            {isOwnProfile && isEditing ? (
-              <form onSubmit={handleSubmit} className="profile-edit-form">
-                <input
-                  type="text"
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  minLength={2}
-                  maxLength={50}
-                  autoComplete="username"
-                  disabled={isSubmitting}
-                  autoFocus
-                />
-                <div className="profile-edit-actions">
-                  <button
-                    type="submit"
-                    className="btn btn-primary btn-sm"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="profile-value-row">
-                <span className="profile-value">{displayUser.username}</span>
-                {isOwnProfile && (
-                  <button
-                    type="button"
-                    className="btn btn-link btn-sm"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    Edit
-                  </button>
+        {isOwnProfile && currentUser ? (
+          <div className="profile-header-row">
+            <div className="profile-header-info">
+              <div className="profile-field">
+                <label>Email</label>
+                <div className="profile-value">{currentUser.email}</div>
+              </div>
+              <div className="profile-field">
+                <label htmlFor="username">Username</label>
+                {isEditing ? (
+                  <form onSubmit={handleSubmit} className="profile-edit-form">
+                    <input
+                      type="text"
+                      id="username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      minLength={2}
+                      maxLength={50}
+                      autoComplete="username"
+                      disabled={isSubmitting}
+                      autoFocus
+                    />
+                    <div className="profile-edit-actions">
+                      <button
+                        type="submit"
+                        className="btn btn-primary btn-sm"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleCancel}
+                        disabled={isSubmitting}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="profile-value-row">
+                    <span className="profile-value">{displayUser.username}</span>
+                    <button
+                      type="button"
+                      className="btn btn-link btn-sm"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      Edit
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
+            </div>
+            <div className="profile-avatar-wrapper">
+              <img
+                className="profile-avatar-lg profile-avatar-clickable"
+                src={currentUser.pictureUrl || staticUrl('default-profile.jpg')}
+                alt={currentUser.username}
+                width={100}
+                height={100}
+                onClick={!isUploadingPicture ? () => fileInputRef.current?.click() : undefined}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handlePictureUpload}
+                className="profile-avatar-input"
+              />
+            </div>
           </div>
+        ) : (
+          <div className="profile-avatar-center">
+            <img
+              className="profile-avatar-lg"
+              src={publicUser?.picture_url || staticUrl('default-profile.jpg')}
+              alt={displayUser.username}
+              width={100}
+              height={100}
+            />
+          </div>
+        )}
+
+        <div className="profile-section">
 
           {/* Ratings */}
           <div className="profile-field">
@@ -341,18 +415,21 @@ function Profile() {
                           <span className="match-speed">{replay.speed}</span>
                         </div>
                         <div className="match-players">
-                          {Object.entries(replay.players).map(([num, player]) => {
-                            const displayName = typeof player === 'string' ? player : (player as unknown as { name: string })?.name;
-                            return (
-                              <span
-                                key={num}
-                                className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                              >
-                                {displayName || `Player ${num}`}
-                                {replay.winner === parseInt(num) && ' (W)'}
-                              </span>
-                            );
-                          })}
+                          {Object.entries(replay.players).map(([num, player]) => (
+                            <span
+                              key={num}
+                              className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+                            >
+                              <PlayerBadge
+                                userId={player.user_id}
+                                username={player.name || `Player ${num}`}
+                                pictureUrl={player.picture_url}
+                                size="sm"
+                                linkToProfile={false}
+                              />
+                              {replay.winner === parseInt(num) && ' (W)'}
+                            </span>
+                          ))}
                         </div>
                         <div className="match-result">
                           <span className="match-duration">{formatDuration(replay.total_ticks)}</span>

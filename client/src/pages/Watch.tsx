@@ -11,6 +11,7 @@ import { listReplays } from '../api/client';
 import type { LobbyListItem, ApiReplaySummary } from '../api/types';
 import { formatDate, formatDuration, formatWinReason } from '../utils/format';
 import { Leaderboard } from '../components/Leaderboard';
+import PlayerBadge from '../components/PlayerBadge';
 import './Watch.css';
 
 type TabId = 'live' | 'replays' | 'leaderboard';
@@ -93,7 +94,16 @@ function LiveGameCard({ lobby, isActive }: LiveGameCardProps) {
       className={`game-card ${isActive ? 'active' : ''}`}
     >
       <div className="game-card-info">
-        <div className="game-card-host">{lobby.hostUsername}'s Game</div>
+        <div className="game-card-host">
+          <PlayerBadge
+            userId={null}
+            username={lobby.hostUsername}
+            pictureUrl={lobby.hostPictureUrl}
+            size="sm"
+            linkToProfile={false}
+          />
+          's Game
+        </div>
         <div className="game-card-details">
           <span className="detail-badge">{lobby.settings.speed}</span>
           <span>{lobby.settings.playerCount}P</span>
@@ -176,18 +186,21 @@ function ReplaysTab() {
           </div>
 
           <div className="replay-card-players">
-            {Object.entries(replay.players).map(([num, player]) => {
-              const displayName = typeof player === 'string' ? player : (player as unknown as { name: string })?.name;
-              return (
-                <span
-                  key={num}
-                  className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                >
-                  {displayName || `Player ${num}`}
-                  {replay.winner === parseInt(num) && ' (W)'}
-                </span>
-              );
-            })}
+            {Object.entries(replay.players).map(([num, player]) => (
+              <span
+                key={num}
+                className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
+              >
+                <PlayerBadge
+                  userId={player.user_id}
+                  username={player.name || `Player ${num}`}
+                  pictureUrl={player.picture_url}
+                  size="sm"
+                  linkToProfile={false}
+                />
+                {replay.winner === parseInt(num) && ' (W)'}
+              </span>
+            ))}
           </div>
 
           <div className="replay-card-footer">

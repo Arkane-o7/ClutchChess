@@ -9,7 +9,7 @@ from kfchess.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = 64 * 1024  # 64 KB
+MAX_FILE_SIZE = 1024 * 1024  # 1 MB
 MIN_FILE_SIZE = 1  # At least 1 byte
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
@@ -59,7 +59,7 @@ def upload_profile_picture(file_bytes: bytes, content_type: str) -> str:
     """Upload a profile picture to S3.
 
     Args:
-        file_bytes: Raw image bytes (max 64KB).
+        file_bytes: Raw image bytes (max 1MB).
         content_type: MIME type (must be image/jpeg, image/png, image/gif, or image/webp).
 
     Returns:

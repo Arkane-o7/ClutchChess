@@ -124,7 +124,7 @@ function Header() {
                   aria-expanded={showDropdown}
                 >
                   <div className="profile-pic">
-                    <img src={staticUrl('default-profile.jpg')} alt={user.username} />
+                    <img src={user.pictureUrl || staticUrl('default-profile.jpg')} alt={user.username} />
                   </div>
                 </button>
                 {showDropdown && (

@@ -143,7 +143,7 @@ export interface ApiReplay {
   version: number;
   speed: 'standard' | 'lightning';
   board_type: 'standard' | 'four_player';
-  players: Record<string, string>; // "1" -> "player_id"
+  players: Record<string, PlayerDisplay>;
   moves: ApiReplayMove[];
   total_ticks: number;
   winner: number | null;
@@ -151,12 +151,19 @@ export interface ApiReplay {
   created_at: string | null;
 }
 
+// Player display info from server (name + optional picture/user ID)
+export interface PlayerDisplay {
+  name: string;
+  picture_url: string | null;
+  user_id: number | null;
+}
+
 // Summary of a replay for listing
 export interface ApiReplaySummary {
   game_id: string;
   speed: 'standard' | 'lightning';
   board_type: 'standard' | 'four_player';
-  players: Record<string, string>;
+  players: Record<string, PlayerDisplay>;
   total_ticks: number;
   winner: number | null;
   win_reason: string | null;
@@ -247,6 +254,7 @@ export interface LobbyPlayer {
   slot: number;
   userId: number | null;
   username: string;
+  pictureUrl: string | null;
   isAi: boolean;
   aiType: string | null;
   isReady: boolean;
@@ -300,6 +308,7 @@ export interface LobbyListItem {
   id: number;
   code: string;
   hostUsername: string;
+  hostPictureUrl: string | null;
   settings: LobbySettings;
   playerCount: number;
   currentPlayers: number;
@@ -325,6 +334,7 @@ export interface LeaderboardEntry {
   rank: number;
   user_id: number;
   username: string;
+  picture_url: string | null;
   rating: number;
   belt: string;
   games_played: number;

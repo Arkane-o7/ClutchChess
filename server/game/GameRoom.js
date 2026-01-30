@@ -91,7 +91,7 @@ export class GameRoom {
                 if (char) {
                     const isWhite = char === char.toUpperCase();
                     pieces.push({
-                        id: `${char}-${row}-${col}`,
+                        id: `${char.toLowerCase()}-${row}-${col}`,
                         type: char.toLowerCase(),
                         isWhite,
                         col,
@@ -126,15 +126,30 @@ export class GameRoom {
         const playerIsWhite = player.color === 'white';
         if (piece.isWhite !== playerIsWhite) return false;
 
+        // Regenerate mana based on elapsed time
+        const elapsed = (Date.now() - this.startTime) / 1000; // seconds
+        const regenAmount = elapsed * GAME_CONFIG.MANA_REGEN_PER_SECOND;
+
+        // Calculate expected mana (start + regen - spent)
+        // We track spent mana separately to avoid accumulation errors
+        if (!this.gameState.whiteManaSpent) this.gameState.whiteManaSpent = 0;
+        if (!this.gameState.blackManaSpent) this.gameState.blackManaSpent = 0;
+
+        const whiteManaRaw = GAME_CONFIG.MANA_START + regenAmount - this.gameState.whiteManaSpent;
+        const blackManaRaw = GAME_CONFIG.MANA_START + regenAmount - this.gameState.blackManaSpent;
+
+        this.gameState.whiteMana = Math.min(GAME_CONFIG.MANA_MAX, whiteManaRaw);
+        this.gameState.blackMana = Math.min(GAME_CONFIG.MANA_MAX, blackManaRaw);
+
         // Check mana
         const mana = playerIsWhite ? this.gameState.whiteMana : this.gameState.blackMana;
         if (mana < GAME_CONFIG.MANA_COST_PER_MOVE) return false;
 
-        // Deduct mana
+        // Deduct mana (track spent amount)
         if (playerIsWhite) {
-            this.gameState.whiteMana -= GAME_CONFIG.MANA_COST_PER_MOVE;
+            this.gameState.whiteManaSpent += GAME_CONFIG.MANA_COST_PER_MOVE;
         } else {
-            this.gameState.blackMana -= GAME_CONFIG.MANA_COST_PER_MOVE;
+            this.gameState.blackManaSpent += GAME_CONFIG.MANA_COST_PER_MOVE;
         }
 
         // Basic move validation (could be more sophisticated)

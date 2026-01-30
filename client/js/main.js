@@ -12,7 +12,6 @@ class ClutchChess {
     constructor() {
         this.ui = null;
         this.game = null;
-        this.game = null;
         this.network = null;
         this.auth = null;
         this.isMultiplayer = false;
@@ -30,7 +29,6 @@ class ClutchChess {
         this.ui.on('createRoom', () => this.createRoom());
         this.ui.on('joinRoom', (code) => this.joinRoom(code));
         this.ui.on('leaveRoom', () => this.leaveRoom());
-        this.ui.on('leaveRoom', () => this.leaveRoom());
         this.ui.on('returnToMenu', () => this.returnToMenu());
 
         // Auth Events
@@ -46,6 +44,7 @@ class ClutchChess {
         this.network.on('gameStart', (data) => this.onGameStart(data));
         this.network.on('opponentMove', (data) => this.onOpponentMove(data));
         this.network.on('gameOver', (data) => this.onGameOver(data));
+        this.network.on('playerLeft', () => this.onOpponentDisconnect());
         this.network.on('error', (error) => this.ui.showError(error));
 
         // Initialize Game Engine (but don't start yet)
@@ -142,6 +141,8 @@ class ClutchChess {
 
     onRoomCreated(data) {
         console.log('🏠 Room created:', data.roomCode);
+        this.isMultiplayer = true;
+        this.playerColor = data.color; // 'white' for room creator
         this.ui.showLobby(data.roomCode);
     }
 
@@ -188,6 +189,18 @@ class ClutchChess {
             duration: result.duration,
             captures: result.captures,
             eloChange: result.eloChange || 0
+        });
+    }
+
+    onOpponentDisconnect() {
+        // Opponent left - you win by forfeit!
+        console.log('👋 Opponent disconnected');
+        this.game.isPlaying = false;
+        this.ui.showGameOver({
+            victory: true,
+            duration: Math.floor(this.game.gameTime),
+            captures: 'Opponent disconnected',
+            eloChange: 0
         });
     }
 

@@ -23,7 +23,9 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ['http://localhost:5173', 'http://localhost:3000'],
+        origin: process.env.ORIGIN
+            ? process.env.ORIGIN.split(',')
+            : ['http://localhost:5173', 'http://localhost:3000', 'https://clutchchess.onrender.com'],
         methods: ['GET', 'POST']
     }
 });
@@ -258,6 +260,29 @@ io.on('connection', (socket) => {
         });
 
         console.log(`🏁 Game over in room ${data.roomCode}, winner: ${data.winner}, elo: ${eloChange}`);
+    });
+
+    // --- Leave Room ---
+
+    socket.on('leave_room', (data) => {
+        const room = rooms.get(data?.roomCode);
+        if (!room) return;
+
+        room.removePlayer(socket.id);
+        socket.leave(data.roomCode);
+
+        // Notify remaining player
+        socket.to(data.roomCode).emit(SOCKET_EVENTS.PLAYER_LEFT, {
+            playerId: socket.id
+        });
+
+        // Clean up empty rooms
+        if (room.isEmpty()) {
+            rooms.delete(data.roomCode);
+            console.log(`🗑️ Room ${data.roomCode} deleted (player left)`);
+        }
+
+        console.log(`🚪 Player ${socket.id} left room: ${data.roomCode}`);
     });
 
     // --- Disconnection ---

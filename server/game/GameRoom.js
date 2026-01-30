@@ -89,7 +89,7 @@ export class GameRoom {
             for (let col = 0; col < 8; col++) {
                 const char = layout[row][col];
                 if (char) {
-                    const isWhite = char === char.toLowerCase();
+                    const isWhite = char === char.toUpperCase();
                     pieces.push({
                         id: `${char}-${row}-${col}`,
                         type: char.toLowerCase(),

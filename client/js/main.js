@@ -155,10 +155,11 @@ class ClutchChess {
 
     onGameStart(data) {
         console.log('🎮 Game starting!', data);
-        this.playerColor = data.color;
+        // data usually doesn't contain color, we already have it from match/room events
+
         this.game.startGame({
             vsAI: false,
-            playerColor: data.color,
+            playerColor: this.playerColor,
             initialState: data.gameState
         });
         this.ui.showGame();

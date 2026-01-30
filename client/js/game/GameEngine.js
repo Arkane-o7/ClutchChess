@@ -180,7 +180,7 @@ export class GameEngine extends EventEmitter {
             for (let col = 0; col < 8; col++) {
                 const char = layout[row][col];
                 if (char) {
-                    const isWhite = char === char.toLowerCase();
+                    const isWhite = char === char.toUpperCase();
                     // Match Server ID generation: type-row-col
                     const id = `${char.toLowerCase()}-${row}-${col}`;
                     const piece = this.createPiece(char.toLowerCase(), isWhite, col, row, id);

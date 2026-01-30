@@ -423,8 +423,11 @@ export class GameEngine extends EventEmitter {
             this.camera.position.y = 50;
             this.camera.lookAt(0, 0, 0);
         } else {
-            // Lerp to game position
-            const targetPos = new THREE.Vector3(0, 75, 50);
+            // Lerp to game position based on color
+            // White: (0, 75, 50), Black: (0, 75, -50)
+            const zPos = this.playerColor === 'white' ? 50 : -50;
+            const targetPos = new THREE.Vector3(0, 75, zPos);
+
             this.camera.position.lerp(targetPos, dt * 2);
             this.camera.lookAt(0, 0, 0);
         }

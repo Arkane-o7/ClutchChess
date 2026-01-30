@@ -27,7 +27,12 @@ const io = new Server(server, {
             ? process.env.ORIGIN.split(',')
             : ['http://localhost:5173', 'http://localhost:3000', 'https://clutchchess.onrender.com'],
         methods: ['GET', 'POST']
-    }
+    },
+    // Low-latency optimizations
+    transports: ['websocket'],  // Skip HTTP long-polling fallback
+    pingInterval: 10000,        // Faster heartbeat
+    pingTimeout: 5000,          // Faster disconnect detection  
+    perMessageDeflate: false    // Disable compression for speed
 });
 
 // Middleware
@@ -219,8 +224,8 @@ io.on('connection', (socket) => {
 
         // Validate and broadcast move
         if (room.validateMove(socket.id, data)) {
-            // Broadcast to all players in room (including sender for confirmation)
-            io.to(data.roomCode).emit(SOCKET_EVENTS.PIECE_MOVED, {
+            // Broadcast to all players in room - use volatile for lower latency
+            io.to(data.roomCode).volatile.emit(SOCKET_EVENTS.PIECE_MOVED, {
                 playerId: socket.id,
                 pieceId: data.pieceId,
                 from: data.from,

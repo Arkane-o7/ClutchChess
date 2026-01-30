@@ -166,6 +166,7 @@ export class SocketClient extends EventEmitter {
             this.socket.emit(SOCKET_EVENTS.MOVE_PIECE, {
                 roomCode: this.roomCode,
                 playerId: this.playerId,
+                timestamp: Date.now(),  // For latency compensation
                 ...move
             });
         }

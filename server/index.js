@@ -229,7 +229,8 @@ io.on('connection', (socket) => {
                 playerId: socket.id,
                 pieceId: data.pieceId,
                 from: data.from,
-                to: data.to
+                to: data.to,
+                timestamp: data.timestamp || Date.now()  // Pass through for latency compensation
             });
         }
     });

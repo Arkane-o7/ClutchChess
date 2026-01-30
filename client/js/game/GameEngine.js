@@ -345,9 +345,64 @@ export class GameEngine extends EventEmitter {
 
     applyOpponentMove(data) {
         const piece = this.pieces.find(p => p.id === data.pieceId);
-        if (piece) {
-            this.movePiece(piece, data.to);
+        if (!piece) return;
+
+        // Calculate how much time has passed since opponent clicked
+        const elapsed = data.timestamp ? (Date.now() - data.timestamp) / 1000 : 0;
+
+        // Set up the move target
+        const targetX = data.to.col * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+        const targetY = data.to.row * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+
+        // Deduct mana for opponent
+        if (piece.isWhite) {
+            this.whiteMana -= GAME_CONFIG.MANA_COST_PER_MOVE;
+        } else {
+            this.blackMana -= GAME_CONFIG.MANA_COST_PER_MOVE;
         }
+
+        // Calculate how far the piece should have traveled
+        const speed = GAME_CONFIG.MOVE_SPEED;
+        const distanceToTravel = elapsed * speed;
+
+        // Calculate total distance of the move
+        const dx = targetX - piece.x;
+        const dy = targetY - piece.y;
+        const totalDistance = Math.hypot(dx, dy);
+
+        // If the piece would have already arrived, just snap it
+        if (distanceToTravel >= totalDistance) {
+            piece.x = targetX;
+            piece.y = targetY;
+            piece.col = data.to.col;
+            piece.row = data.to.row;
+            // Update mesh position immediately
+            const worldPos = this.board.logicToWorld(piece.x, piece.y);
+            piece.mesh.position.set(worldPos.x, 0, worldPos.z);
+            return;
+        }
+
+        // Advance the piece's starting position based on elapsed time
+        piece.startX = piece.x;
+        piece.startY = piece.y;
+
+        if (totalDistance > 0 && distanceToTravel > 0) {
+            // Move the piece forward by the elapsed distance
+            const ratio = distanceToTravel / totalDistance;
+            piece.x += dx * ratio;
+            piece.y += dy * ratio;
+
+            // Update mesh to the advanced position
+            const worldPos = this.board.logicToWorld(piece.x, piece.y);
+            piece.mesh.position.set(worldPos.x, 0, worldPos.z);
+        }
+
+        // Now set up the rest of the movement
+        piece.targetX = targetX;
+        piece.targetY = targetY;
+        piece.isMoving = true;
+        piece.hasMoved = true;
+        piece.isAirborne = piece.type === 'n';
     }
 
     // --- Game State ---

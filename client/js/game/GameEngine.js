@@ -251,6 +251,10 @@ export class GameEngine extends EventEmitter {
         const playerPieces = this.pieces.filter(p =>
             p.isWhite === (this.playerColor === 'white') && !p.isMoving
         );
+
+        // Debug: Log selection state
+        console.log(`[SELECT] Your color: ${this.playerColor}, available pieces: ${playerPieces.length}, total: ${this.pieces.length}`);
+
         const meshes = playerPieces.map(p => p.mesh);
         const intersects = this.raycaster.intersectObjects(meshes, true);
 
@@ -263,8 +267,11 @@ export class GameEngine extends EventEmitter {
 
             const piece = playerPieces.find(p => p.mesh === hitObject);
             if (piece) {
+                console.log(`[SELECT] Selected piece: ${piece.type} at (${piece.col}, ${piece.row})`);
                 this.selectPiece(piece);
             }
+        } else {
+            console.log(`[SELECT] No piece hit by click`);
         }
     }
 

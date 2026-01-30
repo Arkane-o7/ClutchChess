@@ -73,16 +73,17 @@ export class GameRoom {
 
     createInitialState() {
         // Create piece layout
+        // Standard chess: Black at top (rows 0-1), White at bottom (rows 6-7)
         const pieces = [];
         const layout = [
-            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
-            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],  // Row 0 - Black back rank
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],  // Row 1 - Black pawns
             [null, null, null, null, null, null, null, null],
             [null, null, null, null, null, null, null, null],
             [null, null, null, null, null, null, null, null],
             [null, null, null, null, null, null, null, null],
-            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],  // Row 6 - White pawns
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']   // Row 7 - White back rank
         ];
 
         for (let row = 0; row < 8; row++) {

@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { staticUrl } from '../config';
 
@@ -24,6 +25,21 @@ function PlayerBadge({
 }: PlayerBadgeProps) {
   const px = SIZES[size];
   const imgSrc = pictureUrl || staticUrl('default-profile.jpg');
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  const checkTruncation = useCallback(() => {
+    const el = nameRef.current;
+    if (el) {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkTruncation();
+    window.addEventListener('resize', checkTruncation);
+    return () => window.removeEventListener('resize', checkTruncation);
+  }, [checkTruncation, username]);
 
   const content = (
     <span className={`player-badge player-badge-${size}`}>
@@ -34,7 +50,10 @@ function PlayerBadge({
         width={px}
         height={px}
       />
-      <span className="player-badge-name">{username}</span>
+      <span className="player-badge-name" ref={nameRef}>{username}</span>
+      {isTruncated && (
+        <span className="player-badge-tooltip" role="tooltip">{username}</span>
+      )}
     </span>
   );
 

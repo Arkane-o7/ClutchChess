@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import * as api from '../api';
-import type { ApiPiece, ApiActiveMove, ApiCooldown, CreateGameRequest } from '../api/types';
+import type { ApiPiece, ApiActiveMove, ApiCooldown, CreateGameRequest, PlayerDisplay } from '../api/types';
 import { GameWebSocketClient } from '../ws/client';
 import type {
   ConnectionState,
@@ -64,6 +64,7 @@ interface GameState {
   boardType: BoardType;
   speed: GameSpeed;
   tickRateHz: number; // Server tick rate for interpolation
+  players: Record<string, PlayerDisplay> | null;
 
   // Game state (from server)
   status: GameStatus;
@@ -103,6 +104,7 @@ interface GameActions {
   // Gameplay
   selectPiece: (pieceId: string | null) => void;
   makeMove: (toRow: number, toCol: number) => void;
+  resign: () => void;
 
   // Internal updates
   updateFromStateMessage: (msg: StateUpdateMessage) => void;
@@ -131,6 +133,7 @@ const initialState: GameState = {
   boardType: 'standard',
   speed: 'standard',
   tickRateHz: 30, // Default, will be overwritten by server
+  players: null,
   status: 'waiting',
   currentTick: 0,
   lastTickTime: 0,
@@ -279,6 +282,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         playerNumber: playerKey ? 1 : 0, // Will be determined by server
         boardType: gameState.board.board_type,
         speed: gameState.speed,
+        players: gameState.players ?? null,
         status: gameState.status,
         currentTick: gameState.current_tick,
         winner: gameState.winner,
@@ -412,6 +416,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Don't clear selection here - wait for move confirmation or rejection
     // Selection will be cleared in updateFromStateMessage when piece starts moving
+  },
+
+  resign: () => {
+    const { wsClient, status } = get();
+    if (!wsClient || status !== 'playing') return;
+    wsClient.sendResign();
   },
 
   updateFromStateMessage: (msg) => {

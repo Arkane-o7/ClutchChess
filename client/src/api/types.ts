@@ -44,6 +44,7 @@ export interface ApiGameState {
   speed: 'standard' | 'lightning';
   current_tick: number;
   winner: number | null;
+  players?: Record<string, PlayerDisplay>;
   board: ApiBoard;
   active_moves: ApiActiveMove[];
   cooldowns: ApiCooldown[];

@@ -351,6 +351,13 @@
 .lobbies-page {
   max-width: 900px;
   margin: 0 auto;
+  padding: 1rem 2rem 2rem;
+}
+
+.lobbies-page h1 {
+  margin: 0 0 1.5rem;
+  font-size: 1.75rem;
+  color: var(--color-text);
 }
 
 .lobbies-header {

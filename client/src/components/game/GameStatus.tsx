@@ -1,24 +1,22 @@
 /**
  * GameStatus Component
  *
- * Displays current game status and connection state.
+ * Displays game info (ID, speed, players) and current connection state.
  */
 
-import { useGameStore, selectIsPlayerEliminated } from '../../stores/game';
+import { useGameStore } from '../../stores/game';
+import PlayerBadge from '../PlayerBadge';
 
 export function GameStatus() {
+  const gameId = useGameStore((s) => s.gameId);
+  const speed = useGameStore((s) => s.speed);
+  const players = useGameStore((s) => s.players);
   const status = useGameStore((s) => s.status);
   const connectionState = useGameStore((s) => s.connectionState);
   const playerNumber = useGameStore((s) => s.playerNumber);
   const lastError = useGameStore((s) => s.lastError);
-  const boardType = useGameStore((s) => s.boardType);
-  const isEliminated = useGameStore(selectIsPlayerEliminated);
 
   const getStatusText = () => {
-    // In 4-player mode, show "You Lost!" if eliminated but game continues
-    if (status === 'playing' && boardType === 'four_player' && isEliminated) {
-      return 'You Lost! (Spectating)';
-    }
     switch (status) {
       case 'waiting':
         return 'Waiting to start...';
@@ -67,30 +65,59 @@ export function GameStatus() {
   };
 
   return (
-    <div className="game-status">
-      <div className="game-status-row">
-        <span className="game-status-label">Status:</span>
-        <span className="game-status-value">{getStatusText()}</span>
-      </div>
+    <>
+      <div className="game-info">
+        {gameId && (
+          <div className="game-info-row">
+            <span className="game-info-label">Game ID:</span>
+            <span className="game-info-value">{gameId}</span>
+          </div>
+        )}
 
-      <div className="game-status-row">
-        <span className="game-status-label">Connection:</span>
-        <span className="game-status-value" style={{ color: getConnectionColor() }}>
-          {getConnectionText()}
-        </span>
-      </div>
-
-      <div className="game-status-row">
-        <span className="game-status-label">You are:</span>
-        <span className="game-status-value">{getPlayerLabel()}</span>
-      </div>
-
-
-      {lastError && (
-        <div className="game-status-error">
-          {lastError}
+        <div className="game-info-row">
+          <span className="game-info-label">Speed:</span>
+          <span className="game-info-value">{speed}</span>
         </div>
-      )}
-    </div>
+
+        {players && Object.entries(players).map(([playerNum, player]) => (
+          <div key={playerNum} className="game-info-row">
+            <span className="game-info-label">Player {playerNum}:</span>
+            <span className="game-info-value game-info-player">
+              <PlayerBadge
+                userId={player.user_id}
+                username={player.name || 'Unknown'}
+                pictureUrl={player.picture_url}
+                size="sm"
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="game-status">
+        <div className="game-status-row">
+          <span className="game-status-label">Status:</span>
+          <span className="game-status-value">{getStatusText()}</span>
+        </div>
+
+        <div className="game-status-row">
+          <span className="game-status-label">Connection:</span>
+          <span className="game-status-value" style={{ color: getConnectionColor() }}>
+            {getConnectionText()}
+          </span>
+        </div>
+
+        <div className="game-status-row">
+          <span className="game-status-label">You are:</span>
+          <span className="game-status-value">{getPlayerLabel()}</span>
+        </div>
+
+        {lastError && (
+          <div className="game-status-error">
+            {lastError}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

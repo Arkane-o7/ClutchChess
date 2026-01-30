@@ -9,9 +9,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useLobbyStore } from '../stores/lobby';
 import { listReplays } from '../api/client';
 import type { LobbyListItem, ApiReplaySummary } from '../api/types';
-import { formatDate, formatDuration, formatWinReason } from '../utils/format';
 import { Leaderboard } from '../components/Leaderboard';
 import PlayerBadge from '../components/PlayerBadge';
+import ReplayCard from '../components/ReplayCard';
 import './Watch.css';
 
 type TabId = 'live' | 'replays' | 'leaderboard';
@@ -129,27 +129,33 @@ function LiveGameCard({ lobby, isActive }: LiveGameCardProps) {
 
 function ReplaysTab() {
   const [replays, setReplays] = useState<ApiReplaySummary[]>([]);
+  const [replaysTotal, setReplaysTotal] = useState(0);
+  const [replaysPage, setReplaysPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pageSize = 10;
+  const maxPages = 10; // Cap at 100 replays total
+  const totalPages = Math.min(Math.ceil(replaysTotal / pageSize), maxPages);
 
   const fetchReplays = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await listReplays(20);
+      const response = await listReplays(pageSize, replaysPage * pageSize);
       setReplays(response.replays);
+      setReplaysTotal(response.total);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load replays');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [replaysPage]);
 
   useEffect(() => {
     fetchReplays();
   }, [fetchReplays]);
 
-  if (loading) {
+  if (loading && replays.length === 0) {
     return <div className="tab-loading">Loading replays...</div>;
   }
 
@@ -177,40 +183,34 @@ function ReplaysTab() {
   }
 
   return (
-    <div className="replays-content">
-      {replays.map((replay) => (
-        <Link key={replay.game_id} to={`/replay/${replay.game_id}`} className="replay-card">
-          <div className="replay-card-header">
-            <span className="replay-card-date">{formatDate(replay.created_at)}</span>
-            <span className="replay-card-speed">{replay.speed}</span>
-          </div>
+    <div className="profile-match-history">
+      <div className="match-history-list">
+        {replays.map((replay) => (
+          <ReplayCard key={replay.game_id} replay={replay} />
+        ))}
+      </div>
 
-          <div className="replay-card-players">
-            {Object.entries(replay.players).map(([num, player]) => (
-              <span
-                key={num}
-                className={`replay-card-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-              >
-                <PlayerBadge
-                  userId={player.user_id}
-                  username={player.name || `Player ${num}`}
-                  pictureUrl={player.picture_url}
-                  size="sm"
-                  linkToProfile={false}
-                />
-                {replay.winner === parseInt(num) && ' (W)'}
-              </span>
-            ))}
-          </div>
-
-          <div className="replay-card-footer">
-            <span className="replay-card-duration">{formatDuration(replay.total_ticks)}</span>
-            {replay.win_reason && (
-              <span className="replay-card-result">{formatWinReason(replay.win_reason)}</span>
-            )}
-          </div>
-        </Link>
-      ))}
+      {totalPages > 1 && (
+        <div className="match-history-pagination">
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setReplaysPage((p) => Math.max(0, p - 1))}
+            disabled={replaysPage === 0 || loading}
+          >
+            Previous
+          </button>
+          <span className="page-info">
+            Page {replaysPage + 1} of {totalPages}
+          </span>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setReplaysPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={replaysPage >= totalPages - 1 || loading}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -231,8 +231,6 @@ export function Watch() {
 
   return (
     <div className="watch-page">
-      <h1>Watch</h1>
-
       <div className="watch-tabs">
         <button
           className={`tab-button ${activeTab === 'live' ? 'active' : ''}`}

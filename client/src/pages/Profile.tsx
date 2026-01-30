@@ -9,8 +9,7 @@ import {
   DEFAULT_RATING,
 } from '../utils/ratings';
 import BeltIcon from '../components/BeltIcon';
-import PlayerBadge from '../components/PlayerBadge';
-import { formatDate, formatDuration, formatWinReason } from '../utils/format';
+import ReplayCard from '../components/ReplayCard';
 import { staticUrl } from '../config';
 import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/types';
 
@@ -23,7 +22,7 @@ import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/typ
 function Profile() {
   const navigate = useNavigate();
   const { userId } = useParams<{ userId?: string }>();
-  const { user: currentUser, setUser } = useAuthStore();
+  const { user: currentUser, isLoading: isAuthLoading, setUser } = useAuthStore();
 
   // Determine if viewing own profile
   const targetUserId = userId ? parseInt(userId) : currentUser?.id;
@@ -51,12 +50,12 @@ function Profile() {
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Redirect to login if viewing own profile without auth
+  // Redirect to login if viewing own profile without auth (wait for auth check to finish)
   useEffect(() => {
-    if (isOwnProfile && !currentUser) {
+    if (!isAuthLoading && isOwnProfile && !currentUser) {
       navigate('/login', { replace: true });
     }
-  }, [isOwnProfile, currentUser, navigate]);
+  }, [isAuthLoading, isOwnProfile, currentUser, navigate]);
 
   // Reset form when user changes
   useEffect(() => {
@@ -166,8 +165,8 @@ function Profile() {
       return;
     }
 
-    if (trimmedUsername.length > 50) {
-      setError('Username must be at most 50 characters');
+    if (trimmedUsername.length > 32) {
+      setError('Username must be at most 32 characters');
       return;
     }
 
@@ -276,7 +275,7 @@ function Profile() {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page profile-page">
       <div className="auth-card profile-card">
         {error && <div className="auth-error" role="alert">{error}</div>}
         {success && <div className="auth-success" role="status">{success}</div>}
@@ -301,7 +300,7 @@ function Profile() {
                       onChange={(e) => setUsername(e.target.value)}
                       required
                       minLength={2}
-                      maxLength={50}
+                      maxLength={32}
                       autoComplete="username"
                       disabled={isSubmitting}
                       autoFocus
@@ -393,80 +392,48 @@ function Profile() {
             </div>
           </div>
 
-          {/* Match History */}
-          <div className="profile-field">
-            <label>Match History</label>
-            <div className="profile-match-history">
-              {isLoadingReplays && replays.length === 0 ? (
-                <div className="match-history-loading">Loading matches...</div>
-              ) : replays.length === 0 ? (
-                <div className="match-history-empty">No matches played yet</div>
-              ) : (
-                <>
-                  <div className="match-history-list">
-                    {replays.map((replay) => (
-                      <Link
-                        key={replay.game_id}
-                        to={`/replay/${replay.game_id}`}
-                        className="match-history-item"
-                      >
-                        <div className="match-info">
-                          <span className="match-date">{formatDate(replay.created_at)}</span>
-                          <span className="match-speed">{replay.speed}</span>
-                        </div>
-                        <div className="match-players">
-                          {Object.entries(replay.players).map(([num, player]) => (
-                            <span
-                              key={num}
-                              className={`match-player ${replay.winner === parseInt(num) ? 'winner' : ''}`}
-                            >
-                              <PlayerBadge
-                                userId={player.user_id}
-                                username={player.name || `Player ${num}`}
-                                pictureUrl={player.picture_url}
-                                size="sm"
-                                linkToProfile={false}
-                              />
-                              {replay.winner === parseInt(num) && ' (W)'}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="match-result">
-                          <span className="match-duration">{formatDuration(replay.total_ticks)}</span>
-                          {replay.win_reason && (
-                            <span className="match-reason">{formatWinReason(replay.win_reason)}</span>
-                          )}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+        </div>
+      </div>
 
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="match-history-pagination">
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setReplaysPage((p) => Math.max(0, p - 1))}
-                        disabled={replaysPage === 0 || isLoadingReplays}
-                      >
-                        Previous
-                      </button>
-                      <span className="page-info">
-                        Page {replaysPage + 1} of {totalPages}
-                      </span>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setReplaysPage((p) => Math.min(totalPages - 1, p + 1))}
-                        disabled={replaysPage >= totalPages - 1 || isLoadingReplays}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
-                </>
+      <div className="auth-card profile-card">
+        <h2 className="profile-title">Match History</h2>
+        <div className="profile-match-history">
+          {isLoadingReplays && replays.length === 0 ? (
+            <div className="match-history-loading">Loading matches...</div>
+          ) : replays.length === 0 ? (
+            <div className="match-history-empty">No matches played yet</div>
+          ) : (
+            <>
+              <div className="match-history-list">
+                {replays.map((replay) => (
+                  <ReplayCard key={replay.game_id} replay={replay} />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="match-history-pagination">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setReplaysPage((p) => Math.max(0, p - 1))}
+                    disabled={replaysPage === 0 || isLoadingReplays}
+                  >
+                    Previous
+                  </button>
+                  <span className="page-info">
+                    Page {replaysPage + 1} of {totalPages}
+                  </span>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setReplaysPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={replaysPage >= totalPages - 1 || isLoadingReplays}
+                  >
+                    Next
+                  </button>
+                </div>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

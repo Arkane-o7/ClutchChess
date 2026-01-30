@@ -188,10 +188,6 @@ export function Replay() {
             onMusicVolumeChange={setMusicVolume}
             onSoundVolumeChange={setSoundVolume}
           />
-
-          <button className="replay-back-button" onClick={() => navigate('/')}>
-            Back to Home
-          </button>
         </div>
       </div>
     </div>

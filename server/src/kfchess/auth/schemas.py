@@ -32,6 +32,18 @@ class UserCreate(schemas.BaseUserCreate):
 
     username: str | None = None
 
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str | None) -> str | None:
+        """Validate username length if provided."""
+        if v is None:
+            return v
+        if len(v) < 2:
+            raise ValueError("Username must be at least 2 characters")
+        if len(v) > 32:
+            raise ValueError("Username must be at most 32 characters")
+        return v
+
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
@@ -51,6 +63,18 @@ class UserUpdate(schemas.BaseUserUpdate):
 
     username: str | None = None
     picture_url: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str | None) -> str | None:
+        """Validate username length if provided."""
+        if v is None:
+            return v
+        if len(v) < 2:
+            raise ValueError("Username must be at least 2 characters")
+        if len(v) > 32:
+            raise ValueError("Username must be at most 32 characters")
+        return v
 
     @field_validator("password")
     @classmethod

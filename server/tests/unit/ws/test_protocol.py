@@ -1,9 +1,12 @@
 """Unit tests for WebSocket protocol messages."""
 
 from kfchess.ws.protocol import (
+    ClientMessageType,
     RatingChangeData,
     RatingUpdateMessage,
+    ResignMessage,
     ServerMessageType,
+    parse_client_message,
 )
 
 
@@ -133,3 +136,45 @@ class TestRatingUpdateMessage:
         assert len(msg.ratings) == 4
         # Winner (player 1) should gain rating
         assert msg.ratings["1"].new_rating > msg.ratings["1"].old_rating
+
+
+class TestClientMessageTypes:
+    """Tests for client message type enumeration."""
+
+    def test_resign_type_exists(self):
+        """RESIGN should be a valid client message type."""
+        assert ClientMessageType.RESIGN.value == "resign"
+
+
+class TestResignMessage:
+    """Tests for ResignMessage model."""
+
+    def test_message_type(self):
+        """ResignMessage should have correct type."""
+        msg = ResignMessage()
+        assert msg.type == "resign"
+
+    def test_serialization(self):
+        """ResignMessage should serialize correctly."""
+        msg = ResignMessage()
+        data = msg.model_dump()
+        assert data == {"type": "resign"}
+
+
+class TestParseClientMessage:
+    """Tests for parse_client_message with resign type."""
+
+    def test_parse_resign_message(self):
+        """Should parse resign message correctly."""
+        result = parse_client_message({"type": "resign"})
+        assert isinstance(result, ResignMessage)
+
+    def test_parse_invalid_type(self):
+        """Should return None for unknown message type."""
+        result = parse_client_message({"type": "unknown"})
+        assert result is None
+
+    def test_parse_empty_dict(self):
+        """Should return None for empty dict."""
+        result = parse_client_message({})
+        assert result is None

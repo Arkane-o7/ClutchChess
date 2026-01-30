@@ -111,6 +111,13 @@ export class GameWebSocketClient {
   }
 
   /**
+   * Send resign signal
+   */
+  sendResign(): void {
+    this.send({ type: 'resign' });
+  }
+
+  /**
    * Get current connection state
    */
   getConnectionState(): ConnectionState {

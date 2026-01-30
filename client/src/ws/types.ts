@@ -138,11 +138,19 @@ export interface ReadyClientMessage {
   type: 'ready';
 }
 
+export interface ResignClientMessage {
+  type: 'resign';
+}
+
 export interface PingClientMessage {
   type: 'ping';
 }
 
-export type ClientMessage = MoveClientMessage | ReadyClientMessage | PingClientMessage;
+export type ClientMessage =
+  | MoveClientMessage
+  | ReadyClientMessage
+  | ResignClientMessage
+  | PingClientMessage;
 
 // ============================================
 // Connection state

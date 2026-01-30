@@ -11,7 +11,7 @@ export const BOARD_COLORS = {
   highlight: 0xf0f000,
   legalMove: 0xf0f000,
   selected: 0xf0f000,
-  invalid: 0x666666, // For 4-player corner squares
+  invalid: 0x999999, // For 4-player corner squares
   background: 0xfcfcf4,
 } as const;
 

@@ -32,6 +32,7 @@ body {
 
 body {
   font-family: var(--font-family);
+  letter-spacing: -0.3px;
   background-color: var(--color-background);
   color: var(--color-text);
   line-height: 1.5;
@@ -93,10 +94,13 @@ a:hover {
 .logo-img {
   width: 30px;
   height: 30px;
+  position: relative;
+  top: -1px;
 }
 
 .logo-img img {
   height: 100%;
+  display: block;
 }
 
 .header-right {
@@ -459,11 +463,18 @@ a:hover {
   max-width: 400px;
 }
 
+.auth-page.profile-page {
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
 .auth-card.profile-card {
   max-width: 700px;
 }
 
-.auth-card h1 {
+.auth-card h1,
+.auth-card h2 {
   text-align: center;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
@@ -737,77 +748,6 @@ a:hover {
   color: var(--color-text-muted);
 }
 
-.match-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.match-history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  text-decoration: none;
-  color: var(--color-text);
-  transition: border-color 0.2s;
-}
-
-.match-history-item:hover {
-  border-color: var(--color-primary);
-}
-
-.match-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-}
-
-.match-date {
-  color: var(--color-text-muted);
-}
-
-.match-speed {
-  text-transform: capitalize;
-  color: var(--color-text-muted);
-}
-
-.match-players {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  font-size: 0.9rem;
-}
-
-.match-player {
-  color: var(--color-text);
-}
-
-.match-player.winner {
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-.match-result {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.match-duration {
-  color: var(--color-text-muted);
-}
-
-.match-reason {
-  font-style: italic;
-}
-
 .match-history-pagination {
   display: flex;
   justify-content: center;
@@ -986,6 +926,29 @@ a:hover {
   align-items: center;
   gap: 6px;
   vertical-align: middle;
+  position: relative;
+}
+
+.player-badge-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: #333;
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  margin-bottom: 4px;
+  z-index: 10;
+}
+
+.player-badge:hover .player-badge-tooltip {
+  opacity: 1;
 }
 
 .player-badge-avatar {
@@ -1036,6 +999,9 @@ a:hover {
 }
 
 .profile-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   flex: 1;
   min-width: 0;
 }

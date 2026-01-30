@@ -75,8 +75,60 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  min-width: 200px;
-  max-width: 250px;
+  min-width: 260px;
+  max-width: 320px;
+}
+
+/* Game Info */
+.game-info {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.game-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.game-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.game-info-label {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+
+.game-info-value {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.game-info-player.game-info-value {
+  overflow: visible;
+}
+
+.game-info-player .player-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 160px;
+  min-width: 0;
+}
+
+.game-info-player .player-badge-name {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Game Status */
@@ -133,26 +185,87 @@
   background: var(--color-primary-dark);
 }
 
-/* Game Instructions */
-.game-instructions {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 1rem;
+/* Resign Button */
+.resign-button {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: #f87171;
+  border: 1px solid #f87171;
+  border-radius: 6px;
+  font-size: 0.925rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
 }
 
-.game-instructions h3 {
-  margin: 0 0 0.75rem;
-  font-size: 1rem;
+.resign-button:hover {
+  background: #f87171;
+  color: white;
+}
+
+/* Resign Confirmation Modal */
+.resign-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.resign-confirm-modal {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  text-align: center;
+  min-width: 280px;
+}
+
+.resign-confirm-modal p {
+  margin: 0 0 1.25rem;
+  font-size: 1.05rem;
   color: var(--color-text);
 }
 
-.game-instructions ul {
-  margin: 0;
-  padding-left: 1.25rem;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  line-height: 1.6;
+.resign-confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.resign-confirm-yes {
+  padding: 0.5rem 1.25rem;
+  background: #f87171;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.925rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.resign-confirm-yes:hover {
+  background: #ef4444;
+}
+
+.resign-confirm-no {
+  padding: 0.5rem 1.25rem;
+  background: var(--color-surface-light);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.925rem;
+  cursor: pointer;
+}
+
+.resign-confirm-no:hover {
+  background: var(--color-border);
 }
 
 /* Game Over Modal */

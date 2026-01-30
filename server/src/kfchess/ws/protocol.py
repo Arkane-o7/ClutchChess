@@ -25,6 +25,7 @@ class ClientMessageType(Enum):
 
     MOVE = "move"
     READY = "ready"
+    RESIGN = "resign"
     PING = "ping"
 
 
@@ -134,13 +135,21 @@ class ReadyMessage(BaseModel):
     type: str = "ready"
 
 
+class ResignMessage(BaseModel):
+    """Request to resign from the game."""
+
+    type: str = "resign"
+
+
 class PingMessage(BaseModel):
     """Keepalive ping."""
 
     type: str = "ping"
 
 
-def parse_client_message(data: dict[str, Any]) -> MoveMessage | ReadyMessage | PingMessage | None:
+def parse_client_message(
+    data: dict[str, Any],
+) -> MoveMessage | ReadyMessage | ResignMessage | PingMessage | None:
     """Parse a client message from JSON data.
 
     Args:
@@ -163,6 +172,9 @@ def parse_client_message(data: dict[str, Any]) -> MoveMessage | ReadyMessage | P
 
     elif msg_type == "ready":
         return ReadyMessage()
+
+    elif msg_type == "resign":
+        return ResignMessage()
 
     elif msg_type == "ping":
         return PingMessage()

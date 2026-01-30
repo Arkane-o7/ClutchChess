@@ -21,6 +21,7 @@ from kfchess.ws.protocol import (
     RatingChangeData,
     RatingUpdateMessage,
     ReadyMessage,
+    ResignMessage,
     StateUpdateMessage,
     parse_client_message,
 )
@@ -398,6 +399,8 @@ async def _handle_message(
         await _handle_move(websocket, game_id, player, message, service)
     elif isinstance(message, ReadyMessage):
         await _handle_ready(websocket, game_id, player, service)
+    elif isinstance(message, ResignMessage):
+        await _handle_resign(websocket, game_id, player, service)
     else:
         # Ping - respond with pong
         await websocket.send_text(PongMessage().model_dump_json())
@@ -491,6 +494,26 @@ async def _handle_ready(
 
         # Start the game loop (uses lock to prevent race conditions)
         await _start_game_loop_if_needed(game_id)
+
+
+async def _handle_resign(
+    websocket: WebSocket,
+    game_id: str,
+    player: int | None,
+    service: Any,
+) -> None:
+    """Handle a resign message."""
+    if player is None:
+        await websocket.send_text(
+            ErrorMessage(message="Spectators cannot resign").model_dump_json()
+        )
+        return
+
+    success = service.resign(game_id, player)
+    if not success:
+        await websocket.send_text(
+            ErrorMessage(message="Cannot resign").model_dump_json()
+        )
 
 
 async def _save_replay(game_id: str, service: Any) -> None:
@@ -756,7 +779,62 @@ async def _run_game_loop(game_id: str) -> None:
 
             state = managed_game.state
 
-            # Check if game is still playing (before tick)
+            # Check if game ended externally (e.g., resignation)
+            if state.status == GameStatus.FINISHED:
+                reason = state.win_reason.value if state.win_reason else "king_captured"
+
+                # Send final state update with all pieces (including captured)
+                # so clients see the king marked as captured
+                config = state.config
+                final_pieces = []
+                for piece in state.board.pieces:
+                    pos = get_interpolated_position(
+                        piece, state.active_moves, state.current_tick, config.ticks_per_square
+                    )
+                    final_pieces.append(
+                        {
+                            "id": piece.id,
+                            "type": piece.type.value,
+                            "player": piece.player,
+                            "row": pos[0],
+                            "col": pos[1],
+                            "captured": piece.captured,
+                            "moving": is_piece_moving(piece.id, state.active_moves),
+                            "on_cooldown": is_piece_on_cooldown(
+                                piece.id, state.cooldowns, state.current_tick
+                            ),
+                            "moved": piece.moved,
+                        }
+                    )
+                await connection_manager.broadcast(
+                    game_id,
+                    StateUpdateMessage(
+                        tick=state.current_tick,
+                        pieces=final_pieces,
+                        active_moves=[],
+                        cooldowns=[],
+                        events=[],
+                    ).model_dump(),
+                )
+
+                await connection_manager.broadcast(
+                    game_id,
+                    GameOverMessage(
+                        winner=state.winner or 0,
+                        reason=reason,
+                    ).model_dump(),
+                )
+                logger.info(f"Game {game_id} finished (external), winner: {state.winner}")
+
+                await _save_replay(game_id, service)
+
+                rating_changes = await _update_ratings(game_id, state)
+                if rating_changes:
+                    await _broadcast_rating_update(game_id, rating_changes)
+
+                await _notify_lobby_game_ended(game_id, state.winner, reason)
+                break
+
             if state.status != GameStatus.PLAYING:
                 logger.info(f"Game {game_id} is {state.status.value}, stopping loop")
                 break
@@ -778,7 +856,14 @@ async def _run_game_loop(game_id: str) -> None:
             curr_cooldown_ids = {c.piece_id for c in state.cooldowns}
 
             # Check if state has changed (always send on first tick)
-            state_changed = is_first_tick or _has_state_changed(
+            # Also force broadcast if flagged (e.g., 4-player resignation)
+            force = managed_game.force_broadcast
+            resigned_ids: set[str] = set()
+            if force:
+                managed_game.force_broadcast = False
+                resigned_ids = set(managed_game.resigned_piece_ids)
+                managed_game.resigned_piece_ids.clear()
+            state_changed = is_first_tick or force or _has_state_changed(
                 prev_active_move_ids,
                 prev_cooldown_ids,
                 curr_active_move_ids,
@@ -791,8 +876,9 @@ async def _run_game_loop(game_id: str) -> None:
                 pieces_data = []
                 for piece in state.board.pieces:
                     if piece.captured:
-                        # Only include captured pieces that were just captured
-                        was_just_captured = any(
+                        # Include captured pieces only if just captured via
+                        # collision (event) or resignation
+                        was_just_captured = piece.id in resigned_ids or any(
                             e.type.value == "capture" and e.data.get("captured_piece_id") == piece.id
                             for e in events
                         )
@@ -876,9 +962,7 @@ async def _run_game_loop(game_id: str) -> None:
 
             # Check for game over after tick
             if state.status == GameStatus.FINISHED:
-                reason = "king_captured"
-                if state.winner == 0:
-                    reason = "draw_timeout"
+                reason = state.win_reason.value if state.win_reason else "king_captured"
                 await connection_manager.broadcast(
                     game_id,
                     GameOverMessage(

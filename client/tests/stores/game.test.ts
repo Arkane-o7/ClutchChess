@@ -2,8 +2,8 @@
  * Tests for the game store - focusing on rating update handling
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useGameStore } from '../../src/stores/game';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { useGameStore, selectIsPlayerEliminated } from '../../src/stores/game';
 import type { RatingUpdateMessage } from '../../src/ws/types';
 
 // ============================================
@@ -221,6 +221,57 @@ describe('Game Store', () => {
       expect(state.ratingChange?.beltChanged).toBe(true);
       expect(state.ratingChange?.oldBelt).toBe('green');
       expect(state.ratingChange?.newBelt).toBe('yellow');
+    });
+  });
+
+  describe('resign', () => {
+    it('does nothing when no wsClient', () => {
+      useGameStore.setState({ status: 'playing', wsClient: null });
+      // Should not throw
+      useGameStore.getState().resign();
+    });
+
+    it('does nothing when game is not playing', () => {
+      const mockSendResign = vi.fn();
+      useGameStore.setState({
+        status: 'waiting',
+        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as any,
+      });
+      useGameStore.getState().resign();
+      expect(mockSendResign).not.toHaveBeenCalled();
+    });
+
+    it('sends resign message when playing', () => {
+      const mockSendResign = vi.fn();
+      useGameStore.setState({
+        status: 'playing',
+        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as any,
+      });
+      useGameStore.getState().resign();
+      expect(mockSendResign).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('selectIsPlayerEliminated', () => {
+    it('returns false for spectators', () => {
+      useGameStore.setState({ playerNumber: 0, pieces: [] });
+      expect(selectIsPlayerEliminated(useGameStore.getState())).toBe(false);
+    });
+
+    it('returns false when king is alive', () => {
+      useGameStore.setState({
+        playerNumber: 1,
+        pieces: [{ id: 'K:1:7:4', type: 'K', player: 1, row: 7, col: 4, captured: false, moving: false, onCooldown: false, moved: false }],
+      });
+      expect(selectIsPlayerEliminated(useGameStore.getState())).toBe(false);
+    });
+
+    it('returns true when king is captured', () => {
+      useGameStore.setState({
+        playerNumber: 1,
+        pieces: [{ id: 'K:1:7:4', type: 'K', player: 1, row: 7, col: 4, captured: true, moving: false, onCooldown: false, moved: false }],
+      });
+      expect(selectIsPlayerEliminated(useGameStore.getState())).toBe(true);
     });
   });
 

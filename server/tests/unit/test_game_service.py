@@ -3,7 +3,7 @@
 
 from kfchess.ai.dummy import DummyAI
 from kfchess.game.board import BoardType
-from kfchess.game.state import SPEED_CONFIGS, GameStatus, Speed
+from kfchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
 from kfchess.services.game_service import GameService
 
 
@@ -470,3 +470,121 @@ class TestDummyAI:
         assert isinstance(piece_id, str)
         assert isinstance(to_row, int)
         assert isinstance(to_col, int)
+
+
+class TestResign:
+    """Tests for GameService.resign()."""
+
+    def _create_playing_game(
+        self,
+        board_type: BoardType = BoardType.STANDARD,
+    ) -> tuple[GameService, str, str]:
+        """Helper: create a game and start it. Returns (service, game_id, player_key)."""
+        service = GameService()
+        game_id, player_key, _ = service.create_game(
+            speed=Speed.STANDARD,
+            board_type=board_type,
+            opponent="bot:dummy",
+        )
+        service.mark_ready(game_id, player_key)
+        return service, game_id, player_key
+
+    def test_resign_ends_2player_game(self) -> None:
+        """Resigning in a 2-player game should end the game."""
+        service, game_id, _ = self._create_playing_game()
+
+        result = service.resign(game_id, 1)
+        assert result is True
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.FINISHED
+        assert state.win_reason == WinReason.RESIGNATION
+        # Player 2 should win when player 1 resigns
+        assert state.winner == 2
+
+    def test_resign_captures_king(self) -> None:
+        """Resignation should mark the player's king as captured."""
+        service, game_id, _ = self._create_playing_game()
+
+        state = service.get_game(game_id)
+        assert state is not None
+        king = state.board.get_king(1)
+        assert king is not None
+        assert king.captured is False
+
+        service.resign(game_id, 1)
+
+        king = state.board.get_king(1)
+        assert king is None  # get_king only returns uncaptured kings
+
+    def test_resign_invalid_game(self) -> None:
+        """Resigning from a nonexistent game should fail."""
+        service = GameService()
+        result = service.resign("nonexistent", 1)
+        assert result is False
+
+    def test_resign_game_not_playing(self) -> None:
+        """Resigning from a game that hasn't started should fail."""
+        service = GameService()
+        game_id, _, _ = service.create_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.STANDARD,
+            opponent="bot:dummy",
+        )
+
+        result = service.resign(game_id, 1)
+        assert result is False
+
+    def test_resign_already_finished(self) -> None:
+        """Resigning from an already-finished game should fail."""
+        service, game_id, _ = self._create_playing_game()
+
+        # First resignation ends the game
+        service.resign(game_id, 1)
+        # Second resignation should fail
+        result = service.resign(game_id, 2)
+        assert result is False
+
+    def test_resign_4player_continues_game(self) -> None:
+        """Resigning in 4-player should eliminate player but continue the game."""
+        service, game_id, _ = self._create_playing_game(BoardType.FOUR_PLAYER)
+
+        result = service.resign(game_id, 1)
+        assert result is True
+
+        state = service.get_game(game_id)
+        assert state is not None
+        # Game should still be playing (3 players remain)
+        assert state.status == GameStatus.PLAYING
+        assert state.winner is None
+
+        # The resigned player's king should be captured
+        king = state.board.get_king(1)
+        assert king is None
+
+    def test_resign_4player_sets_force_broadcast(self) -> None:
+        """4-player resignation should set force_broadcast flag."""
+        service, game_id, _ = self._create_playing_game(BoardType.FOUR_PLAYER)
+
+        managed = service.get_managed_game(game_id)
+        assert managed is not None
+        assert managed.force_broadcast is False
+
+        service.resign(game_id, 1)
+        assert managed.force_broadcast is True
+
+    def test_resign_4player_last_two_ends_game(self) -> None:
+        """When 3rd player resigns in 4-player, game should end."""
+        service, game_id, _ = self._create_playing_game(BoardType.FOUR_PLAYER)
+
+        # Resign players 1, 2, 3 in sequence
+        service.resign(game_id, 1)
+        service.resign(game_id, 2)
+        service.resign(game_id, 3)
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.FINISHED
+        assert state.winner == 4
+        assert state.win_reason == WinReason.RESIGNATION

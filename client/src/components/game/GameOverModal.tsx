@@ -62,7 +62,8 @@ export function GameOverModal() {
       case 'draw_timeout':
         return 'Game timed out';
       case 'resignation':
-        return 'Opponent resigned';
+        if (playerNumber === 0) return 'Player resigned';
+        return winner === playerNumber ? 'Opponent resigned' : 'You resigned';
       default:
         return '';
     }

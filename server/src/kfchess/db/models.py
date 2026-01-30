@@ -65,7 +65,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Application-specific fields
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     picture_url: Mapped[str | None] = mapped_column(String, nullable=True)
     google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     ratings: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
@@ -158,7 +158,7 @@ class LobbyPlayer(Base):
     )
     guest_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     player_slot: Mapped[int] = mapped_column(Integer, nullable=False)
-    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
     is_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ai_type: Mapped[str | None] = mapped_column(String(50), nullable=True)

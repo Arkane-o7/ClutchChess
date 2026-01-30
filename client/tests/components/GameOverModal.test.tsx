@@ -96,6 +96,42 @@ describe('GameOverModal', () => {
       renderWithRouter(<GameOverModal />);
       expect(screen.getByText('King was captured')).toBeInTheDocument();
     });
+
+    it('shows "Opponent resigned" when opponent resigned and player won', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 1,
+        winReason: 'resignation',
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('Opponent resigned')).toBeInTheDocument();
+    });
+
+    it('shows "You resigned" when player resigned and lost', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 2,
+        playerNumber: 1,
+        winReason: 'resignation',
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('You resigned')).toBeInTheDocument();
+    });
+
+    it('shows "Player resigned" for spectators', () => {
+      useGameStore.setState({
+        status: 'finished',
+        winner: 1,
+        playerNumber: 0,
+        winReason: 'resignation',
+      });
+
+      renderWithRouter(<GameOverModal />);
+      expect(screen.getByText('Player resigned')).toBeInTheDocument();
+    });
   });
 
   describe('Return to Lobby Button', () => {

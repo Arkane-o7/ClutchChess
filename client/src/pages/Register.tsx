@@ -98,6 +98,8 @@ function Register() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Leave blank for random name"
+              minLength={2}
+              maxLength={32}
               autoComplete="username"
               disabled={isLoading}
               aria-describedby="username-hint"

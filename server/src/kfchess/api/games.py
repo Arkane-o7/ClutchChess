@@ -212,6 +212,9 @@ async def list_live_games(
 @router.get("/{game_id}")
 async def get_game(game_id: str) -> dict[str, Any]:
     """Get the current game state."""
+    from kfchess.db.session import async_session_factory
+    from kfchess.utils.display_name import resolve_player_info
+
     service = get_game_service()
     state = service.get_game(game_id)
 
@@ -269,12 +272,21 @@ async def get_game(game_id: str) -> dict[str, Any]:
             }
         )
 
+    # Resolve player display names
+    async with async_session_factory() as session:
+        resolved_players = await resolve_player_info(session, state.players)
+
+    players_serialized = {
+        str(k): v.model_dump() for k, v in resolved_players.items()
+    }
+
     return {
         "game_id": state.game_id,
         "status": state.status.value,
         "speed": state.speed.value,
         "current_tick": state.current_tick,
         "winner": state.winner,
+        "players": players_serialized,
         "board": {
             "board_type": state.board.board_type.value,
             "width": state.board.width,

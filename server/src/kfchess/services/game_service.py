@@ -18,7 +18,7 @@ from kfchess.ai.dummy import DummyAI
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine, GameEvent, GameEventType
 from kfchess.game.replay import Replay
-from kfchess.game.state import GameState, GameStatus, Speed
+from kfchess.game.state import GameState, GameStatus, Speed, WinReason
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,8 @@ class ManagedGame:
     loop_task: asyncio.Task[Any] | None = None
     created_at: datetime = field(default_factory=datetime.now)
     last_activity: datetime = field(default_factory=datetime.now)
+    force_broadcast: bool = False
+    resigned_piece_ids: list[str] = field(default_factory=list)
 
 
 def _generate_player_key(player: int) -> str:
@@ -394,6 +396,47 @@ class GameService:
                 "start_tick": move.start_tick,
             },
         )
+
+    def resign(self, game_id: str, player: int) -> bool:
+        """Process a player resignation.
+
+        Marks the player's king as captured and ends the game.
+
+        Args:
+            game_id: The game ID
+            player: The player number
+
+        Returns:
+            True if resignation was processed successfully
+        """
+        managed_game = self.games.get(game_id)
+        if managed_game is None:
+            return False
+
+        state = managed_game.state
+        if state.status != GameStatus.PLAYING:
+            return False
+
+        # Find and capture the player's king
+        king = state.board.get_king(player)
+        if king is None:
+            return False
+
+        king.captured = True
+
+        # Check winner (handles 2P and 4P correctly)
+        winner, _ = GameEngine.check_winner(state)
+        if winner is not None:
+            state.winner = winner
+            state.status = GameStatus.FINISHED
+            state.win_reason = WinReason.RESIGNATION
+        else:
+            # 4-player: game continues, just this player is eliminated
+            # Force broadcast so other players see the king captured immediately
+            managed_game.force_broadcast = True
+            managed_game.resigned_piece_ids.append(king.id)
+
+        return True
 
     def mark_ready(self, game_id: str, player_key: str) -> tuple[bool, bool]:
         """Mark a player as ready.

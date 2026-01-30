@@ -142,6 +142,12 @@ export class GameRoom {
             return false;
         }
 
+        // Update server-side state
+        piece.col = move.to.col;
+        piece.row = move.to.row;
+        piece.x = move.to.col * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+        piece.y = move.to.row * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+
         return true;
     }
 

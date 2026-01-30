@@ -181,19 +181,21 @@ export class GameEngine extends EventEmitter {
                 const char = layout[row][col];
                 if (char) {
                     const isWhite = char === char.toLowerCase();
-                    const piece = this.createPiece(char.toLowerCase(), isWhite, col, row);
+                    // Match Server ID generation: type-row-col
+                    const id = `${char.toLowerCase()}-${row}-${col}`;
+                    const piece = this.createPiece(char.toLowerCase(), isWhite, col, row, id);
                     this.pieces.push(piece);
                 }
             }
         }
     }
 
-    createPiece(type, isWhite, col, row) {
+    createPiece(type, isWhite, col, row, id) {
         const x = col * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
         const y = row * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
 
         const piece = {
-            id: crypto.randomUUID(),
+            id: id || crypto.randomUUID(),
             type,
             isWhite,
             x,

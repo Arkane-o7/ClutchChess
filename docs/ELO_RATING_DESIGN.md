@@ -499,14 +499,12 @@ Create a new `/watch` route with tabbed navigation:
 
 ### Leaderboard API
 
-#### Main Leaderboard Endpoint
-
 **Endpoint:** `GET /api/leaderboard`
 
 **Query Parameters:**
 - `mode`: Rating pool (`2p_standard`, `2p_lightning`, `4p_standard`, `4p_lightning`)
-- `limit`: Max results (default: 50, max: 100)
-- `offset`: Pagination offset
+
+Returns the top 100 players. No pagination or user-specific rank endpoint — keeps queries simple and scalable.
 
 **Response Headers:**
 - `Cache-Control: public, max-age=60` (1 minute cache)
@@ -534,28 +532,7 @@ Create a new `/watch` route with tabbed navigation:
       "games_played": 89,
       "wins": 52
     }
-  ],
-  "total_count": 1234
-}
-```
-
-#### User's Own Rank Endpoint
-
-**Endpoint:** `GET /api/leaderboard/me`
-
-**Query Parameters:**
-- `mode`: Rating pool (required)
-
-**Response:**
-```json
-{
-  "mode": "2p_standard",
-  "rank": 156,
-  "rating": 1245,
-  "belt": "green",
-  "games_played": 42,
-  "wins": 23,
-  "percentile": 88.5
+  ]
 }
 ```
 
@@ -565,21 +542,26 @@ Add indexes to support efficient leaderboard queries on JSONB fields:
 
 ```sql
 -- Functional indexes for each rating mode (add in Alembic migration)
+-- Partial indexes include games > 0 to match the leaderboard query predicate
 CREATE INDEX idx_users_rating_2p_standard
 ON users (((ratings->'2p_standard'->>'rating')::int) DESC NULLS LAST)
-WHERE ratings ? '2p_standard';
+WHERE ratings ? '2p_standard'
+  AND (ratings->'2p_standard'->>'games')::int > 0;
 
 CREATE INDEX idx_users_rating_2p_lightning
 ON users (((ratings->'2p_lightning'->>'rating')::int) DESC NULLS LAST)
-WHERE ratings ? '2p_lightning';
+WHERE ratings ? '2p_lightning'
+  AND (ratings->'2p_lightning'->>'games')::int > 0;
 
 CREATE INDEX idx_users_rating_4p_standard
 ON users (((ratings->'4p_standard'->>'rating')::int) DESC NULLS LAST)
-WHERE ratings ? '4p_standard';
+WHERE ratings ? '4p_standard'
+  AND (ratings->'4p_standard'->>'games')::int > 0;
 
 CREATE INDEX idx_users_rating_4p_lightning
 ON users (((ratings->'4p_lightning'->>'rating')::int) DESC NULLS LAST)
-WHERE ratings ? '4p_lightning';
+WHERE ratings ? '4p_lightning'
+  AND (ratings->'4p_lightning'->>'games')::int > 0;
 
 -- GIN index for general JSONB queries
 CREATE INDEX idx_users_ratings_gin ON users USING gin(ratings);
@@ -589,33 +571,16 @@ CREATE INDEX idx_users_ratings_gin ON users USING gin(ratings);
 
 ```python
 # server/src/kfchess/api/leaderboard.py
-
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
-router = APIRouter(prefix="/api", tags=["leaderboard"])
-
-VALID_MODES = {"2p_standard", "2p_lightning", "4p_standard", "4p_lightning"}
-
+# Simplified: top 100 only, no pagination, no /me endpoint
 
 @router.get("/leaderboard")
 async def get_leaderboard(
     mode: str = Query(..., pattern="^(2p|4p)_(standard|lightning)$"),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_session),
 ):
-    """Get leaderboard for a specific rating mode.
-
-    Results are cached for 60 seconds to reduce database load.
-    """
-    # Query with the functional index
+    """Get top 100 leaderboard for a specific rating mode."""
     query = text("""
-        SELECT
-            id,
-            username,
+        SELECT id, username, picture_url,
             (ratings->:mode->>'rating')::int as rating,
             (ratings->:mode->>'games')::int as games_played,
             (ratings->:mode->>'wins')::int as wins
@@ -623,85 +588,9 @@ async def get_leaderboard(
         WHERE ratings ? :mode
           AND (ratings->:mode->>'games')::int > 0
         ORDER BY (ratings->:mode->>'rating')::int DESC
-        LIMIT :limit OFFSET :offset
+        LIMIT 100
     """)
-
-    result = await db.execute(query, {"mode": mode, "limit": limit, "offset": offset})
-    rows = result.fetchall()
-
-    # Get total count for pagination
-    count_query = text("""
-        SELECT COUNT(*)
-        FROM users
-        WHERE ratings ? :mode
-          AND (ratings->:mode->>'games')::int > 0
-    """)
-    total = (await db.execute(count_query, {"mode": mode})).scalar()
-
-    entries = [
-        {
-            "rank": offset + i + 1,
-            "user_id": row.id,
-            "username": row.username,
-            "rating": row.rating,
-            "belt": get_belt(row.rating),
-            "games_played": row.games_played,
-            "wins": row.wins,
-        }
-        for i, row in enumerate(rows)
-    ]
-
-    response = JSONResponse({
-        "mode": mode,
-        "entries": entries,
-        "total_count": total,
-    })
-    response.headers["Cache-Control"] = "public, max-age=60"
-    return response
-
-
-@router.get("/leaderboard/me")
-async def get_my_rank(
-    mode: str = Query(..., pattern="^(2p|4p)_(standard|lightning)$"),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(current_active_user),
-):
-    """Get the current user's rank in a specific leaderboard."""
-    stats = get_user_rating_stats(user, *mode.split("_", 1))
-
-    if stats.games == 0:
-        return {"mode": mode, "rank": None, "rating": stats.rating, "belt": get_belt(stats.rating),
-                "games_played": 0, "wins": 0, "percentile": None}
-
-    # Count users with higher rating
-    rank_query = text("""
-        SELECT COUNT(*) + 1
-        FROM users
-        WHERE ratings ? :mode
-          AND (ratings->:mode->>'games')::int > 0
-          AND (ratings->:mode->>'rating')::int > :rating
-    """)
-    rank = (await db.execute(rank_query, {"mode": mode, "rating": stats.rating})).scalar()
-
-    # Get total for percentile
-    total_query = text("""
-        SELECT COUNT(*)
-        FROM users
-        WHERE ratings ? :mode AND (ratings->:mode->>'games')::int > 0
-    """)
-    total = (await db.execute(total_query, {"mode": mode})).scalar()
-
-    percentile = round((1 - (rank - 1) / total) * 100, 1) if total > 0 else None
-
-    return {
-        "mode": mode,
-        "rank": rank,
-        "rating": stats.rating,
-        "belt": get_belt(stats.rating),
-        "games_played": stats.games,
-        "wins": stats.wins,
-        "percentile": percentile,
-    }
+    # ... build entries, return with Cache-Control: public, max-age=60
 ```
 
 ### Frontend Components
@@ -957,9 +846,7 @@ async def get_lobby_by_game_id(self, game_id: str) -> Lobby | None:
 5. [x] Add `RatingUpdateMessage` to `ws/protocol.py`
 6. [x] Add `_update_ratings()` and `_broadcast_rating_update()` to `ws/handler.py`
 7. [x] Integrate rating updates into game loop (after `_save_replay()`)
-8. [x] Add leaderboard API endpoints:
-   - `GET /api/leaderboard`
-   - `GET /api/leaderboard/me`
+8. [x] Add leaderboard API endpoint: `GET /api/leaderboard` (top 100 only)
 9. [x] Add user ratings to profile API response (via `UserRead` schema)
 
 ### Phase 3: Frontend Integration (COMPLETE)

@@ -345,16 +345,4 @@ export interface LeaderboardEntry {
 export interface LeaderboardResponse {
   mode: string;
   entries: LeaderboardEntry[];
-  total_count: number;
-}
-
-// Response for user's own rank
-export interface MyRankResponse {
-  mode: string;
-  rank: number | null;
-  rating: number;
-  belt: string;
-  games_played: number;
-  wins: number;
-  percentile: number | null;
 }

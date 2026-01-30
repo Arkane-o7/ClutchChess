@@ -4,7 +4,6 @@ from kfchess.api.leaderboard import (
     VALID_MODES,
     LeaderboardEntry,
     LeaderboardResponse,
-    MyRankResponse,
 )
 
 
@@ -44,44 +43,9 @@ class TestLeaderboardModels:
         response = LeaderboardResponse(
             mode="2p_standard",
             entries=[],
-            total_count=100,
         )
         assert response.mode == "2p_standard"
         assert response.entries == []
-        assert response.total_count == 100
-
-    def test_my_rank_response_fields(self):
-        """MyRankResponse should have all required fields."""
-        response = MyRankResponse(
-            mode="2p_standard",
-            rank=42,
-            rating=1350,
-            belt="purple",
-            games_played=20,
-            wins=12,
-            percentile=85.5,
-        )
-        assert response.mode == "2p_standard"
-        assert response.rank == 42
-        assert response.rating == 1350
-        assert response.belt == "purple"
-        assert response.games_played == 20
-        assert response.wins == 12
-        assert response.percentile == 85.5
-
-    def test_my_rank_response_nullable_fields(self):
-        """MyRankResponse should allow null rank and percentile for new users."""
-        response = MyRankResponse(
-            mode="2p_standard",
-            rank=None,
-            rating=1200,
-            belt="green",
-            games_played=0,
-            wins=0,
-            percentile=None,
-        )
-        assert response.rank is None
-        assert response.percentile is None
 
 
 class TestLeaderboardModeValidation:

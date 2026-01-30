@@ -26,7 +26,6 @@ import type {
   LobbyListResponse,
   GetLobbyResponse,
   LeaderboardResponse,
-  MyRankResponse,
 } from './types';
 
 const API_BASE = '/api';
@@ -537,26 +536,13 @@ export async function deleteLobby(code: string, playerKey: string): Promise<void
 // ============================================
 
 /**
- * Get leaderboard for a specific rating mode
+ * Get top 100 leaderboard for a specific rating mode
  */
 export async function getLeaderboard(
   mode: string,
-  limit: number = 50,
-  offset: number = 0
 ): Promise<LeaderboardResponse> {
   return request<LeaderboardResponse>(
-    `/leaderboard?mode=${encodeURIComponent(mode)}&limit=${limit}&offset=${offset}`
-  );
-}
-
-/**
- * Get the current user's rank in a specific leaderboard
- * Requires authentication
- */
-export async function getMyRank(mode: string): Promise<MyRankResponse> {
-  return request<MyRankResponse>(
-    `/leaderboard/me?mode=${encodeURIComponent(mode)}`,
-    { credentials: 'include' }
+    `/leaderboard?mode=${encodeURIComponent(mode)}`
   );
 }
 

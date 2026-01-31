@@ -1,11 +1,11 @@
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { JsonDatabase } from '../db/JsonDatabase.js';
+import { SupabaseDatabase } from '../db/SupabaseDatabase.js';
 
-const db = new JsonDatabase();
+const db = new SupabaseDatabase();
 // In production, use environment variable
-const JWT_SECRET = 'clutch-chess-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'clutch-chess-secret-key-change-this';
 
 export class AuthController {
     static async init() {

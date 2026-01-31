@@ -30,6 +30,7 @@ class ClutchChess {
         this.ui.on('joinRoom', (code) => this.joinRoom(code));
         this.ui.on('leaveRoom', () => this.leaveRoom());
         this.ui.on('returnToMenu', () => this.returnToMenu());
+        this.ui.on('rematch', () => this.requestRematch());
 
         // Auth Events
         this.ui.on('authSubmit', (data) => this.handleAuth(data));
@@ -127,6 +128,20 @@ class ClutchChess {
     returnToMenu() {
         this.game.reset();
         this.ui.showMainMenu();
+    }
+
+    requestRematch() {
+        // Reset the game state
+        this.game.reset();
+
+        if (this.isMultiplayer) {
+            // For multiplayer, search for a new match
+            // TODO: Implement proper rematch request to same opponent
+            this.startMatchmaking();
+        } else {
+            // For AI mode, just restart
+            this.startPracticeGame();
+        }
     }
 
     // --- Network Callbacks ---

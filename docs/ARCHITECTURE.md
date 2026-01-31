@@ -38,7 +38,7 @@ kfchess-cc/
 │   │   ├── api/               # REST endpoints (games, lobbies, replays, users)
 │   │   ├── ws/                # WebSocket handlers (game, lobby, replay)
 │   │   ├── game/              # Game engine (board, pieces, moves, collision, state, replay)
-│   │   ├── ai/                # AI system (base interface, dummy AI)
+│   │   ├── ai/                # AI system (base interface, dummy AI, KungFuAI planned)
 │   │   ├── services/          # Business logic (game_service)
 │   │   ├── db/                # Database (models, session, repositories/)
 │   │   ├── lobby/             # Lobby system (manager, models)
@@ -76,7 +76,7 @@ kfchess-cc/
 │  Game Engine (game/)     │  AI System (ai/)             │
 │  - Board state           │  - AI interface              │
 │  - Move validation       │  - DummyAI (random moves)    │
-│  - Collision detection   │  - MCTS (planned)            │
+│  - Collision detection   │  - KungFuAI (planned, L1-3) │
 ├──────────────────────────┴──────────────────────────────┤
 │  Data Layer: PostgreSQL (persistent) + Redis (planned)  │
 └─────────────────────────────────────────────────────────┘
@@ -223,7 +223,7 @@ See `docs/FOUR_PLAYER_DESIGN.md` for board layout and implementation plan.
 ### Next Steps
 1. Game sound/music + volume controls
 2. Analytics + instrumentation
-3. Advanced AI (MCTS implementation)
+3. Advanced AI (heuristic + tactical search, see `docs/AI_DESIGN.md`)
 4. ELO rating system
 5. Campaign mode
 6. Redis for distributed scaling

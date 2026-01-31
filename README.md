@@ -32,7 +32,7 @@ This is a rebuild of the original Kung Fu Chess. Core features are functional:
 - [x] User authentication (email/password + Google OAuth)
 - [x] Lobby system with matchmaking (create, join, ready, AI slots)
 - [ ] Campaign mode
-- [ ] Advanced AI (MCTS)
+- [ ] Advanced AI (heuristic + tactical search)
 
 ## Tech Stack
 
@@ -159,6 +159,7 @@ kfchess-cc/
 - [MVP Implementation](./docs/MVP_IMPLEMENTATION.md) - Detailed MVP implementation notes
 - [4-Player Design](./docs/FOUR_PLAYER_DESIGN.md) - 4-player mode specification
 - [Replay System](./docs/REPLAY_DESIGN.md) - Replay recording, storage, and playback design
+- [AI Design](./docs/AI_DESIGN.md) - AI opponent system with difficulty levels
 - [Original Implementation](./docs/KFCHESS_ORIGINAL_IMPLEMENTATION.md) - Reference for the legacy system
 - [CLAUDE.md](./CLAUDE.md) - Quick reference for Claude Code development
 

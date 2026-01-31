@@ -163,8 +163,8 @@ describe('Lobby Page', () => {
       });
 
       renderWithRouter(<Lobby />);
-      expect(screen.getByText('Slot 1')).toBeInTheDocument();
-      expect(screen.getByText('Slot 2')).toBeInTheDocument();
+      const slots = document.querySelectorAll('.player-slot');
+      expect(slots).toHaveLength(2);
     });
 
     it('shows player name in slot', () => {
@@ -228,7 +228,7 @@ describe('Lobby Page', () => {
       const lobby = createMockLobby({
         players: {
           1: createMockPlayer(1),
-          2: createMockPlayer(2, { isAi: true, aiType: 'bot:dummy', username: 'AI Bot' }),
+          2: createMockPlayer(2, { isAi: true, aiType: 'bot:novice', username: 'AI Bot' }),
         },
       });
       useLobbyStore.setState({

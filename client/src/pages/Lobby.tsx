@@ -25,6 +25,12 @@ import './Lobby.css';
 // Sub-components
 // ============================================
 
+const AI_DIFFICULTIES = [
+  { value: 'bot:novice', label: 'Novice' },
+  { value: 'bot:intermediate', label: 'Intermediate' },
+  { value: 'bot:advanced', label: 'Advanced' },
+] as const;
+
 interface PlayerSlotProps {
   slot: number;
   player: LobbyPlayer | undefined;
@@ -32,18 +38,17 @@ interface PlayerSlotProps {
   isMe: boolean;
   canKick: boolean;
   onKick: (slot: number) => void;
+  onChangeAiDifficulty?: (slot: number, aiType: string) => void;
 }
 
-function PlayerSlot({ slot, player, isHost, isMe, canKick, onKick }: PlayerSlotProps) {
+function PlayerSlot({ slot, player, isHost, isMe, canKick, onKick, onChangeAiDifficulty }: PlayerSlotProps) {
   if (!player) {
     // Use same structure as filled slot to prevent size jumping
     return (
       <div className="player-slot empty">
         <div className="slot-header">
-          <span className="slot-number">Slot {slot}</span>
-          <span className="badge-placeholder">&nbsp;</span>
+          <span className="player-name slot-empty">Empty</span>
         </div>
-        <div className="player-name slot-empty">Empty</div>
         <div className="player-status">&nbsp;</div>
       </div>
     );
@@ -60,22 +65,39 @@ function PlayerSlot({ slot, player, isHost, isMe, canKick, onKick }: PlayerSlotP
       className={`player-slot ${isMe ? 'me' : ''} ${isEffectivelyReady ? 'ready' : ''} ${isDisconnected ? 'disconnected' : ''}`}
     >
       <div className="slot-header">
-        <span className="slot-number">Slot {slot}</span>
-        {isHost && <span className="host-badge">Host</span>}
-        {player.isAi && <span className="ai-badge">AI</span>}
-        {isDisconnected && <span className="disconnected-badge">Offline</span>}
-      </div>
-      <div className="player-name">
-        <PlayerBadge
-          userId={player.userId}
-          username={formatDisplayName(player)}
-          pictureUrl={player.pictureUrl}
-          size="sm"
-          linkToProfile={!player.isAi}
-        />
+        <div className="player-name">
+          <PlayerBadge
+            userId={player.userId}
+            username={formatDisplayName(player)}
+            pictureUrl={player.pictureUrl}
+            size="sm"
+            linkToProfile={!player.isAi}
+          />
+        </div>
+        <div className="slot-badges">
+          {isHost && <span className="host-badge">Host</span>}
+          {player.isAi && <span className="ai-badge">AI</span>}
+          {isDisconnected && <span className="disconnected-badge">Offline</span>}
+        </div>
       </div>
       <div className="player-status">
-        {isDisconnected ? (
+        {player.isAi && onChangeAiDifficulty ? (
+          <select
+            className="ai-difficulty-select"
+            value={player.aiType || 'bot:novice'}
+            onChange={(e) => onChangeAiDifficulty(slot, e.target.value)}
+          >
+            {AI_DIFFICULTIES.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        ) : player.isAi ? (
+          <span className="status-ready">
+            {AI_DIFFICULTIES.find((d) => d.value === player.aiType)?.label || 'Novice'}
+          </span>
+        ) : isDisconnected ? (
           <span className="status-disconnected">Disconnected</span>
         ) : isEffectivelyReady ? (
           <span className="status-ready">Ready</span>
@@ -237,6 +259,7 @@ export function Lobby() {
   const kickPlayer = useLobbyStore((s) => s.kickPlayer);
   const addAi = useLobbyStore((s) => s.addAi);
   const removeAi = useLobbyStore((s) => s.removeAi);
+  const changeAiDifficulty = useLobbyStore((s) => s.changeAiDifficulty);
   const startGame = useLobbyStore((s) => s.startGame);
   const leaveLobby = useLobbyStore((s) => s.leaveLobby);
   const clearError = useLobbyStore((s) => s.clearError);
@@ -462,7 +485,7 @@ export function Lobby() {
             {isHost && (
               <button
                 className="btn btn-sm btn-secondary"
-                onClick={() => addAi()}
+                onClick={() => addAi('bot:novice')}
                 disabled={isFull}
               >
                 Add AI
@@ -479,6 +502,7 @@ export function Lobby() {
                 isMe={slot === mySlot}
                 canKick={isHost && slot !== mySlot && !!lobby.players[slot]}
                 onKick={handleKick}
+                onChangeAiDifficulty={isHost ? changeAiDifficulty : undefined}
               />
             ))}
           </div>

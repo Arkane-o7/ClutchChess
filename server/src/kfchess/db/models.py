@@ -143,7 +143,7 @@ class LobbyPlayer(Base):
         username: Display name
         is_ready: Whether the player is ready
         is_ai: Whether this is an AI player
-        ai_type: AI type identifier (e.g., "bot:dummy")
+        ai_type: AI type identifier (e.g., "bot:novice")
         joined_at: When the player joined
     """
 

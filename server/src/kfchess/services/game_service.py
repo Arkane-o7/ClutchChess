@@ -15,6 +15,7 @@ from typing import Any
 
 from kfchess.ai.base import AIPlayer
 from kfchess.ai.dummy import DummyAI
+from kfchess.ai.kungfu_ai import KungFuAI
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine, GameEvent, GameEventType
 from kfchess.game.replay import Replay
@@ -95,7 +96,7 @@ class GameService:
         Args:
             speed: Game speed setting
             board_type: Type of board (standard or four_player)
-            opponent: Opponent type (e.g., "bot:dummy")
+            opponent: Opponent type (e.g., "bot:novice")
 
         Returns:
             Tuple of (game_id, player_key, player_number)
@@ -235,20 +236,34 @@ class GameService:
 
         return game_id
 
+    # Difficulty names → KungFuAI levels
+    _DIFFICULTY_MAP: dict[str, int] = {
+        "novice": 1,
+        "intermediate": 2,
+        "advanced": 3,
+        "campaign": 3,
+    }
+
     def _create_ai(self, bot_name: str, speed: Speed = Speed.STANDARD) -> AIPlayer:
         """Create an AI instance based on bot name.
 
+        Supports difficulty names (novice, intermediate, advanced, campaign)
+        and the legacy "dummy" identifier.
+
         Args:
-            bot_name: Name of the bot (e.g., "dummy", "random")
+            bot_name: Name of the bot (e.g., "novice", "intermediate", "advanced")
             speed: Game speed, passed to AI for move timing
 
         Returns:
             AI player instance
         """
+        if bot_name in self._DIFFICULTY_MAP:
+            level = self._DIFFICULTY_MAP[bot_name]
+            return KungFuAI(level=level, speed=speed)
         if bot_name == "dummy":
             return DummyAI(speed=speed)
-        # Default to dummy for MVP
-        return DummyAI(speed=speed)
+        # Default to novice
+        return KungFuAI(level=1, speed=speed)
 
     def get_game(self, game_id: str) -> GameState | None:
         """Get the current game state.

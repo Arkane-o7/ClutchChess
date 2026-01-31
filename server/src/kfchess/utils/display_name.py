@@ -4,7 +4,7 @@ This module provides functions to convert internal player IDs to user-friendly
 display names. Player IDs have the format:
 - u:{user_id} - Registered user (resolve username from database)
 - guest:{uuid} - Anonymous guest player
-- bot:{type} - AI player (e.g., bot:dummy)
+- bot:{type} - AI player (e.g., bot:novice)
 """
 
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ def format_player_id(player_id: str, username_map: dict[int, str] | None = None)
     """Format a player ID into a display name.
 
     Args:
-        player_id: Internal player ID (e.g., "u:123", "guest:abc", "bot:dummy")
+        player_id: Internal player ID (e.g., "u:123", "guest:abc", "bot:novice")
         username_map: Optional map of user_id -> username for resolving user names
 
     Returns:

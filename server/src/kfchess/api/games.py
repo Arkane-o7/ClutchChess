@@ -25,7 +25,7 @@ class CreateGameRequest(BaseModel):
 
     speed: str = "standard"
     board_type: str = "standard"
-    opponent: str = "bot:dummy"
+    opponent: str = "bot:novice"
 
 
 class CreateGameResponse(BaseModel):

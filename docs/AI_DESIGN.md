@@ -273,9 +273,9 @@ After the AI issues a move, it enters a global think delay before it will consid
 
 | Level | Standard | Lightning |
 |-------|----------|-----------|
-| Novice | 0–4s | 0–2s |
-| Intermediate | 0–2s | 0–1s |
-| Advanced | 0–1s | 0–0.5s |
+| Novice | 0.5–5s | 0.3–2.5s |
+| Intermediate | 0.3–2s | 0.15–1s |
+| Advanced | 0.1–1s | 0.05–0.5s |
 
 A new random delay is rolled after each move. During the delay, the AI makes no moves even if multiple pieces are off cooldown. When the delay expires, the AI evaluates the current board and picks the best available move, then rolls a new delay.
 

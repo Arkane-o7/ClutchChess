@@ -464,7 +464,7 @@ async def _handle_message(
         )
 
     elif msg_type == "add_ai":
-        ai_type = data.get("aiType", "bot:dummy")
+        ai_type = data.get("aiType", "bot:novice")
 
         # Get current slots before adding to identify the new one
         lobby_before = manager.get_lobby(code)
@@ -517,6 +517,37 @@ async def _handle_message(
             code,
             {"type": "player_left", "slot": target_slot, "reason": "removed"},
         )
+
+    elif msg_type == "change_ai_type":
+        target_slot = data.get("slot")
+        ai_type = data.get("aiType", "bot:novice")
+        if target_slot is None:
+            await websocket.send_text(
+                json.dumps(
+                    {"type": "error", "code": "missing_slot", "message": "Missing slot parameter"}
+                )
+            )
+            return
+
+        result = await manager.change_ai_type(code, player_key, target_slot, ai_type)
+
+        if isinstance(result, LobbyError):
+            await websocket.send_text(
+                json.dumps({"type": "error", "code": result.code, "message": result.message})
+            )
+            return
+
+        ai_player = result.players.get(target_slot)
+        if ai_player:
+            await lobby_connection_manager.broadcast(
+                code,
+                {
+                    "type": "ai_type_changed",
+                    "slot": target_slot,
+                    "aiType": ai_type,
+                    "player": serialize_player(ai_player),
+                },
+            )
 
     elif msg_type == "start_game":
         result = await manager.start_game(code, player_key)
@@ -593,7 +624,7 @@ async def _create_game_from_lobby(
 
     for slot, player in lobby.players.items():
         if player.is_ai:
-            ai_type = (player.ai_type or "bot:dummy").removeprefix("bot:")
+            ai_type = (player.ai_type or "bot:novice").removeprefix("bot:")
             ai_players_config[slot] = ai_type
         else:
             # Use the lobby-generated keys for human players

@@ -54,7 +54,7 @@ export interface ApiGameState {
 export interface CreateGameRequest {
   speed: 'standard' | 'lightning';
   board_type: 'standard' | 'four_player';
-  opponent: 'bot:dummy' | 'bot:random';
+  opponent: 'bot:novice' | 'bot:random';
 }
 
 // Create game response

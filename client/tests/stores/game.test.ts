@@ -235,7 +235,7 @@ describe('Game Store', () => {
       const mockSendResign = vi.fn();
       useGameStore.setState({
         status: 'waiting',
-        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as any,
+        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as unknown as ReturnType<typeof useGameStore.getState>['wsClient'],
       });
       useGameStore.getState().resign();
       expect(mockSendResign).not.toHaveBeenCalled();
@@ -245,7 +245,7 @@ describe('Game Store', () => {
       const mockSendResign = vi.fn();
       useGameStore.setState({
         status: 'playing',
-        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as any,
+        wsClient: { sendResign: mockSendResign, disconnect: vi.fn() } as unknown as ReturnType<typeof useGameStore.getState>['wsClient'],
       });
       useGameStore.getState().resign();
       expect(mockSendResign).toHaveBeenCalledOnce();

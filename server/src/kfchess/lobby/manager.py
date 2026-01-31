@@ -133,7 +133,7 @@ class LobbyManager:
         host_username: str,
         settings: LobbySettings | None = None,
         add_ai: bool = False,
-        ai_type: str = "bot:dummy",
+        ai_type: str = "bot:novice",
         player_id: str | None = None,
         picture_url: str | None = None,
     ) -> tuple[Lobby, str] | LobbyError:
@@ -144,7 +144,7 @@ class LobbyManager:
             host_username: Display name for the host
             settings: Lobby settings (defaults if None)
             add_ai: Whether to add AI player(s) to fill slots
-            ai_type: Type of AI to add (e.g., "bot:dummy")
+            ai_type: Type of AI to add (e.g., "bot:novice")
             player_id: Unique player identifier for player lock
 
         Returns:
@@ -673,14 +673,14 @@ class LobbyManager:
         self,
         code: str,
         host_key: str,
-        ai_type: str = "bot:dummy",
+        ai_type: str = "bot:novice",
     ) -> Lobby | LobbyError:
         """Add an AI player to the lobby (host only).
 
         Args:
             code: Lobby code
             host_key: Host's secret key
-            ai_type: Type of AI (e.g., "bot:dummy")
+            ai_type: Type of AI (e.g., "bot:novice")
 
         Returns:
             Updated Lobby or LobbyError
@@ -782,6 +782,57 @@ class LobbyManager:
         # Persist outside lock
         await self._persist_lobby(lobby)
 
+        return lobby
+
+    async def change_ai_type(
+        self,
+        code: str,
+        host_key: str,
+        target_slot: int,
+        ai_type: str,
+    ) -> Lobby | LobbyError:
+        """Change the AI type for an AI player (host only).
+
+        Args:
+            code: Lobby code
+            host_key: Host's secret key
+            target_slot: Slot of the AI player to change
+            ai_type: New AI type (e.g., "bot:novice")
+
+        Returns:
+            Updated Lobby or LobbyError
+        """
+        async with self._lock:
+            key_info = self._key_to_slot.get(host_key)
+            if key_info is None or key_info[0] != code:
+                return LobbyError(code="invalid_key", message="Invalid player key")
+
+            slot = key_info[1]
+            lobby = self._lobbies.get(code)
+            if lobby is None:
+                return LobbyError(code="not_found", message="Lobby not found")
+
+            if lobby.host_slot != slot:
+                return LobbyError(code="not_host", message="Only the host can change AI difficulty")
+
+            if lobby.status != LobbyStatus.WAITING:
+                return LobbyError(code="invalid_state", message="Cannot change AI while in game")
+
+            target = lobby.players.get(target_slot)
+            if target is None:
+                return LobbyError(code="not_found", message="Player not found")
+
+            if not target.is_ai:
+                return LobbyError(code="invalid_action", message="Player is not an AI")
+
+            # Update AI type and display name
+            target.ai_type = ai_type
+            display_name = ai_type.removeprefix("bot:")
+            target.username = f"AI ({display_name.capitalize()})"
+
+            logger.info(f"AI type changed to {ai_type} in lobby {code} slot {target_slot}")
+
+        await self._persist_lobby(lobby)
         return lobby
 
     async def start_game(

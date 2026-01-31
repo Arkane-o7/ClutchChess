@@ -32,7 +32,7 @@ class CreateLobbyRequest(BaseModel):
 
     settings: CreateLobbySettingsRequest | None = None
     add_ai: bool = Field(default=False, alias="addAi")
-    ai_type: str = Field(default="bot:dummy", alias="aiType")
+    ai_type: str = Field(default="bot:novice", alias="aiType")
     guest_id: str | None = Field(default=None, alias="guestId")
 
     model_config = {"populate_by_name": True}

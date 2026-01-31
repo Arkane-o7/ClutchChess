@@ -27,6 +27,7 @@ type LobbyServerMessage =
   | { type: 'host_changed'; newHostSlot: number }
   | { type: 'game_starting'; gameId: string; playerKey: string; lobbyCode: string }
   | { type: 'game_ended'; winner: number; winReason: string }
+  | { type: 'ai_type_changed'; slot: number; aiType: string; player: LobbyPlayer }
   | { type: 'error'; message: string };
 
 interface LobbyState {
@@ -61,6 +62,7 @@ interface LobbyState {
   kickPlayer: (slot: number) => void;
   addAi: (aiType?: string) => void;
   removeAi: (slot: number) => void;
+  changeAiDifficulty: (slot: number, aiType: string) => void;
   startGame: () => void;
   leaveLobby: () => void;
   returnToLobby: () => void;
@@ -122,7 +124,7 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     const response = await api.createLobby({
       settings,
       addAi,
-      aiType: 'bot:dummy',
+      aiType: 'bot:novice',
       guestId,
     });
 
@@ -344,6 +346,20 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
         }));
         break;
 
+      case 'ai_type_changed':
+        set((state) => ({
+          lobby: state.lobby
+            ? {
+                ...state.lobby,
+                players: {
+                  ...state.lobby.players,
+                  [data.slot]: data.player,
+                },
+              }
+            : null,
+        }));
+        break;
+
       case 'player_left':
         set((state) => {
           if (!state.lobby) return state;
@@ -500,7 +516,7 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     }
   },
 
-  addAi: (aiType = 'bot:dummy') => {
+  addAi: (aiType = 'bot:novice') => {
     const { _ws } = get();
     if (_ws && _ws.readyState === WebSocket.OPEN) {
       _ws.send(JSON.stringify({ type: 'add_ai', aiType }));
@@ -511,6 +527,13 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     const { _ws } = get();
     if (_ws && _ws.readyState === WebSocket.OPEN) {
       _ws.send(JSON.stringify({ type: 'remove_ai', slot }));
+    }
+  },
+
+  changeAiDifficulty: (slot, aiType) => {
+    const { _ws } = get();
+    if (_ws && _ws.readyState === WebSocket.OPEN) {
+      _ws.send(JSON.stringify({ type: 'change_ai_type', slot, aiType }));
     }
   },
 

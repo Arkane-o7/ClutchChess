@@ -26,7 +26,7 @@ class LobbyPlayer:
         user_id: Database user ID (None for guests/anonymous)
         username: Display name
         is_ai: Whether this is an AI player
-        ai_type: AI type identifier (e.g., "bot:dummy")
+        ai_type: AI type identifier (e.g., "bot:novice")
         is_ready: Whether the player is ready to start
         is_connected: Whether the player is currently connected
         disconnected_at: When the player disconnected (for grace period tracking)

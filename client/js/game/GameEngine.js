@@ -89,8 +89,8 @@ export class GameEngine extends EventEmitter {
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
         dirLight.position.set(20, 50, 20);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.mapSize.width = 512;  // Reduced for performance
+        dirLight.shadow.mapSize.height = 512;
         dirLight.shadow.camera.near = 1;
         dirLight.shadow.camera.far = 100;
         dirLight.shadow.camera.left = -40;
@@ -124,13 +124,14 @@ export class GameEngine extends EventEmitter {
 
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({
-            antialias: true,
-            alpha: true
+            antialias: window.devicePixelRatio < 2, // Only AA on low-DPI screens
+            alpha: false,  // Faster without alpha
+            powerPreference: 'high-performance'
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Cap at 1.5 for perf
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap; // Cheaper shadows
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.container.appendChild(this.renderer.domElement);
     }
@@ -252,9 +253,6 @@ export class GameEngine extends EventEmitter {
             p.isWhite === (this.playerColor === 'white') && !p.isMoving
         );
 
-        // Debug: Log selection state
-        console.log(`[SELECT] Your color: ${this.playerColor}, available pieces: ${playerPieces.length}, total: ${this.pieces.length}`);
-
         const meshes = playerPieces.map(p => p.mesh);
         const intersects = this.raycaster.intersectObjects(meshes, true);
 
@@ -267,11 +265,8 @@ export class GameEngine extends EventEmitter {
 
             const piece = playerPieces.find(p => p.mesh === hitObject);
             if (piece) {
-                console.log(`[SELECT] Selected piece: ${piece.type} at (${piece.col}, ${piece.row})`);
                 this.selectPiece(piece);
             }
-        } else {
-            console.log(`[SELECT] No piece hit by click`);
         }
     }
 

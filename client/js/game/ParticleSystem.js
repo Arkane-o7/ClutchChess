@@ -12,26 +12,36 @@ export class ParticleSystem {
 
         // Particle geometry (reusable)
         this.geometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+
+        // Pre-create flash geometry (reusable)
+        this.flashGeometry = new THREE.SphereGeometry(3, 6, 6); // Lower poly
+
+        // Pre-create particle materials (reusable, cloned per particle for opacity)
+        this.baseMaterials = {
+            white: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }),
+            cyan: new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true }),
+            magenta: new THREE.MeshBasicMaterial({ color: 0xff0066, transparent: true }),
+            orange: new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true })
+        };
     }
 
     spawnExplosion(position, color = 0xffaa00) {
-        const count = 20;
+        const count = 12; // Reduced from 20 for performance
 
         for (let i = 0; i < count; i++) {
-            const material = new THREE.MeshBasicMaterial({
-                color: Math.random() > 0.5 ? color : 0xffffff,
-                transparent: true,
-                opacity: 1
-            });
+            // Clone a base material instead of creating new
+            const materialKey = Math.random() > 0.5 ? 'orange' : 'white';
+            const material = this.baseMaterials[materialKey].clone();
+            material.opacity = 1;
 
             const mesh = new THREE.Mesh(this.geometry, material);
             mesh.position.copy(position);
 
             // Random velocity
             const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 25,
-                Math.random() * 25,
-                (Math.random() - 0.5) * 25
+                (Math.random() - 0.5) * 20, // Slightly reduced
+                Math.random() * 20,
+                (Math.random() - 0.5) * 20
             );
 
             this.scene.add(mesh);
@@ -39,7 +49,7 @@ export class ParticleSystem {
                 mesh,
                 velocity,
                 life: 1.0,
-                decay: 1.5 + Math.random() * 0.5
+                decay: 2.0 + Math.random() * 0.5 // Faster decay
             });
         }
 
@@ -48,13 +58,12 @@ export class ParticleSystem {
     }
 
     spawnFlash(position, color) {
-        const flashGeo = new THREE.SphereGeometry(3, 8, 8);
         const flashMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
             opacity: 0.8
         });
-        const flash = new THREE.Mesh(flashGeo, flashMat);
+        const flash = new THREE.Mesh(this.flashGeometry, flashMat);
         flash.position.copy(position);
         flash.position.y += 1;
 
@@ -62,8 +71,8 @@ export class ParticleSystem {
         this.particles.push({
             mesh: flash,
             velocity: new THREE.Vector3(0, 0, 0),
-            life: 0.3,
-            decay: 3,
+            life: 0.2, // Shorter flash
+            decay: 5,
             isFlash: true
         });
     }

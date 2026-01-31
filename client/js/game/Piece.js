@@ -106,11 +106,8 @@ export class PieceFactory {
             group.add(mesh);
         }
 
-        // Add glow light
-        const color = isWhite ? 0x00f0ff : 0xff0066;
-        const light = new THREE.PointLight(color, 0.8, 15);
-        light.position.y = 2;
-        group.add(light);
+        // NOTE: Removed per-piece PointLight for performance
+        // The emissive materials already provide glow effect
 
         return group;
     }

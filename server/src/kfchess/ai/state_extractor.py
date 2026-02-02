@@ -5,7 +5,7 @@ from enum import Enum
 
 from kfchess.game.moves import Cooldown, Move
 from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameState
+from kfchess.game.state import SPEED_CONFIGS, GameState, SpeedConfig
 
 
 class PieceStatus(Enum):
@@ -38,9 +38,11 @@ class AIState:
     current_tick: int
     board_width: int
     board_height: int
+    speed_config: SpeedConfig | None = None
     # Pre-computed lookups (populated at construction)
     pieces_by_id: dict[str, AIPiece] = field(default_factory=dict)
     _movable: list[AIPiece] = field(default_factory=list)
+    _own_pieces: list[AIPiece] = field(default_factory=list)
     _enemy_pieces: list[AIPiece] = field(default_factory=list)
     _enemy_king: AIPiece | None = None
     _own_king: AIPiece | None = None
@@ -48,6 +50,10 @@ class AIState:
     def get_movable_pieces(self) -> list[AIPiece]:
         """Get pieces that can move right now (idle, not captured)."""
         return self._movable
+
+    def get_own_pieces(self) -> list[AIPiece]:
+        """Get all non-captured pieces belonging to the AI."""
+        return self._own_pieces
 
     def get_enemy_pieces(self) -> list[AIPiece]:
         """Get all non-captured enemy pieces."""
@@ -89,6 +95,7 @@ class StateExtractor:
         pieces: list[AIPiece] = []
         pieces_by_id: dict[str, AIPiece] = {}
         movable: list[AIPiece] = []
+        own_pieces: list[AIPiece] = []
         enemy_pieces: list[AIPiece] = []
         enemy_king: AIPiece | None = None
         own_king: AIPiece | None = None
@@ -141,6 +148,7 @@ class StateExtractor:
 
             # Populate cached lists
             if piece.player == ai_player:
+                own_pieces.append(ai_piece)
                 if status == PieceStatus.IDLE:
                     movable.append(ai_piece)
                 if piece.type == PieceType.KING:
@@ -156,8 +164,10 @@ class StateExtractor:
             current_tick=state.current_tick,
             board_width=state.board.width,
             board_height=state.board.height,
+            speed_config=SPEED_CONFIGS[state.speed],
             pieces_by_id=pieces_by_id,
             _movable=movable,
+            _own_pieces=own_pieces,
             _enemy_pieces=enemy_pieces,
             _enemy_king=enemy_king,
             _own_king=own_king,

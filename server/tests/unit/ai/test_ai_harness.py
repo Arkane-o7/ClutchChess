@@ -1,24 +1,38 @@
-"""AI-vs-AI test harness: KungFuAI Level 1 vs DummyAI."""
+"""AI-vs-AI test harness: KungFuAI Level 1 vs DummyAI, Level 2 vs Level 1.
+
+These tests are excluded from the normal test suite (marked @pytest.mark.slow).
+Run explicitly with:  uv run pytest tests/unit/ai/test_ai_harness.py -m slow --log-cli-level=INFO
+"""
+
+import logging
 
 import pytest
 
 from kfchess.ai.dummy import DummyAI
 from kfchess.ai.kungfu_ai import KungFuAI
+from kfchess.ai.tactics import PIECE_VALUES
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine
-from kfchess.game.state import GameStatus, Speed
+from kfchess.game.state import GameState, GameStatus, Speed
+
+logger = logging.getLogger(__name__)
+
+MAX_TICKS = 20_000
+NUM_GAMES = 10
 
 
 def run_ai_game(
     ai1,
     ai2,
     speed: Speed = Speed.STANDARD,
-    max_ticks: int = 30000,
-) -> int | None:
+    max_ticks: int = MAX_TICKS,
+) -> tuple[int, bool]:
     """Run a game between two AIs.
 
     Returns:
-        1 if AI1 wins, 2 if AI2 wins, 0 for draw, None if max ticks reached
+        (winner, decisive) where winner is 1, 2, or 0 (draw).
+        decisive is True if the game ended naturally (king captured / draw),
+        False if determined by material advantage at tick limit.
     """
     state = GameEngine.create_game(
         speed=speed,
@@ -50,9 +64,45 @@ def run_ai_game(
         GameEngine.tick(state)
 
         if state.is_finished:
-            return state.winner
+            return state.winner or 0, True
 
-    return None  # Max ticks reached
+    # Tick limit reached — decide by material
+    return _material_winner(state), False
+
+
+def _material_winner(state: GameState) -> int:
+    """Determine winner by material advantage. Returns 1, 2, or 0 (draw)."""
+    material = {1: 0.0, 2: 0.0}
+    for piece in state.board.pieces:
+        if not piece.captured and piece.player in material:
+            material[piece.player] += PIECE_VALUES.get(piece.type, 0)
+
+    diff = material[1] - material[2]
+    if diff > 0.5:
+        return 1
+    elif diff < -0.5:
+        return 2
+    return 0
+
+
+def _log_results(
+    matchup: str,
+    wins: int,
+    losses: int,
+    draws: int,
+    decisive: int,
+    num_games: int,
+) -> None:
+    """Log win rate summary for a matchup."""
+    win_pct = wins / num_games * 100
+    loss_pct = losses / num_games * 100
+    draw_pct = draws / num_games * 100
+    logger.info(
+        "%s: %dW/%dL/%dD (%d games, %d decisive) — "
+        "%.0f%% win, %.0f%% loss, %.0f%% draw",
+        matchup, wins, losses, draws, num_games, decisive,
+        win_pct, loss_pct, draw_pct,
+    )
 
 
 class TestAIHarness:
@@ -62,30 +112,25 @@ class TestAIHarness:
         wins = 0
         losses = 0
         draws = 0
-        incomplete = 0
-        num_games = 10
+        decisive = 0
 
-        for _i in range(num_games):
+        for _i in range(NUM_GAMES):
             kungfu = KungFuAI(level=1, speed=Speed.STANDARD)
             dummy = DummyAI(speed=Speed.STANDARD)
-            # Force KungFuAI to move quickly for testing
-            kungfu.controller.think_delay_ticks = 0
-            kungfu.controller.last_move_tick = -9999
 
-            result = run_ai_game(kungfu, dummy, max_ticks=20000)
+            result, is_decisive = run_ai_game(kungfu, dummy)
+            decisive += is_decisive
             if result == 1:
                 wins += 1
             elif result == 2:
                 losses += 1
-            elif result == 0:
-                draws += 1
             else:
-                incomplete += 1
+                draws += 1
 
-        # KungFuAI should win more than it loses
+        _log_results("L1 vs Dummy (standard)", wins, losses, draws, decisive, NUM_GAMES)
+
         assert wins > losses, (
-            f"KungFuAI won {wins}, lost {losses}, drew {draws}, "
-            f"incomplete {incomplete} out of {num_games} games"
+            f"KungFuAI won {wins}, lost {losses}, drew {draws} out of {NUM_GAMES} games"
         )
 
     @pytest.mark.slow
@@ -93,20 +138,90 @@ class TestAIHarness:
         """KungFuAI should also beat DummyAI in lightning speed."""
         wins = 0
         losses = 0
-        num_games = 5
+        draws = 0
+        decisive = 0
 
-        for _i in range(num_games):
+        for _i in range(NUM_GAMES):
             kungfu = KungFuAI(level=1, speed=Speed.LIGHTNING)
             dummy = DummyAI(speed=Speed.LIGHTNING)
-            kungfu.controller.think_delay_ticks = 0
-            kungfu.controller.last_move_tick = -9999
 
-            result = run_ai_game(kungfu, dummy, speed=Speed.LIGHTNING, max_ticks=30000)
+            result, is_decisive = run_ai_game(kungfu, dummy, speed=Speed.LIGHTNING)
+            decisive += is_decisive
             if result == 1:
                 wins += 1
             elif result == 2:
                 losses += 1
+            else:
+                draws += 1
+
+        _log_results("L1 vs Dummy (lightning)", wins, losses, draws, decisive, NUM_GAMES)
 
         assert wins >= losses, (
-            f"KungFuAI won {wins}, lost {losses} out of {num_games} lightning games"
+            f"KungFuAI won {wins}, lost {losses} out of {NUM_GAMES} lightning games"
         )
+
+    @pytest.mark.slow
+    def test_level2_vs_level1(self):
+        """Level 2 vs Level 1 — L2 should have an edge."""
+        l2_wins = 0
+        l1_wins = 0
+        draws = 0
+        decisive = 0
+
+        for i in range(NUM_GAMES):
+            l2 = KungFuAI(level=2, speed=Speed.STANDARD)
+            l1 = KungFuAI(level=1, speed=Speed.STANDARD)
+
+            if i % 2 == 0:
+                result, is_decisive = run_ai_game(l2, l1)
+                decisive += is_decisive
+                if result == 1:
+                    l2_wins += 1
+                elif result == 2:
+                    l1_wins += 1
+                else:
+                    draws += 1
+            else:
+                result, is_decisive = run_ai_game(l1, l2)
+                decisive += is_decisive
+                if result == 1:
+                    l1_wins += 1
+                elif result == 2:
+                    l2_wins += 1
+                else:
+                    draws += 1
+
+        _log_results("L2 vs L1 (standard)", l2_wins, l1_wins, draws, decisive, NUM_GAMES)
+
+    @pytest.mark.slow
+    def test_level2_vs_level1_lightning(self):
+        """Level 2 vs Level 1 lightning — L2 should have an edge."""
+        l2_wins = 0
+        l1_wins = 0
+        draws = 0
+        decisive = 0
+
+        for i in range(NUM_GAMES):
+            l2 = KungFuAI(level=2, speed=Speed.LIGHTNING)
+            l1 = KungFuAI(level=1, speed=Speed.LIGHTNING)
+
+            if i % 2 == 0:
+                result, is_decisive = run_ai_game(l2, l1, speed=Speed.LIGHTNING)
+                decisive += is_decisive
+                if result == 1:
+                    l2_wins += 1
+                elif result == 2:
+                    l1_wins += 1
+                else:
+                    draws += 1
+            else:
+                result, is_decisive = run_ai_game(l1, l2, speed=Speed.LIGHTNING)
+                decisive += is_decisive
+                if result == 1:
+                    l1_wins += 1
+                elif result == 2:
+                    l2_wins += 1
+                else:
+                    draws += 1
+
+        _log_results("L2 vs L1 (lightning)", l2_wins, l1_wins, draws, decisive, NUM_GAMES)

@@ -2,6 +2,7 @@
 
 import random
 
+from kfchess.ai.arrival_field import ArrivalField
 from kfchess.ai.eval import Eval
 from kfchess.ai.move_gen import MoveGen
 from kfchess.ai.state_extractor import AIState, StateExtractor
@@ -24,7 +25,7 @@ THINK_DELAYS: dict[int, dict[Speed, tuple[float, float]]] = {
 }
 
 # Piece consideration limits by level
-MAX_PIECES: dict[int, int] = {1: 2, 2: 4, 3: 16}
+MAX_PIECES: dict[int, int] = {1: 4, 2: 8, 3: 16}
 MAX_CANDIDATES_PER_PIECE: dict[int, int] = {1: 4, 2: 8, 3: 12}
 
 
@@ -45,6 +46,17 @@ class AIController:
         # Check think delay (cheap, no allocations)
         ticks_since_last = current_tick - self.last_move_tick
         if ticks_since_last < self.think_delay_ticks:
+            return False
+
+        # Quick check: any idle pieces? Avoids full state extraction.
+        has_idle = any(
+            not p.captured
+            and p.player == player
+            and p.id not in state.active_moves
+            and p.id not in state.cooldowns
+            for p in state.board.pieces
+        )
+        if not has_idle:
             return False
 
         # Extract state and cache it for get_move()
@@ -71,6 +83,14 @@ class AIController:
         else:
             ai_state = StateExtractor.extract(state, player)
 
+        # Compute arrival fields for all levels
+        arrival_data = None
+        if ai_state.speed_config is not None:
+            critical_only = ai_state.board_width > 8  # 4-player boards
+            arrival_data = ArrivalField.compute(
+                ai_state, ai_state.speed_config, critical_only=critical_only,
+            )
+
         # Generate candidates
         candidates = MoveGen.generate_candidates(
             state,
@@ -78,14 +98,18 @@ class AIController:
             player,
             max_pieces=MAX_PIECES.get(self.level, 2),
             max_candidates_per_piece=MAX_CANDIDATES_PER_PIECE.get(self.level, 4),
+            level=self.level,
+            arrival_data=arrival_data,
         )
 
         if not candidates:
             return None
 
         # Score and select
-        noise = self.level <= 2  # Level 3 uses less noise (handled in Eval)
-        scored = Eval.score_candidates(candidates, ai_state, noise=noise)
+        scored = Eval.score_candidates(
+            candidates, ai_state, noise=True,
+            level=self.level, arrival_data=arrival_data,
+        )
 
         if not scored:
             return None

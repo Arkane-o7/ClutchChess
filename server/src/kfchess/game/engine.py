@@ -21,13 +21,14 @@ from kfchess.game.collision import (  # noqa: E402
     is_piece_on_cooldown,
 )
 from kfchess.game.moves import (  # noqa: E402
+    FOUR_PLAYER_ORIENTATIONS,
     Cooldown,
     Move,
     check_castling,
     compute_move_path,
     should_promote_pawn,
 )
-from kfchess.game.pieces import PieceType  # noqa: E402
+from kfchess.game.pieces import Piece, PieceType  # noqa: E402
 from kfchess.game.state import (  # noqa: E402
     GameState,
     GameStatus,
@@ -555,6 +556,26 @@ class GameEngine:
     def get_legal_moves(state: GameState, player: int) -> list[tuple[str, int, int]]:
         """Get all legal moves for a player.
 
+        Delegates to get_legal_moves_fast() which uses per-piece candidate
+        generation for better performance.
+
+        Args:
+            state: Current game state
+            player: Player number
+
+        Returns:
+            List of (piece_id, to_row, to_col) tuples
+        """
+        return GameEngine.get_legal_moves_fast(state, player)
+
+    @staticmethod
+    def get_legal_moves_fast(state: GameState, player: int) -> list[tuple[str, int, int]]:
+        """Get all legal moves for a player using per-piece candidate generation.
+
+        Instead of brute-forcing every board square, generates only geometrically
+        reachable squares per piece type, then validates each candidate. This reduces
+        validate_move calls from ~1024 to ~100 for a typical position.
+
         Args:
             state: Current game state
             player: Player number
@@ -564,7 +585,6 @@ class GameEngine:
         """
         legal_moves: list[tuple[str, int, int]] = []
 
-        # Check if player is eliminated (king captured) - no moves available
         king = state.board.get_king(player)
         if king is None or king.captured:
             return legal_moves
@@ -572,20 +592,16 @@ class GameEngine:
         for piece in state.board.get_pieces_for_player(player):
             if piece.captured:
                 continue
-
-            # Check if piece can move
             if is_piece_moving(piece.id, state.active_moves):
                 continue
-
             if is_piece_on_cooldown(piece.id, state.cooldowns, state.current_tick):
                 continue
 
-            # Try all possible destinations
-            for to_row in range(state.board.height):
-                for to_col in range(state.board.width):
-                    move = GameEngine.validate_move(state, player, piece.id, to_row, to_col)
-                    if move is not None:
-                        legal_moves.append((piece.id, to_row, to_col))
+            candidates = _get_piece_candidates(piece, state.board, state.active_moves)
+            for to_row, to_col in candidates:
+                move = GameEngine.validate_move(state, player, piece.id, to_row, to_col)
+                if move is not None:
+                    legal_moves.append((piece.id, to_row, to_col))
 
         return legal_moves
 
@@ -637,3 +653,181 @@ class GameEngine:
             "on_cooldown": on_cooldown,
             "cooldown_remaining": cooldown_remaining,
         }
+
+
+def _get_piece_candidates(
+    piece: Piece, board: Board, active_moves: list[Move]
+) -> list[tuple[int, int]]:
+    """Generate candidate destination squares for a piece based on its type.
+
+    Returns only geometrically reachable squares, dramatically reducing the
+    number of validate_move calls needed compared to brute-forcing all squares.
+    """
+    from_row, from_col = piece.grid_position
+
+    match piece.type:
+        case PieceType.PAWN:
+            return _pawn_candidates(piece, board, from_row, from_col, active_moves)
+        case PieceType.KNIGHT:
+            return _knight_candidates(board, from_row, from_col)
+        case PieceType.BISHOP:
+            return _slider_candidates(board, from_row, from_col, _BISHOP_DIRS, active_moves)
+        case PieceType.ROOK:
+            return _slider_candidates(board, from_row, from_col, _ROOK_DIRS, active_moves)
+        case PieceType.QUEEN:
+            return _slider_candidates(board, from_row, from_col, _QUEEN_DIRS, active_moves)
+        case PieceType.KING:
+            return _king_candidates(piece, board, from_row, from_col)
+        case _:
+            return []
+
+
+_ROOK_DIRS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+_BISHOP_DIRS = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+_QUEEN_DIRS = _ROOK_DIRS + _BISHOP_DIRS
+
+_KNIGHT_OFFSETS = [
+    (-2, -1), (-2, 1), (-1, -2), (-1, 2),
+    (1, -2), (1, 2), (2, -1), (2, 1),
+]
+
+
+def _pawn_candidates(
+    piece: Piece, board: Board, from_row: int, from_col: int, active_moves: list[Move]
+) -> list[tuple[int, int]]:
+    """Generate pawn candidate squares."""
+    candidates: list[tuple[int, int]] = []
+
+    if board.board_type == BoardType.STANDARD:
+        direction = -1 if piece.player == 1 else 1
+        start_row = 6 if piece.player == 1 else 1
+
+        # Forward 1
+        r = from_row + direction
+        if 0 <= r < board.height:
+            candidates.append((r, from_col))
+        # Forward 2 from start
+        if from_row == start_row:
+            r2 = from_row + 2 * direction
+            if 0 <= r2 < board.height:
+                candidates.append((r2, from_col))
+        # Diagonal captures
+        for dc in (-1, 1):
+            c = from_col + dc
+            if 0 <= r < board.height and 0 <= c < board.width:
+                candidates.append((from_row + direction, c))
+    else:
+        orient = FOUR_PLAYER_ORIENTATIONS.get(piece.player)
+        if orient is None:
+            return candidates
+        fwd_r, fwd_c = orient.forward
+
+        # Forward 1
+        r1, c1 = from_row + fwd_r, from_col + fwd_c
+        if board.is_valid_square(r1, c1):
+            candidates.append((r1, c1))
+
+        # Forward 2 from start
+        if orient.axis == "col":
+            is_start = from_col == orient.pawn_home_axis
+        else:
+            is_start = from_row == orient.pawn_home_axis
+        if is_start:
+            r2, c2 = from_row + 2 * fwd_r, from_col + 2 * fwd_c
+            if board.is_valid_square(r2, c2):
+                candidates.append((r2, c2))
+
+        # Diagonal captures: one forward + one lateral
+        if orient.axis == "col":
+            # Lateral is row direction
+            for dr in (-1, 1):
+                r, c = from_row + dr, from_col + fwd_c
+                if board.is_valid_square(r, c):
+                    candidates.append((r, c))
+        else:
+            # Lateral is col direction
+            for dc in (-1, 1):
+                r, c = from_row + fwd_r, from_col + dc
+                if board.is_valid_square(r, c):
+                    candidates.append((r, c))
+
+    return candidates
+
+
+def _knight_candidates(board: Board, from_row: int, from_col: int) -> list[tuple[int, int]]:
+    """Generate knight candidate squares (up to 8 L-shapes)."""
+    candidates: list[tuple[int, int]] = []
+    for dr, dc in _KNIGHT_OFFSETS:
+        r, c = from_row + dr, from_col + dc
+        if board.is_valid_square(r, c):
+            candidates.append((r, c))
+    return candidates
+
+
+def _slider_candidates(
+    board: Board,
+    from_row: int,
+    from_col: int,
+    directions: list[tuple[int, int]],
+    active_moves: list[Move],
+) -> list[tuple[int, int]]:
+    """Generate slider (rook/bishop/queen) candidates by ray-casting.
+
+    Walks each ray direction, collecting squares up to and including the first
+    occupied square (by a stationary piece). Moving pieces are treated as vacated.
+    """
+    # Build set of moving piece IDs for vacancy check
+    moving_ids = {m.piece_id for m in active_moves}
+
+    candidates: list[tuple[int, int]] = []
+    for dr, dc in directions:
+        r, c = from_row + dr, from_col + dc
+        while board.is_valid_square(r, c):
+            candidates.append((r, c))
+            # Stop at first stationary piece (own or enemy)
+            occupant = board.get_piece_at(r, c)
+            if occupant is not None and occupant.id not in moving_ids:
+                break
+            r += dr
+            c += dc
+    return candidates
+
+
+def _king_candidates(
+    piece: Piece, board: Board, from_row: int, from_col: int
+) -> list[tuple[int, int]]:
+    """Generate king candidate squares (8 adjacents + castling targets)."""
+    candidates: list[tuple[int, int]] = []
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            if dr == 0 and dc == 0:
+                continue
+            r, c = from_row + dr, from_col + dc
+            if board.is_valid_square(r, c):
+                candidates.append((r, c))
+
+    # Castling candidates (king moves 2 squares)
+    if not piece.moved:
+        if board.board_type == BoardType.STANDARD:
+            # Kingside and queenside
+            for dc in (-2, 2):
+                c = from_col + dc
+                if board.is_valid_square(from_row, c):
+                    candidates.append((from_row, c))
+        else:
+            orient = FOUR_PLAYER_ORIENTATIONS.get(piece.player)
+            if orient is not None:
+                if orient.axis == "row":
+                    # Horizontal castling
+                    for dc in (-2, 2):
+                        c = from_col + dc
+                        if board.is_valid_square(from_row, c):
+                            candidates.append((from_row, c))
+                else:
+                    # Vertical castling
+                    for dr in (-2, 2):
+                        r = from_row + dr
+                        if board.is_valid_square(r, from_col):
+                            candidates.append((r, from_col))
+
+    return candidates

@@ -11,11 +11,11 @@ export default class PrivacyPolicy extends Component {
         return (
             <div className='privacy-policy'>
                 <div className='privacy-policy-text'>
-                    <h1>Privacy Policy of kfchess.com</h1>
-                    <p>kfchess.com operates the kfchess.com website, which provides the SERVICE.</p>
-                    <p>This page is used to inform website visitors regarding our policies with the collection, use, and disclosure of Personal Information if anyone decided to use our Service, the Kung Fu Chess website.</p>
+                    <h1>Privacy Policy of clutchchess.com</h1>
+                    <p>clutchchess.com operates the clutchchess.com website, which provides the SERVICE.</p>
+                    <p>This page is used to inform website visitors regarding our policies with the collection, use, and disclosure of Personal Information if anyone decided to use our Service, the Clutch Chess website.</p>
                     <p>If you choose to use our Service, then you agree to the collection and use of information in relation with this policy. The Personal Information that we collect are used for providing and improving the Service. We will not use or share your information with anyone except as described in this Privacy Policy. Our Privacy Policy was created with the help of the <a href="https://www.privacypolicytemplate.net">Privacy Policy Template Generator</a>.</p>
-                    <p>The terms used in this Privacy Policy have the same meanings as in our Terms and Conditions, which is accessible at kfchess.com, unless otherwise defined in this Privacy Policy.</p>
+                    <p>The terms used in this Privacy Policy have the same meanings as in our Terms and Conditions, which is accessible at clutchchess.com, unless otherwise defined in this Privacy Policy.</p>
                     <h2>Information Collection and Use</h2>
                     <p>For a better experience while using our Service, we may require you to provide us with certain personally identifiable information via Google OAuth login, including but not limited to your name and e-mail address. The information that we collect will be used to contact or identify you.</p>
                     <h2>Log Data</h2>

@@ -17,7 +17,7 @@ const LEVELS = [
     // white belt
 
     {
-        title: 'Welcome to Kung Fu Chess',
+        title: 'Welcome to Clutch Chess',
         description: 'It\'s like chess, but there are no turns. Win by capturing the enemy king!',
     },
     {

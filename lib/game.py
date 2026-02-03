@@ -30,6 +30,28 @@ class Speed(object):
         else:
             raise ValueError('Unexpected speed ' + self.value)
 
+    def get_starting_mana(self):
+        """Starting and maximum mana for each player"""
+        if self.value == Speed.STANDARD:
+            return 4
+        elif self.value == Speed.LIGHTNING:
+            return 4
+        else:
+            raise ValueError('Unexpected speed ' + self.value)
+
+    def get_mana_regen_per_tick(self):
+        """Mana regenerated per tick (0.5 mana/sec = 0.05 per tick at 10 ticks/sec)"""
+        if self.value == Speed.STANDARD:
+            return 0.05  # 0.5 mana/second
+        elif self.value == Speed.LIGHTNING:
+            return 0.1   # 1.0 mana/second (faster mode)
+        else:
+            raise ValueError('Unexpected speed ' + self.value)
+
+    def get_move_mana_cost(self):
+        """Cost of mana per move (same for all pieces)"""
+        return 1.0
+
 
 class Move(object):
 
@@ -95,7 +117,7 @@ class Game(object):
 
         self.move_ticks = speed.get_move_ticks()
         self.cooldown_ticks = speed.get_cooldown_ticks()
-        self.players_ready = {i + 1: False for i in xrange(num_players)}
+        self.players_ready = {i + 1: False for i in range(num_players)}
 
         self.active_moves = []
         self.cooldowns = []
@@ -107,6 +129,12 @@ class Game(object):
         self.finished = 0
         self.start_time = datetime.datetime.utcnow()
         self.last_capture_tick = 0
+
+        # Mana system
+        self.player_mana = {i + 1: float(speed.get_starting_mana()) for i in range(num_players)}
+        self.mana_regen_per_tick = speed.get_mana_regen_per_tick()
+        self.move_mana_cost = speed.get_move_mana_cost()
+        self.max_mana = speed.get_starting_mana()
 
         self.piece_to_move_seq_fn = {
             'P': self._get_pawn_move_seq,
@@ -123,38 +151,44 @@ class Game(object):
         piece = self.board.get_piece_by_id(piece_id)
         if piece is None or piece.player != player:
             if self.debug:
-                print 'move failed: piece does not exist or is not controlled by player'
+                print('move failed: piece does not exist or is not controlled by player')
+            return None
+
+        # check if player has enough mana
+        if self.player_mana.get(player, 0) < self.move_mana_cost:
+            if self.debug:
+                print('move failed: insufficient mana (%.2f < %.2f)' % (self.player_mana.get(player, 0), self.move_mana_cost))
             return None
 
         # no moving out of bounds
         if to_row < 0 or to_row >= 8 or to_col < 0 or to_col >= 8:
             if self.debug:
-                print 'move failed: out of bounds'
+                print('move failed: out of bounds')
             return None
 
         # no staying in the same spot
         if piece.row == to_row and piece.col == to_col:
             if self.debug:
-                print 'move failed: original position'
+                print('move failed: original position')
             return None
 
         # check if piece is already moving
         if self._already_moving(piece):
             if self.debug:
-                print 'move failed: piece is already moving'
+                print('move failed: piece is already moving')
             return None
 
         # check if piece is on cooldown
         if self._on_cooldown(piece):
             if self.debug:
-                print 'move failed: piece is on cooldown'
+                print('move failed: piece is on cooldown')
             return None
 
         # check if piece can move to destination
         move_seq_res = self._compute_move_seq(piece, to_row, to_col)
         if not move_seq_res:
             if self.debug:
-                print 'move failed: piece cannot move to destination or is blocked'
+                print('move failed: piece cannot move to destination or is blocked')
             return None
 
         move_seq, extra_move = move_seq_res
@@ -166,17 +200,20 @@ class Game(object):
         self.move_log.append(move)
         piece.moved = True
 
+        # deduct mana cost
+        self.player_mana[player] -= self.move_mana_cost
+
         # check extra move (for castling)
         if extra_move:
             if self.debug:
-                print 'castling %s' % piece
+                print('castling %s' % piece)
 
             self.active_moves.append(extra_move)
             self.move_log.append(extra_move)
             extra_move.piece.moved = True
 
         if self.debug:
-            print 'moving %s along %s from tick %s' % (piece, move_seq, self.current_tick)
+            print('moving %s along %s from tick %s' % (piece, move_seq, self.current_tick))
 
         if not self.players[player].startswith('b') and not self.players[player].startswith('c'):
             # last move time only counts for non-bots
@@ -290,7 +327,7 @@ class Game(object):
     # move in given direction without crossing pieces
     def _get_move_seq_ensuring_no_cross(self, piece, row_dir, col_dir, steps, capture=True):
         moves = []
-        for i in xrange(1, steps + 1):
+        for i in range(1, steps + 1):
             i_row, i_col = piece.row + row_dir * i, piece.col + col_dir * i
             moves.append((i_row, i_col))
 
@@ -302,8 +339,8 @@ class Game(object):
                 not self._already_moving(i_piece) and
                 (
                     not capture or
-                    i != steps or
-                    i_piece.player == piece.player
+                    i != steps
+                    # Removed: i_piece.player == piece.player (allow self-capture / friendly fire)
                 )
             ):
                 return None
@@ -347,6 +384,10 @@ class Game(object):
         self.current_tick += 1
         self.last_tick_time = time.time()
 
+        # regenerate mana for all players
+        for player in self.player_mana:
+            self.player_mana[player] = min(self.max_mana, self.player_mana[player] + self.mana_regen_per_tick)
+
         updates = []
 
         # resolve all movements
@@ -362,7 +403,7 @@ class Game(object):
             new_row, new_col = move.move_seq[movements][0], move.move_seq[movements][1]
 
             if self.debug and (piece.row != new_row or piece.col != new_col):
-                print '%s to %s %s' % (piece, new_row, new_col)
+                print('%s to %s %s' % (piece, new_row, new_col))
 
             piece.row, piece.col = new_row, new_col
 
@@ -387,9 +428,9 @@ class Game(object):
             piece = move.piece
             row, col = self._get_interp_position(move, self.current_tick)
 
-            # check each other piece
+            # check each other piece (including same player for friendly fire)
             for p in self.board.pieces:
-                if p.player == piece.player or p.captured:
+                if p.id == piece.id or p.captured:  # Only skip self and captured pieces
                     continue
 
                 other_move = moving.get(p.id)
@@ -499,7 +540,7 @@ class Game(object):
             tick_delta = self.current_tick - move.starting_tick
             if tick_delta >= self.move_ticks * (len(move.move_seq) - 1):
                 if self.debug:
-                    print '%s going on cooldown' % move.piece
+                    print('%s going on cooldown' % move.piece)
 
                 new_cooldowns.append(Cooldown(move.piece, self.current_tick))
                 updates.append({
@@ -519,7 +560,7 @@ class Game(object):
                 new_cooldowns.append(cooldown)
             else:
                 if self.debug:
-                    print '%s going off cooldown' % cooldown.piece
+                    print('%s going off cooldown' % cooldown.piece)
 
                 updates.append({
                     'type': 'endcooldown',
@@ -557,7 +598,8 @@ class Game(object):
     def _get_interp_position(self, move, current_tick):
         total_move_ticks = self.move_ticks * (len(move.move_seq) - 1)
         tick_delta = current_tick - move.starting_tick
-        if move.piece.type == 'N' and tick_delta < total_move_ticks - self.move_ticks / 2:
+        if move.piece.type == 'N' and tick_delta < total_move_ticks * 0.85:
+            # Knight is airborne for 85% of the move (unhittable during jump)
             return -1, -1
 
         movements = int(tick_delta) / self.move_ticks
@@ -595,6 +637,10 @@ class Game(object):
 
             'activeMoves': [move.to_json_obj() for move in self.active_moves],
             'cooldowns': [cooldown.to_json_obj() for cooldown in self.cooldowns],
+            'playerMana': self.player_mana,
+            'maxMana': self.max_mana,
+            'manaRegenPerTick': self.mana_regen_per_tick,
+            'manaCost': self.move_mana_cost,
             'moveLog': [move.to_json_obj() for move in self.move_log],
             'currentTick': self.current_tick,
             'timeSinceLastTick': time.time() - self.last_tick_time,

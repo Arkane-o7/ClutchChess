@@ -42,13 +42,13 @@ user = Blueprint('user', __name__)
 @user.route('/login', methods=['GET'])
 def login():
     next_url = request.args.get('next') or url_for('index')
-    print 'login', request.args
+    print('login', request.args)
 
     if current_user.is_authenticated:
         return redirect(next_url)
 
     callback = url_for('user.authorized', _external=True)
-    if 'kfchess.com' in callback:
+    if 'clutchchess.com' in callback:
         callback = callback.replace('http://', 'https://')
 
     google.request_token_params['state'] = next_url
@@ -59,7 +59,7 @@ def login():
 @google.authorized_handler
 def authorized(data):
     next_url = request.args.get('state') or url_for('index')
-    print 'oauth authorized', request.args
+    print('oauth authorized', request.args)
 
     if current_user.is_authenticated:
         return redirect(next_url)
@@ -74,7 +74,7 @@ def authorized(data):
     if response.status_code == 200:
         user_data = response.json()
 
-        print 'user data', user_data
+        print('user data', user_data)
 
         email = [e for e in user_data['emails'] if e['type'] == 'ACCOUNT'][0]['value']
         user = db_service.get_user_by_email(email)
@@ -88,14 +88,14 @@ def authorized(data):
 
         login_user(user)
     else:
-        print 'error getting google info', response.status_code, response.text
+        print('error getting google info', response.status_code, response.text)
 
     return redirect(next_url)
 
 
 @user.route('/logout', methods=['POST'])
 def logout():
-    print 'logout', current_user
+    print('logout', current_user)
 
     logout_user()
 
@@ -110,7 +110,7 @@ def logout():
 @user.route('/api/user/info', methods=['GET'])
 def info():
     user_ids = request.args.getlist('userId')
-    print 'user info', user_ids
+    print('user info', user_ids)
 
     if not user_ids:
         csrf_token = generate_csrf_token()
@@ -133,7 +133,7 @@ def info():
     return json.dumps({
         'users': {
             user_id: user.to_json_obj()
-            for user_id, user in users.iteritems()
+            for user_id, user in users.items()
         },
     })
 
@@ -141,7 +141,7 @@ def info():
 @user.route('/api/user/update', methods=['POST'])
 def update():
     data = json.loads(request.data)
-    print 'user update', data
+    print('user update', data)
 
     if not current_user.is_authenticated:
         return json.dumps({
@@ -189,7 +189,7 @@ def update():
 @user.route('/api/user/uploadPic', methods=['POST'])
 def upload_pic():
     file_bytes = request.data
-    print 'upload pic', len(file_bytes)
+    print('upload pic', len(file_bytes))
 
     if not current_user.is_authenticated:
         return json.dumps({
@@ -213,9 +213,9 @@ def upload_pic():
 
     try:
         key = 'profile-pics/' + str(uuid.uuid4())
-        s3.upload_data('com-kfchess-public', key, file_bytes, ACL='public-read')
-        url = s3.get_public_url('com-kfchess-public', key)
-        print 's3 upload', key, url
+        s3.upload_data('com-clutchchess-public', key, file_bytes, ACL='public-read')
+        url = s3.get_public_url('com-clutchchess-public', key)
+        print('s3 upload', key, url)
 
         db_service.update_user(user_id, user.username, url)
         user = db_service.get_user_by_id(user_id)
@@ -238,7 +238,7 @@ def history():
     user_id = int(request.args['userId'])
     offset = int(request.args['offset'])
     count = int(request.args['count'])
-    print 'history', request.args
+    print('history', request.args)
 
     history = db_service.get_user_game_history(user_id, offset, count)
 
@@ -260,7 +260,7 @@ def history():
         ],
         'users': {
             user_id: user.to_json_obj()
-            for user_id, user in users.iteritems()
+            for user_id, user in users.items()
         },
     })
 
@@ -268,7 +268,7 @@ def history():
 @user.route('/api/user/campaign', methods=['GET'])
 def campaign():
     user_id = int(request.args['userId'])
-    print 'campaign'
+    print('campaign')
 
     progress = db_service.get_campaign_progress(user_id)
     return json.dumps({
@@ -282,5 +282,5 @@ def random_username():
 
 def generate_csrf_token():
     if '_csrf_token' not in session:
-        session['_csrf_token'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for i in xrange(24))
+        session['_csrf_token'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for i in range(24))
     return session['_csrf_token']

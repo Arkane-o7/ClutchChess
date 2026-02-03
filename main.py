@@ -50,7 +50,7 @@ def csrf_protect():
 
 @app.route('/', methods=['GET'])
 def index():
-    return 'Kung Fu Chess'
+    return 'Clutch Chess'
 
 
 # socket.io functions
@@ -63,7 +63,7 @@ def _emit_online_users(requesting_user_id):
     emit('online', {
         'users': {
             user_id: user.to_json_obj()
-            for user_id, user in online_users.iteritems()
+            for user_id, user in online_users.items()
             if user_id != requesting_user_id
         },
     }, json=True)
@@ -73,7 +73,7 @@ def _emit_online_users(requesting_user_id):
 def listen(data):
     data = json.loads(data)
     user_id = int(data['userId']) if data['userId'] is not None else None
-    print 'listen', data
+    print('listen', data)
 
     if user_id:
         db_service.update_user_last_online(user_id)
@@ -86,7 +86,7 @@ def listen(data):
 def uping(data):
     data = json.loads(data)
     user_id = int(data['userId']) if data['userId'] is not None else None
-    print 'uping', data
+    print('uping', data)
 
     if user_id:
         user = db_service.get_user_by_id(user_id)
@@ -103,7 +103,7 @@ def uping(data):
 
 def get_auth_player(game_state, player_key):
     if player_key is not None:
-        for player, key in game_state.player_keys.iteritems():
+        for player, key in game_state.player_keys.items():
             if player_key == key:
                 return player
 
@@ -115,7 +115,7 @@ def join(data):
     data = json.loads(data)
     game_id = data['gameId']
     player_key = data.get('playerKey')
-    print 'join', data
+    print('join', data)
 
     if game_id not in game_states:
         emit('notfound')
@@ -138,7 +138,7 @@ def cancel(data):
     data = json.loads(data)
     game_id = data['gameId']
     player_key = data.get('playerKey')
-    print 'cancel', data
+    print('cancel', data)
 
     if game_id not in game_states:
         emit('cancelack', {}, json=True)
@@ -150,7 +150,7 @@ def cancel(data):
     # only authenticated players can cancel
     game = game_state.game
     if auth_player and (not game.started or game.finished):
-        for player, value in game.players.iteritems():
+        for player, value in game.players.items():
             if value.startswith('u'):
                 user_id = int(value[2:])
                 db_service.update_user_current_game(user_id, None, None)
@@ -165,7 +165,7 @@ def ready(data):
     data = json.loads(data)
     game_id = data['gameId']
     player_key = data['playerKey']
-    print 'ready', data
+    print('ready', data)
 
     if game_id not in game_states:
         emit('notfound')
@@ -190,7 +190,7 @@ def difficulty(data):
     player_key = data['playerKey']
     player = data['player']
     difficulty = data['difficulty']
-    print 'difficulty', data
+    print('difficulty', data)
 
     if game_id not in game_states:
         emit('notfound')
@@ -220,7 +220,7 @@ def move(data):
     piece_id = data['pieceId']
     to_row = data['toRow']
     to_col = data['toCol']
-    print 'move', data
+    print('move', data)
 
     if game_id not in game_states:
         emit('notfound')
@@ -243,7 +243,7 @@ def reset(data):
     data = json.loads(data)
     game_id = data['gameId']
     player_key = data['playerKey']
-    print 'reset', data
+    print('reset', data)
 
     if game_id not in game_states:
         emit('notfound')
@@ -286,6 +286,6 @@ def reset(data):
 def leave(data):
     data = json.loads(data)
     game_id = data['gameId']
-    print 'leave', data
+    print('leave', data)
 
     leave_room(game_id)

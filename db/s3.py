@@ -22,4 +22,4 @@ def get_public_url(bucket, key):
 
 
 if __name__ == '__main__':
-    upload_data('com-kfchess-public', 'test', 'test')
+    upload_data('com-clutchchess-public', 'test', 'test')

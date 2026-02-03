@@ -28,7 +28,7 @@ export default class Header extends Component {
                             <img src='/static/logo.png' />
                         </div>
                         <div className='header-logo-text'>
-                            Kung Fu Chess
+                            Clutch Chess
                         </div>
                     </Link>
                     <a
@@ -52,7 +52,7 @@ export default class Header extends Component {
                     </div>
                     <div className='header-menu-item'>
                         <a
-                            href='https://www.reddit.com/r/kfchess/'
+                            href='https://www.reddit.com/r/clutchchess/'
                             target='_blank'
                             onClick={() => amplitude.track('Click Reddit Link')}
                         >

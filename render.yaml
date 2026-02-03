@@ -1,0 +1,32 @@
+# Render.com deployment configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Web service (Flask + SocketIO)
+  - type: web
+    name: clutch-chess
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      cd ui && npm install && npm run build
+    startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT main:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: NODE_VERSION
+        value: 18.19.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clutch-chess-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SERVER
+        value: 1
+    autoDeploy: true
+
+databases:
+  - name: clutch-chess-db
+    databaseName: clutchchess
+    plan: free
+

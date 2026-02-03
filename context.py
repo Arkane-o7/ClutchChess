@@ -1,1 +1,3 @@
-SERVER = 0
+import os
+
+SERVER = int(os.environ.get('SERVER', 0))

@@ -57,7 +57,7 @@ function isLegalMoveNoCross(game, currentTick, piece, rowDir, colDir, steps, cap
         const iPiece = getPieceByLocation(game, iRow, iCol);
         if (
             iPiece && !iPiece.captured && !isMoving(game, iPiece) &&
-            (!capture || i !== steps || iPiece.player === piece.player || isMoving(game, iPiece))
+            (!capture || i !== steps)  // Allow self-capture (friendly fire)
         ) {
             return false;
         }
@@ -115,10 +115,10 @@ function isPawnLegalMove(game, currentTick, piece, toRow, toCol) {
         }
     }
 
-    // if it is changing column by 1, it must be capturing
+    // if it is changing column by 1, it must be capturing (can capture own or enemy pieces)
     if (canCapture && (piece.col + 1 === toCol || piece.col - 1 === toCol)) {
         const destPiece = getPieceByLocation(game, toRow, toCol);
-        if (destPiece && destPiece.player !== piece.player && !isMoving(game, destPiece)) {
+        if (destPiece && !isMoving(game, destPiece)) {  // Allow self-capture
             const isLegal = isLegalMoveNoCross(game, currentTick, piece, dir, toCol - piece.col, steps, true);
             if (isLegal) {
                 return true;

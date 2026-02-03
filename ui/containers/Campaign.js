@@ -148,7 +148,7 @@ class Campaign extends Component {
                             Start your journey to complete 72 challenges and
                         </div>
                         <div className='campaign-no-user-title campaign-no-user-title-last'>
-                            {'become a Kung Fu Chess master. '}
+                            {'become a Clutch Chess master. '}
                             {loginButton}
                             {' to begin!'}
                         </div>

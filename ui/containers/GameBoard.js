@@ -14,6 +14,9 @@ const TOP_EDGE_PADDING = 4;
 
 const COOLDOWN_COLOR = 0xf0f000;
 const BACKGROUND_COLOR = 0xfcfcf4;
+const MANA_COLOR = 0x4488ff;
+const MANA_BG_COLOR = 0x333333;
+const MANA_SEGMENT_COLOR = 0xffffff;
 
 export default class GameBoard extends Component {
 
@@ -33,6 +36,7 @@ export default class GameBoard extends Component {
         this.pieceSprites = {};
         this.selected = null;
         this.dragging = false;
+        this.manaGraphics = null;  // For mana bar rendering
     }
 
     componentDidMount() {
@@ -73,6 +77,10 @@ export default class GameBoard extends Component {
 
         this.app.ticker.add(this.update);
 
+        // Create mana bar graphics container
+        this.manaGraphics = new PIXI.Graphics();
+        this.app.stage.addChild(this.manaGraphics);
+
         window.addEventListener('resize', this.resize);
     }
 
@@ -92,6 +100,10 @@ export default class GameBoard extends Component {
 
         this.mainStage.destroy();
         this.metaStage.destroy();
+
+        if (this.manaGraphics) {
+            this.manaGraphics.destroy();
+        }
 
         this.app.ticker.destroy();
         this.app.stage.destroy();
@@ -166,6 +178,9 @@ export default class GameBoard extends Component {
             this.unselect();
         }
 
+        // Render mana bar
+        this.renderManaBar(game, gameState.player);
+
         const currentTick = gameState.getCurrentTick();
 
         const movingPieces = {};
@@ -222,7 +237,7 @@ export default class GameBoard extends Component {
 
                 const spriteFn = sprites[key];
                 if (spriteFn) {
-                    pieceSprite = {key, sprite: spriteFn()};
+                    pieceSprite = { key, sprite: spriteFn() };
                     pieceSprite.sprite.x = -1;
                     this.mainStage.addChild(pieceSprite.sprite);
 
@@ -381,6 +396,48 @@ export default class GameBoard extends Component {
         }
     }
 
+    renderManaBar(game, player) {
+        if (!this.manaGraphics || !game.playerMana) {
+            return;
+        }
+
+        const mana = game.playerMana[player] || 0;
+        const maxMana = game.maxMana || 4;
+
+        this.manaGraphics.clear();
+
+        // Mana bar position (right side of board, vertical orientation)
+        const barWidth = 20;
+        const barHeight = this.dim - 2 * this.border;
+        const barX = this.dim - this.border / 2 - barWidth / 2;
+        const barY = TOP_EDGE_PADDING;
+
+        // Background bar (dark)
+        this.manaGraphics.beginFill(MANA_BG_COLOR, 0.8);
+        this.manaGraphics.drawRoundedRect(barX, barY, barWidth, barHeight, 4);
+        this.manaGraphics.endFill();
+
+        // Mana fill (blue, from bottom up)
+        const fillHeight = barHeight * (mana / maxMana);
+        const fillY = barY + barHeight - fillHeight;
+
+        this.manaGraphics.beginFill(MANA_COLOR, 0.9);
+        this.manaGraphics.drawRoundedRect(barX + 2, fillY, barWidth - 4, fillHeight, 3);
+        this.manaGraphics.endFill();
+
+        // Mana segment lines (horizontal dividers for each mana point)
+        for (let i = 1; i < maxMana; i++) {
+            const segmentY = barY + barHeight * (i / maxMana);
+            this.manaGraphics.lineStyle(2, MANA_SEGMENT_COLOR, 0.5);
+            this.manaGraphics.moveTo(barX, segmentY);
+            this.manaGraphics.lineTo(barX + barWidth, segmentY);
+        }
+
+        // Border around mana bar
+        this.manaGraphics.lineStyle(2, MANA_COLOR, 0.8);
+        this.manaGraphics.drawRoundedRect(barX, barY, barWidth, barHeight, 4);
+    }
+
     handleClick(event, down) {
         if (!down && !this.dragging) {
             return;
@@ -509,6 +566,6 @@ export default class GameBoard extends Component {
     render() {
         const { ready } = this.state;
 
-        return <canvas ref={ref => this.canvas = ref} style={{ display: (ready ? '' : 'none')}} />
+        return <canvas ref={ref => this.canvas = ref} style={{ display: (ready ? '' : 'none') }} />
     }
 };

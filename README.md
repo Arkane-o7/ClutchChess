@@ -1,14 +1,14 @@
-# Kung Fu Chess
+# Clutch Chess
 
-Kung Fu Chess is a real-time chess game where players don't take turns. A player may make a move at any time, but pieces have a travel speed and a cooldown period. The game is hosted at https://www.kfchess.com.
+Clutch Chess is a real-time chess game where players don't take turns. A player may make a move at any time, but pieces have a travel speed and a cooldown period. The game is hosted at https://www.clutchchess.com.
 
 ## Contributing
 
-There are three components to running the Kung Fu Chess system locally: a [PostgreSQL](https://www.postgresql.org/) database, a [Flask](http://flask.pocoo.org/) application server, and a [webpack](https://webpack.js.org/) development server. In production, the first two also exist, but the webpack production bundle is served statically.
+There are three components to running the Clutch Chess system locally: a [PostgreSQL](https://www.postgresql.org/) database, a [Flask](http://flask.pocoo.org/) application server, and a [webpack](https://webpack.js.org/) development server. In production, the first two also exist, but the webpack production bundle is served statically.
 
 ### Setting up PostgreSQL
 
-Install PostgreSQL on your system and create a database called `kfchess`. The schema is in `db/schema.sql` and can be initialized like this: `psql -U postgres -d kfchess < db/schema.sql`.
+Install PostgreSQL on your system and create a database called `clutchchess`. The schema is in `db/schema.sql` and can be initialized like this: `psql -U postgres -d clutchchess < db/schema.sql`.
 
 ### Setting up Flask
 
@@ -41,4 +41,4 @@ Now use `FLASK_APP=main.py FLASK_DEBUG=1 flask run -h 127.0.0.1 -p 5001` to star
 
 All of the JavaScript code is in the `ui/` directory. From there, run `npm install .` to install all the necessary dependencies for the frontend. Then `npm run dev` will start the webpack development server that hosts the frontend locally.
 
-Now navigate to `http://localhost:8081/` and you should see the Kung Fu Chess site!
+Now navigate to `http://localhost:8081/` and you should see the Clutch Chess site!

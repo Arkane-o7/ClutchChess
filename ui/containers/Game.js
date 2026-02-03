@@ -565,34 +565,34 @@ class Game extends Component {
                     }}
                     loop
                 >
-                    <source src='/static/kfchess-music.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-music.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[0] = sound}>
-                    <source src='/static/kfchess-sound1.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound1.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[1] = sound}>
-                    <source src='/static/kfchess-sound2.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound2.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[2] = sound}>
-                    <source src='/static/kfchess-sound3.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound3.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[3] = sound}>
-                    <source src='/static/kfchess-sound4.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound4.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[4] = sound}>
-                    <source src='/static/kfchess-sound5.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound5.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[5] = sound}>
-                    <source src='/static/kfchess-sound6.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound6.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[6] = sound}>
-                    <source src='/static/kfchess-sound7.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound7.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.captureSounds[7] = sound}>
-                    <source src='/static/kfchess-sound8.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-sound8.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.finishSound = sound}>
-                    <source src='/static/kfchess-gong.mp3' type='audio/mp3' />
+                    <source src='/static/clutchchess-gong.mp3' type='audio/mp3' />
                 </audio>
                 <audio ref={sound => this.beltSound = sound}>
                     <source src='/static/belt-achievement.mp3' type='audio/mp3' />

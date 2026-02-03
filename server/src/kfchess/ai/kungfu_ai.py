@@ -11,7 +11,7 @@ class KungFuAI(AIPlayer):
     Supports difficulty levels 1-3:
     - Level 1 (Novice): Positional heuristics, basic captures, high noise
     - Level 2 (Intermediate): Arrival fields, commitment penalty (future)
-    - Level 3 (Advanced): Dodgeability, anticipatory positioning (future)
+    - Level 3 (Advanced): Dodgeability, recapture positioning
     """
 
     def __init__(self, level: int = 1, speed: Speed = Speed.STANDARD):

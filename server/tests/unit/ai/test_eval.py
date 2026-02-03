@@ -2,7 +2,7 @@
 
 
 from kfchess.ai.eval import Eval
-from kfchess.ai.move_gen import CandidateMove, MoveCategory
+from kfchess.ai.move_gen import CandidateMove
 from kfchess.ai.state_extractor import StateExtractor
 from kfchess.game.board import Board, BoardType
 from kfchess.game.engine import GameEngine
@@ -36,13 +36,15 @@ class TestEval:
         rook_piece = ai_state.pieces_by_id["R:1:4:0"]
 
         capture_pawn = CandidateMove(
-            "R:1:4:0", 4, 5, MoveCategory.CAPTURE, PieceType.PAWN, rook_piece
+            "R:1:4:0", 4, 5,
+            capture_type=PieceType.PAWN, ai_piece=rook_piece,
         )
         capture_queen = CandidateMove(
-            "R:1:4:0", 4, 7, MoveCategory.CAPTURE, PieceType.QUEEN, rook_piece
+            "R:1:4:0", 4, 7,
+            capture_type=PieceType.QUEEN, ai_piece=rook_piece,
         )
         quiet_move = CandidateMove(
-            "R:1:4:0", 4, 3, MoveCategory.POSITIONAL, ai_piece=rook_piece
+            "R:1:4:0", 4, 3, ai_piece=rook_piece,
         )
 
         scored = Eval.score_candidates(
@@ -54,7 +56,7 @@ class TestEval:
         # Pawn capture should be second
         assert scored[1][0].capture_type == PieceType.PAWN
         # Quiet move last
-        assert scored[2][0].category == MoveCategory.POSITIONAL
+        assert scored[2][0].capture_type is None
 
     def test_captures_beat_quiet_moves(self):
         """Any capture should score higher than a quiet move."""
@@ -62,22 +64,23 @@ class TestEval:
         rook_piece = ai_state.pieces_by_id["R:1:4:0"]
 
         capture = CandidateMove(
-            "R:1:4:0", 4, 5, MoveCategory.CAPTURE, PieceType.PAWN, rook_piece
+            "R:1:4:0", 4, 5,
+            capture_type=PieceType.PAWN, ai_piece=rook_piece,
         )
         quiet = CandidateMove(
-            "R:1:4:0", 3, 0, MoveCategory.POSITIONAL, ai_piece=rook_piece
+            "R:1:4:0", 3, 0, ai_piece=rook_piece,
         )
 
         scored = Eval.score_candidates([capture, quiet], ai_state, noise=False)
-        assert scored[0][0].category == MoveCategory.CAPTURE
+        assert scored[0][0].capture_type is not None
 
     def test_noise_can_change_ordering(self):
         """With noise, ordering may differ between runs (statistical test)."""
         _, ai_state = _make_simple_board()
 
         # Two moves with similar scores
-        move_a = CandidateMove("R:1:4:0", 4, 3, MoveCategory.POSITIONAL)
-        move_b = CandidateMove("R:1:4:0", 4, 2, MoveCategory.POSITIONAL)
+        move_a = CandidateMove("R:1:4:0", 4, 3)
+        move_b = CandidateMove("R:1:4:0", 4, 2)
 
         # Run many times and check if ordering ever changes
         orderings = set()
@@ -102,10 +105,10 @@ class TestEval:
 
         # Knight to center vs knight to edge
         center_move = CandidateMove(
-            "N:1:7:1", 5, 2, MoveCategory.POSITIONAL, ai_piece=knight_piece
+            "N:1:7:1", 5, 2, ai_piece=knight_piece,
         )
         edge_move = CandidateMove(
-            "N:1:7:1", 5, 0, MoveCategory.POSITIONAL, ai_piece=knight_piece
+            "N:1:7:1", 5, 0, ai_piece=knight_piece,
         )
 
         scored = Eval.score_candidates(

@@ -27,6 +27,8 @@ class AIPiece:
     destination: tuple[int, int] | None
     # For traveling enemy pieces: direction of travel (row_delta, col_delta)
     travel_direction: tuple[float, float] | None
+    # Current position (interpolated for traveling pieces, grid_position otherwise)
+    current_position: tuple[int, int] = (0, 0)
 
 
 @dataclass
@@ -46,6 +48,8 @@ class AIState:
     _enemy_pieces: list[AIPiece] = field(default_factory=list)
     _enemy_king: AIPiece | None = None
     _own_king: AIPiece | None = None
+    # Enemy piece escape move counts (populated by controller for L3+)
+    enemy_escape_moves: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
 
     def get_movable_pieces(self) -> list[AIPiece]:
         """Get pieces that can move right now (idle, not captured)."""
@@ -121,9 +125,10 @@ class StateExtractor:
                 end_tick = cd.start_tick + cd.duration
                 cooldown_remaining = max(0, end_tick - state.current_tick)
 
-            # Travel info
+            # Travel info + interpolated position
             destination = None
             travel_direction = None
+            current_position = piece.grid_position
             if move is not None:
                 end_row, end_col = move.end_position
                 if piece.player == ai_player:
@@ -136,12 +141,31 @@ class StateExtractor:
                     if length > 0:
                         travel_direction = (dr / length, dc / length)
 
+                # Compute interpolated position for traveling pieces
+                tps = SPEED_CONFIGS[state.speed].ticks_per_square
+                ticks_elapsed = state.current_tick - move.start_tick
+                path = move.path
+                total_squares = len(path) - 1
+                if total_squares > 0 and 0 <= ticks_elapsed < total_squares * tps:
+                    progress = ticks_elapsed / tps
+                    seg = min(int(progress), total_squares - 1)
+                    seg_frac = progress - seg
+                    sr, sc = path[seg]
+                    er, ec = path[seg + 1]
+                    current_position = (
+                        int(round(sr + (er - sr) * seg_frac)),
+                        int(round(sc + (ec - sc) * seg_frac)),
+                    )
+                else:
+                    current_position = (int(round(end_row)), int(round(end_col)))
+
             ai_piece = AIPiece(
                 piece=piece,
                 status=status,
                 cooldown_remaining=cooldown_remaining,
                 destination=destination,
                 travel_direction=travel_direction,
+                current_position=current_position,
             )
             pieces.append(ai_piece)
             pieces_by_id[piece.id] = ai_piece

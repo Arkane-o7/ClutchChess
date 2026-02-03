@@ -254,13 +254,13 @@ class GameEngine:
             # Move starts on NEXT tick (compensates for network delay)
             king_move.start_tick = state.current_tick + 1
             rook_move.start_tick = state.current_tick + 1
-            logger.info(f"Castling validated for {piece_id}")
+            logger.debug(f"Castling validated for {piece_id}")
             return king_move
 
         # Compute the move path
         path = compute_move_path(piece, state.board, to_row, to_col, state.active_moves)
         if path is None:
-            logger.warning(
+            logger.debug(
                 f"Move rejected: {piece_id} from ({piece.row},{piece.col}) to ({to_row},{to_col}) - invalid path"
             )
             return None
@@ -711,11 +711,19 @@ def _pawn_candidates(
             r2 = from_row + 2 * direction
             if 0 <= r2 < board.height:
                 candidates.append((r2, from_col))
-        # Diagonal captures
+        # Diagonal captures (only if occupied by enemy or en-passant possible)
         for dc in (-1, 1):
             c = from_col + dc
-            if 0 <= r < board.height and 0 <= c < board.width:
-                candidates.append((from_row + direction, c))
+            dr = from_row + direction
+            if 0 <= dr < board.height and 0 <= c < board.width:
+                occupant = board.get_piece_at(dr, c)
+                if occupant is not None and occupant.player != piece.player:
+                    candidates.append((dr, c))
+                elif not occupant:
+                    # En-passant: check if an enemy pawn just moved to adjacent square
+                    adj = board.get_piece_at(from_row, c)
+                    if adj is not None and adj.player != piece.player and adj.type == PieceType.PAWN:
+                        candidates.append((dr, c))
     else:
         orient = FOUR_PLAYER_ORIENTATIONS.get(piece.player)
         if orient is None:
@@ -737,19 +745,23 @@ def _pawn_candidates(
             if board.is_valid_square(r2, c2):
                 candidates.append((r2, c2))
 
-        # Diagonal captures: one forward + one lateral
+        # Diagonal captures: one forward + one lateral (only if enemy present)
         if orient.axis == "col":
             # Lateral is row direction
             for dr in (-1, 1):
                 r, c = from_row + dr, from_col + fwd_c
                 if board.is_valid_square(r, c):
-                    candidates.append((r, c))
+                    occupant = board.get_piece_at(r, c)
+                    if occupant is not None and occupant.player != piece.player:
+                        candidates.append((r, c))
         else:
             # Lateral is col direction
             for dc in (-1, 1):
                 r, c = from_row + fwd_r, from_col + dc
                 if board.is_valid_square(r, c):
-                    candidates.append((r, c))
+                    occupant = board.get_piece_at(r, c)
+                    if occupant is not None and occupant.player != piece.player:
+                        candidates.append((r, c))
 
     return candidates
 

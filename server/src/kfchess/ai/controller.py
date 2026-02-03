@@ -6,21 +6,22 @@ from kfchess.ai.arrival_field import ArrivalField
 from kfchess.ai.eval import Eval
 from kfchess.ai.move_gen import MoveGen
 from kfchess.ai.state_extractor import AIState, StateExtractor
+from kfchess.game.engine import GameEngine
 from kfchess.game.state import TICK_RATE_HZ, GameState, Speed
 
 # Think delay ranges in seconds (min, max) by level and speed
 THINK_DELAYS: dict[int, dict[Speed, tuple[float, float]]] = {
     1: {
-        Speed.STANDARD: (0.5, 5.0),
-        Speed.LIGHTNING: (0.3, 2.5),
+        Speed.STANDARD: (1.0, 6.0),
+        Speed.LIGHTNING: (1.0, 4.0),
     },
     2: {
-        Speed.STANDARD: (0.3, 2.0),
-        Speed.LIGHTNING: (0.15, 1.0),
+        Speed.STANDARD: (0.6, 5.0),
+        Speed.LIGHTNING: (0.6, 3.0),
     },
     3: {
-        Speed.STANDARD: (0.1, 1.0),
-        Speed.LIGHTNING: (0.05, 0.5),
+        Speed.STANDARD: (0.3, 3.0),
+        Speed.LIGHTNING: (0.3, 2.0),
     },
 }
 
@@ -82,6 +83,15 @@ class AIController:
             self._cached_ai_state = None
         else:
             ai_state = StateExtractor.extract(state, player)
+
+        # Compute enemy escape moves for L3 dodgeability
+        if self.level >= 3:
+            escape_moves: dict[str, list[tuple[int, int]]] = {}
+            for ep in state.players:
+                if ep != player:
+                    for pid, r, c in GameEngine.get_legal_moves_fast(state, ep):
+                        escape_moves.setdefault(pid, []).append((r, c))
+            ai_state.enemy_escape_moves = escape_moves
 
         # Compute arrival fields for all levels
         arrival_data = None

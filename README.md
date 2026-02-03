@@ -27,12 +27,11 @@ This is a rebuild of the original Kung Fu Chess. Core features are functional:
 - [x] 2-player and 4-player board support
 - [x] REST API and WebSocket real-time communication
 - [x] React/PixiJS frontend with smooth rendering
-- [x] Basic AI opponent (random moves)
+- [x] AI opponents with 3 difficulty levels (novice, intermediate, advanced)
 - [x] Game replay recording and playback with browser
 - [x] User authentication (email/password + Google OAuth)
 - [x] Lobby system with matchmaking (create, join, ready, AI slots)
 - [ ] Campaign mode
-- [ ] Advanced AI (heuristic + tactical search)
 
 ## Tech Stack
 

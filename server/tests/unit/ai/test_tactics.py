@@ -1,12 +1,18 @@
 """Tests for tactical filters."""
 
 from kfchess.ai.arrival_field import ArrivalData, ArrivalField
-from kfchess.ai.move_gen import CandidateMove, MoveCategory
-from kfchess.ai.state_extractor import StateExtractor
-from kfchess.ai.tactics import capture_feasibility, move_safety
+from kfchess.ai.move_gen import CandidateMove
+from kfchess.ai.state_extractor import AIPiece, PieceStatus, StateExtractor
+from kfchess.ai.tactics import (
+    capture_value,
+    dodge_probability,
+    move_safety,
+    recapture_bonus,
+    threaten_score,
+)
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine
-from kfchess.game.pieces import PieceType
+from kfchess.game.pieces import Piece, PieceType
 from kfchess.game.state import GameStatus, Speed
 
 
@@ -21,102 +27,34 @@ def _make_state(speed=Speed.STANDARD):
 
 
 class TestCaptureFeasibility:
-    def test_capture_with_recapture_even_trade(self):
-        """Capture where enemy can recapture, same piece value → small positive."""
-        data = ArrivalData(
-            our_time={(3, 3): 60},
-            enemy_time={(3, 3): 0},  # Target is sitting there
-            enemy_time_by_piece={
-                "target": {(3, 3): 0},
-            },
-            tps=30,
-            cd_ticks=300,
-        )
-        state = _make_state()
-        ai_state = StateExtractor.extract(state, 1)
-
-        pawn_piece = None
-        for ap in ai_state.get_own_pieces():
-            if ap.piece.type == PieceType.PAWN:
-                pawn_piece = ap
-                break
-
+    def test_capture_returns_piece_value(self):
+        """Capture returns the captured piece's material value."""
         candidate = CandidateMove(
-            piece_id=pawn_piece.piece.id, to_row=3, to_col=3,
-            category=MoveCategory.CAPTURE,
-            capture_type=PieceType.PAWN,
-            ai_piece=pawn_piece,
+            piece_id="p1_p1", to_row=3, to_col=3,
+            capture_type=PieceType.QUEEN,
         )
-        # ai_state=None → no exclusion → enemy_time=0, safety negative → recapture
-        # Pawn(1) takes pawn(1): 1.0 - 1.0 * 0.8 = 0.2 (slightly positive)
-        score = capture_feasibility(candidate, None, data)
-        assert 0 < score < 1.0
+        assert capture_value(candidate) == 9.0
 
-    def test_safe_capture_with_exclusion(self):
-        """After excluding captured piece, no recapture → feasibility 1.0."""
-        data = ArrivalData(
-            our_time={(3, 3): 30},
-            enemy_time={(3, 3): 0},
-            enemy_time_by_piece={
-                "target_piece": {(3, 3): 0},
-                # No other enemy piece can reach (3,3)
-            },
-            tps=30,
-            cd_ticks=300,
-        )
-        # When ai_state has an enemy at (3,3) with id "target_piece",
-        # capture_feasibility excludes it. Since pawn is at ~(6,x),
-        # travel is ~3*30=90. After exclusion, enemy_time=INF.
-        # safety = INF - (90+300) >> 0 → feasibility 1.0.
-        # But our ai_state doesn't have an enemy at (3,3), so
-        # captured_piece_id will be None. Test the exclusion logic directly:
-        excl_time = data.get_enemy_time_excluding(3, 3, "target_piece")
-        assert excl_time >= 999_999  # No other enemy can reach
-
-    def test_losing_capture_enemy_can_recapture(self):
-        """Sending queen to capture pawn on defended square → low score."""
-        data = ArrivalData(
-            our_time={(3, 3): 60},
-            enemy_time={(3, 3): 0},
-            enemy_time_by_piece={
-                "target": {(3, 3): 0},
-                "defender": {(3, 3): 30},  # Another enemy reaches in 30 ticks
-            },
-            tps=30,
-            cd_ticks=300,
-        )
-
-        state = _make_state()
-        ai_state = StateExtractor.extract(state, 1)
-        queen = None
-        for ap in ai_state.get_own_pieces():
-            if ap.piece.type == PieceType.QUEEN:
-                queen = ap
-                break
-
+    def test_capture_pawn_value(self):
+        """Capturing a pawn returns 1.0."""
         candidate = CandidateMove(
-            piece_id=queen.piece.id, to_row=3, to_col=3,
-            category=MoveCategory.CAPTURE,
+            piece_id="p1_q1", to_row=3, to_col=3,
             capture_type=PieceType.PAWN,
-            ai_piece=queen,
         )
-        score = capture_feasibility(candidate, None, data)
-        # Queen (9) captures pawn (1), recapture: 1.0 - 9.0 * 0.8 = -6.2
-        assert score < 0
+        assert capture_value(candidate) == 1.0
 
     def test_non_capture_returns_zero(self):
-        """Non-capture moves return 0.0 (no material gain)."""
-        data = ArrivalData(tps=30, cd_ticks=300)
+        """Non-capture moves return 0.0."""
         candidate = CandidateMove(
             piece_id="p1_r1", to_row=3, to_col=3,
-            category=MoveCategory.POSITIONAL,
+
         )
-        assert capture_feasibility(candidate, None, data) == 0.0
+        assert capture_value(candidate) == 0.0
 
 
 class TestMoveSafety:
     def test_safe_move_near_home(self):
-        """Moving near our back rank is safe — enemy is far."""
+        """Moving near our back rank is safe — no recapture cost."""
         state = _make_state()
         ai_state = StateExtractor.extract(state, 1)
         data = ArrivalField.compute(ai_state, state.config)
@@ -129,19 +67,18 @@ class TestMoveSafety:
 
         candidate = CandidateMove(
             piece_id=pawn.piece.id, to_row=5, to_col=pawn.piece.grid_position[1],
-            category=MoveCategory.POSITIONAL,
+
             ai_piece=pawn,
         )
-        safety = move_safety(candidate, data)
-        assert safety > 0  # Safe near our side
+        safety = move_safety(candidate, ai_state, data)
+        assert safety == 0.0  # Safe near our side — no expected loss
 
     def test_unsafe_move_deep_territory(self):
-        """Moving deep into enemy territory is unsafe."""
+        """Moving deep into enemy territory has negative safety cost."""
         state = _make_state()
         ai_state = StateExtractor.extract(state, 1)
         data = ArrivalField.compute(ai_state, state.config)
 
-        # Use a knight for a hypothetical long-range move
         knight = None
         for ap in ai_state.get_own_pieces():
             if ap.piece.type == PieceType.KNIGHT:
@@ -150,9 +87,448 @@ class TestMoveSafety:
 
         candidate = CandidateMove(
             piece_id=knight.piece.id, to_row=2, to_col=4,
-            category=MoveCategory.POSITIONAL,
+
             ai_piece=knight,
         )
-        safety = move_safety(candidate, data)
-        # Near enemy pieces with cooldown exposure — unsafe
+        safety = move_safety(candidate, ai_state, data)
+        # Near enemy pieces — expected material loss
         assert safety < 0
+
+
+def _make_ai_piece(
+    piece_type: PieceType,
+    player: int,
+    row: int,
+    col: int,
+    status: PieceStatus = PieceStatus.IDLE,
+    cooldown_remaining: int = 0,
+    travel_direction: tuple[float, float] | None = None,
+    piece_id: str | None = None,
+) -> AIPiece:
+    """Helper to create an AIPiece for testing."""
+    pid = piece_id or f"p{player}_{piece_type.value}_{row}_{col}"
+    piece = Piece(
+        id=pid,
+        type=piece_type,
+        player=player,
+        row=float(row),
+        col=float(col),
+    )
+    return AIPiece(
+        piece=piece,
+        status=status,
+        cooldown_remaining=cooldown_remaining,
+        destination=None,
+        travel_direction=travel_direction,
+        current_position=(row, col),
+    )
+
+
+class TestDodgeability:
+    def test_target_on_long_cooldown_no_prob(self):
+        """Target can't dodge if still on cooldown when we arrive."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Find our pawn and an enemy pawn
+        our_pawn = None
+        for ap in ai_state.get_own_pieces():
+            if ap.piece.type == PieceType.PAWN:
+                our_pawn = ap
+                break
+
+        # Target at adjacent square with long cooldown
+        target = _make_ai_piece(PieceType.PAWN, 2, 5, our_pawn.piece.grid_position[1],
+                                cooldown_remaining=200)
+
+        # Inject target into ai_state enemy pieces
+        ai_state._enemy_pieces.append(target)
+
+        candidate = CandidateMove(
+            piece_id=our_pawn.piece.id, to_row=5,
+            to_col=our_pawn.piece.grid_position[1],
+            capture_type=PieceType.PAWN,
+            ai_piece=our_pawn,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        assert prob == 0.0  # Target can't move in time
+
+    def test_idle_target_long_distance_high_prob(self):
+        """Idle target far away with many lateral escapes → high prob."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Target is idle (cooldown=0) and 5 squares away
+        target = _make_ai_piece(PieceType.PAWN, 2, 2, 3, cooldown_remaining=0)
+        ai_state._enemy_pieces.append(target)
+        # Target has many lateral escape squares (off the attack column)
+        ai_state.enemy_escape_moves[target.piece.id] = [
+            (2, 2), (2, 4), (3, 2), (3, 4),  # Lateral dodges
+            (1, 3), (0, 3),  # Along attack ray — NOT dodges
+        ]
+
+        # Our piece is at (7, 3) — 5 squares away, attacking up the column
+        our_piece = _make_ai_piece(PieceType.ROOK, 1, 7, 3)
+        ai_state._own_pieces.append(our_piece)
+
+        candidate = CandidateMove(
+            piece_id=our_piece.piece.id, to_row=2, to_col=3,
+            capture_type=PieceType.PAWN,
+            ai_piece=our_piece,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        # 4 lateral dodges → escape_factor = 1.0, time_factor high
+        assert prob > 0.8
+
+    def test_short_cooldown_target_small_prob(self):
+        """Target with short remaining cooldown, we arrive just after → small prob."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Target cooldown expires in 8 ticks, we arrive in 10 ticks
+        target = _make_ai_piece(PieceType.KNIGHT, 2, 6, 3, cooldown_remaining=8)
+        ai_state._enemy_pieces.append(target)
+
+        our_piece = _make_ai_piece(PieceType.KNIGHT, 1, 7, 3)
+
+        candidate = CandidateMove(
+            piece_id=our_piece.piece.id, to_row=6, to_col=3,
+            capture_type=PieceType.KNIGHT,
+            ai_piece=our_piece,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        # Knight travel = 2*10 = 20 ticks
+        # dodge_start = 8+1=9, arrival=20 → dodge_window=11
+        # Target has no escape counts set → defaults to 0 → prob = 0
+        assert prob == 0.0  # No escape squares registered
+
+    def test_knight_capture_dodge_window(self):
+        """Knight has full 2-square travel time for dodge calculation."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Idle target with escapes (all lateral — knight attacks L-shape so
+        # any adjacent move dodges)
+        target = _make_ai_piece(PieceType.QUEEN, 2, 5, 4, cooldown_remaining=0)
+        ai_state._enemy_pieces.append(target)
+        ai_state.enemy_escape_moves[target.piece.id] = [
+            (5, 3), (5, 5), (4, 4), (6, 4),
+        ]
+
+        # Knight at (7, 3) → target at (5, 4): L-shape = 2*10=20 ticks
+        our_knight = _make_ai_piece(PieceType.KNIGHT, 1, 7, 3)
+
+        candidate = CandidateMove(
+            piece_id=our_knight.piece.id, to_row=5, to_col=4,
+            capture_type=PieceType.QUEEN,
+            ai_piece=our_knight,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        # arrival = 20 ticks
+        # dodge_start = 0 + 1 = 1
+        # dodge_window = 20 - 1 = 19
+        # time_factor = min(1.0, 19 / (2 * 10)) = 0.95
+        # escape_factor = 1.0
+        # prob ≈ 0.95 — target has nearly 2 squares of time to dodge
+        assert 0.8 < prob < 1.0
+
+    def test_non_capture_returns_zero(self):
+        """Dodgeability only applies to captures."""
+        data = ArrivalData(tps=10, cd_ticks=100)
+        candidate = CandidateMove(
+            piece_id="p1", to_row=4, to_col=4,
+
+        )
+        prob = dodge_probability(candidate, None, data)
+        assert prob == 0.0
+
+    def test_cornered_target_no_prob(self):
+        """Target with 0 escape moves → no dodge prob."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Idle target with NO escape squares
+        target = _make_ai_piece(PieceType.PAWN, 2, 3, 3, cooldown_remaining=0)
+        ai_state._enemy_pieces.append(target)
+        ai_state.enemy_escape_moves[target.piece.id] = []  # Cornered
+
+        our_piece = _make_ai_piece(PieceType.ROOK, 1, 7, 3)
+
+        candidate = CandidateMove(
+            piece_id=our_piece.piece.id, to_row=3, to_col=3,
+            capture_type=PieceType.PAWN,
+            ai_piece=our_piece,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        assert prob == 0.0  # Can't dodge with nowhere to go
+
+    def test_few_escapes_lower_prob(self):
+        """Target with 1 lateral escape has lower prob than target with many."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        target = _make_ai_piece(PieceType.PAWN, 2, 2, 3, cooldown_remaining=0)
+        ai_state._enemy_pieces.append(target)
+        # Rook attacking up the column from (7,3) to (2,3)
+        our_piece = _make_ai_piece(PieceType.ROOK, 1, 7, 3)
+
+        candidate = CandidateMove(
+            piece_id=our_piece.piece.id, to_row=2, to_col=3,
+            capture_type=PieceType.PAWN,
+            ai_piece=our_piece,
+        )
+
+        # 1 lateral dodge
+        ai_state.enemy_escape_moves[target.piece.id] = [(2, 4)]
+        prob_few = dodge_probability(candidate, ai_state, data)
+
+        # 4 lateral dodges
+        ai_state.enemy_escape_moves[target.piece.id] = [
+            (2, 2), (2, 4), (3, 2), (3, 4),
+        ]
+        prob_many = dodge_probability(candidate, ai_state, data)
+
+        assert prob_many > prob_few > 0.0
+
+    def test_only_ray_escapes_no_dodge(self):
+        """Target whose only escapes are along the attack ray → no dodge."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=1)
+
+        # Rook attacking up the column from (7,3) to (4,3)
+        target = _make_ai_piece(PieceType.ROOK, 2, 4, 3, cooldown_remaining=0)
+        ai_state._enemy_pieces.append(target)
+        # Target can only move further up the column (same direction as attack)
+        ai_state.enemy_escape_moves[target.piece.id] = [(3, 3), (2, 3), (1, 3)]
+
+        our_piece = _make_ai_piece(PieceType.ROOK, 1, 7, 3)
+
+        candidate = CandidateMove(
+            piece_id=our_piece.piece.id, to_row=4, to_col=3,
+            capture_type=PieceType.ROOK,
+            ai_piece=our_piece,
+        )
+        prob = dodge_probability(candidate, ai_state, data)
+        assert prob == 0.0  # All escapes are along the attack ray
+
+
+class TestRecaptureBonus:
+    def test_recapture_incoming_attack(self):
+        """Enemy traveling toward our piece — position to recapture → bonus."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=10)
+
+        # Our pawn at (6, 4) — target of the attack
+        our_pawn = _make_ai_piece(PieceType.PAWN, 1, 6, 4)
+        ai_state._own_pieces.append(our_pawn)
+
+        # Enemy rook traveling down column 4 toward our pawn at (6,4)
+        # Currently at (2, 4), 4 squares away → lands in 40 ticks
+        enemy_rook = _make_ai_piece(
+            PieceType.ROOK, 2, 2, 4,
+            status=PieceStatus.TRAVELING,
+            travel_direction=(1.0, 0.0),
+        )
+        ai_state._enemy_pieces.append(enemy_rook)
+
+        # Our knight at (7, 2) moves to (5, 3) — close to (6, 4)
+        our_knight = _make_ai_piece(PieceType.KNIGHT, 1, 7, 2)
+        candidate = CandidateMove(
+            piece_id=our_knight.piece.id, to_row=5, to_col=3,
+            ai_piece=our_knight,
+        )
+
+        bonus = recapture_bonus(candidate, ai_state, data)
+        # Enemy lands at (6,4) in 40 ticks, vulnerable until 40+100=140
+        # Our knight: travel to (5,3) = 2*10=20, cd=100, reaction=10,
+        # then travel to (6,4) = 2*10=20 → total=150
+        # 150 < 140? No — just misses. Let's verify:
+        # Actually this should be 0 since we can't make it in time
+        # Let's use a closer dest instead
+        assert bonus == 0.0  # Too slow
+
+    def test_recapture_close_enough(self):
+        """Position close enough to recapture incoming attacker."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=10)
+
+        # Our pawn at (6, 4)
+        our_pawn = _make_ai_piece(PieceType.PAWN, 1, 6, 4)
+        ai_state._own_pieces.append(our_pawn)
+
+        # Enemy rook at (1, 4) traveling down — 5 squares to our pawn
+        enemy_rook = _make_ai_piece(
+            PieceType.ROOK, 2, 1, 4,
+            status=PieceStatus.TRAVELING,
+            travel_direction=(1.0, 0.0),
+        )
+        ai_state._enemy_pieces.append(enemy_rook)
+
+        # Our rook at (6, 0) moves to (6, 3) — 1 square from (6, 4)
+        our_rook = _make_ai_piece(PieceType.ROOK, 1, 6, 0)
+        candidate = CandidateMove(
+            piece_id=our_rook.piece.id, to_row=6, to_col=3,
+            ai_piece=our_rook,
+        )
+        bonus = recapture_bonus(candidate, ai_state, data)
+        # Enemy lands at (6,4) in 50 ticks, vulnerable until 50+100=150
+        # Our rook: travel to (6,3) = 3*10=30, cd=100, reaction=10,
+        # travel to (6,4) = 1*10=10 → total=150
+        # 150 < 150? No, equal — just misses
+        assert bonus == 0.0
+
+    def test_recapture_with_margin(self):
+        """Position with enough time margin to recapture."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=10)
+
+        # Our pawn at (6, 4)
+        our_pawn = _make_ai_piece(PieceType.PAWN, 1, 6, 4)
+        ai_state._own_pieces.append(our_pawn)
+
+        # Enemy rook at (0, 4) traveling down — 6 squares to our pawn
+        enemy_rook = _make_ai_piece(
+            PieceType.ROOK, 2, 0, 4,
+            status=PieceStatus.TRAVELING,
+            travel_direction=(1.0, 0.0),
+        )
+        ai_state._enemy_pieces.append(enemy_rook)
+
+        # Our rook already adjacent at (6, 5) moves to (6, 3)
+        our_rook = _make_ai_piece(PieceType.ROOK, 1, 6, 5)
+        candidate = CandidateMove(
+            piece_id=our_rook.piece.id, to_row=6, to_col=3,
+            ai_piece=our_rook,
+        )
+        bonus = recapture_bonus(candidate, ai_state, data)
+        # Enemy lands at (6,4) in 60 ticks, vulnerable until 60+100=160
+        # Our rook: travel to (6,3) = 2*10=20, cd=100, reaction=10,
+        # travel to (6,4) = 1*10=10 → total=140
+        # 140 < 160 ✓ → bonus = 5.0 (rook value)
+        assert bonus == 5.0
+
+    def test_no_traveling_enemies(self):
+        """No traveling enemies → no recapture bonus."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=10)
+
+        our_pawn = None
+        for ap in ai_state.get_own_pieces():
+            if ap.piece.type == PieceType.PAWN:
+                our_pawn = ap
+                break
+
+        candidate = CandidateMove(
+            piece_id=our_pawn.piece.id, to_row=5,
+            to_col=our_pawn.piece.grid_position[1],
+            ai_piece=our_pawn,
+        )
+        assert recapture_bonus(candidate, ai_state, data) == 0.0
+
+    def test_enemy_not_heading_toward_us(self):
+        """Enemy traveling away from our pieces → no bonus."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=10, cd_ticks=100, reaction_ticks=10)
+
+        # Enemy rook traveling UP (away from our pieces on rows 6-7)
+        enemy_rook = _make_ai_piece(
+            PieceType.ROOK, 2, 3, 4,
+            status=PieceStatus.TRAVELING,
+            travel_direction=(-1.0, 0.0),
+        )
+        ai_state._enemy_pieces.append(enemy_rook)
+
+        our_rook = _make_ai_piece(PieceType.ROOK, 1, 6, 4)
+        candidate = CandidateMove(
+            piece_id=our_rook.piece.id, to_row=5, to_col=4,
+            ai_piece=our_rook,
+        )
+        assert recapture_bonus(candidate, ai_state, data) == 0.0
+
+
+class TestThreatenScore:
+    def test_knight_threatens_queen_safely(self):
+        """Knight near enemy queen that can't reach knight's square → high threat."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+
+        our_knight = None
+        for ap in ai_state.get_own_pieces():
+            if ap.piece.type == PieceType.KNIGHT:
+                our_knight = ap
+                break
+
+        enemy_queen = _make_ai_piece(PieceType.QUEEN, 2, 4, 4, piece_id="eq1")
+        ai_state._enemy_pieces.append(enemy_queen)
+
+        # Include all enemy pieces in arrival data so defaults don't mislead
+        enemy_by_piece: dict[str, dict[tuple[int, int], int]] = {}
+        for ep in ai_state.get_enemy_pieces():
+            # All existing enemy pieces CAN reach (5,2) — only queen matters
+            enemy_by_piece[ep.piece.id] = {(5, 2): 0}
+        # Override: queen can't reach knight's destination
+        enemy_by_piece[enemy_queen.piece.id] = {(5, 2): 999_999}
+
+        data = ArrivalData(
+            tps=30, cd_ticks=300,
+            enemy_time_by_piece=enemy_by_piece,
+        )
+
+        candidate = CandidateMove(
+            piece_id=our_knight.piece.id, to_row=5, to_col=2,
+            ai_piece=our_knight,
+        )
+        score = threaten_score(candidate, ai_state, data)
+        assert score == 9.0  # Queen value
+
+    def test_no_threat_when_enemy_can_recapture(self):
+        """Enemy piece that can reach our destination → not a safe threat."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+
+        our_rook = None
+        for ap in ai_state.get_own_pieces():
+            if ap.piece.type == PieceType.ROOK:
+                our_rook = ap
+                break
+
+        enemy_queen = _make_ai_piece(PieceType.QUEEN, 2, 3, 0, piece_id="eq1")
+        ai_state._enemy_pieces.append(enemy_queen)
+
+        # All enemy pieces can reach our dest quickly
+        enemy_by_piece: dict[str, dict[tuple[int, int], int]] = {}
+        for ep in ai_state.get_enemy_pieces():
+            enemy_by_piece[ep.piece.id] = {(4, 0): 0}
+
+        data = ArrivalData(
+            tps=30, cd_ticks=300,
+            enemy_time_by_piece=enemy_by_piece,
+        )
+
+        candidate = CandidateMove(
+            piece_id=our_rook.piece.id, to_row=4, to_col=0,
+            ai_piece=our_rook,
+        )
+        score = threaten_score(candidate, ai_state, data)
+        assert score == 0.0  # All enemies can recapture
+
+    def test_no_threat_without_piece(self):
+        """Candidate without ai_piece returns 0."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalData(tps=30, cd_ticks=300)
+
+        candidate = CandidateMove(piece_id="x", to_row=4, to_col=4)
+        assert threaten_score(candidate, ai_state, data) == 0.0

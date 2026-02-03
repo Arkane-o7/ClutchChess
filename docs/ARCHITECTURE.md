@@ -76,7 +76,7 @@ kfchess-cc/
 │  Game Engine (game/)     │  AI System (ai/)             │
 │  - Board state           │  - AI interface              │
 │  - Move validation       │  - DummyAI (random moves)    │
-│  - Collision detection   │  - KungFuAI (planned, L1-3) │
+│  - Collision detection   │  - KungFuAI (L1-L3)         │
 ├──────────────────────────┴──────────────────────────────┤
 │  Data Layer: PostgreSQL (persistent) + Redis (planned)  │
 └─────────────────────────────────────────────────────────┘
@@ -216,15 +216,14 @@ See `docs/FOUR_PLAYER_DESIGN.md` for board layout and implementation plan.
 - Replay system (recording, storage, WebSocket playback with seek)
 - Authentication (email/password, Google OAuth, verification, password reset)
 - Lobby system (create/join/leave, ready states, AI slots, persistence)
-- Basic AI (DummyAI - random moves)
+- AI opponents: 3 difficulty levels with arrival fields, tactical scoring, dodge/recapture analysis (see `docs/AI_DESIGN.md`)
 - 4-player UI
 - Comprehensive tests (532+ backend, 1800+ frontend)
 
 ### Next Steps
 1. Game sound/music + volume controls
 2. Analytics + instrumentation
-3. Advanced AI (heuristic + tactical search, see `docs/AI_DESIGN.md`)
-4. ELO rating system
-5. Campaign mode
-6. Redis for distributed scaling
-7. Production deployment
+3. ELO rating system
+4. Campaign mode
+5. Redis for distributed scaling
+6. Production deployment

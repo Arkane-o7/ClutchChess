@@ -1,7 +1,7 @@
 """Tests for MoveGen."""
 
 
-from kfchess.ai.move_gen import MoveCategory, MoveGen
+from kfchess.ai.move_gen import MoveGen
 from kfchess.ai.state_extractor import StateExtractor
 from kfchess.game.board import Board, BoardType
 from kfchess.game.engine import GameEngine
@@ -28,7 +28,7 @@ class TestMoveGen:
         assert len(candidates) > 0
         # All should be positional (no captures possible initially)
         for c in candidates:
-            assert c.category == MoveCategory.POSITIONAL
+            assert c.capture_type is None
 
     def test_respects_max_pieces(self):
         """Should limit number of pieces considered."""
@@ -80,7 +80,7 @@ class TestMoveGen:
         candidates = MoveGen.generate_candidates(
             state, ai_state, 1, max_pieces=16, max_candidates_per_piece=100
         )
-        captures = [c for c in candidates if c.category == MoveCategory.CAPTURE]
+        captures = [c for c in candidates if c.capture_type is not None]
         assert len(captures) > 0
         # One capture should be the rook taking the pawn
         assert any(

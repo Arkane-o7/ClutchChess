@@ -4,7 +4,41 @@
 
 The AI is an event-driven decision layer over the existing game engine. It reads immutable state snapshots, evaluates candidate moves using timing-aware heuristics, and outputs move commands through the existing `AIPlayer` interface.
 
-The system is designed around four difficulty levels with explicit computational budgets, progressing from simple heuristic evaluation to bounded tactical search.
+The system is designed around three difficulty levels with explicit computational budgets, progressing from simple heuristic evaluation to tactical awareness with dodge and recapture analysis.
+
+---
+
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Level 1 (Novice)** | ✅ Complete | Material, positional heuristics, noise, think delay |
+| **Level 2 (Intermediate)** | ✅ Complete | Arrival fields, safety scoring, commitment penalty, evasion, threat scoring |
+| **Level 3 (Advanced)** | ✅ Complete | Dodgeability (with ray filtering), recapture positioning |
+| **StateExtractor** | ✅ Complete | 2P and 4P support, piece status tracking, enemy info hiding |
+| **ArrivalField** | ✅ Complete | Per-side timing, per-piece enemy times, critical-only mode for 4P |
+| **MoveGen** | ✅ Complete (L1-3) | Candidate generation, capture/evasion flags, margin-based pruning |
+| **Eval** | ✅ Complete (L1-3) | Weighted scoring with level-gated terms |
+| **Tactics** | ✅ Complete | capture_value ✅, move_safety ✅, dodge_probability ✅, threaten_score ✅, recapture_bonus ✅ |
+| **Search** | ⏭️ Descoped | Bounded rollout not needed for L3 differentiation |
+| **Fast move gen** | ✅ Complete | Per-piece candidate squares (reduces validate_move calls ~10×) |
+| **Thread pool** | ❌ Not started | AI runs synchronously on game tick loop |
+| **Event-driven triggers** | ❌ Not started | Only cooldown-expiry + idle piece check |
+| **Arrival field caching** | ❌ Not started | Full recomputation every call |
+| **Partial slider stops** | ❌ Not started | Planned L2 feature, not yet in MoveGen |
+| **4P target selection** | ❌ Not started | No per-opponent evaluation |
+| **AI-vs-AI harness** | ✅ Complete | 10-game matchups, material adjudication, win rate logging |
+
+### Current Harness Results (10 games each)
+
+| Matchup | Win Rate | Notes |
+|---------|----------|-------|
+| L1 vs Dummy (standard) | 100% | All decisive |
+| L1 vs Dummy (lightning) | 100% | All decisive |
+| L2 vs L1 (standard) | 80–100% | Mostly decisive |
+| L2 vs L1 (lightning) | 90–100% | Mostly decisive |
+| L3 vs L2 (standard) | 70–90% | Mostly decisive |
+| L3 vs L2 (lightning) | 60–100% | Some draws at tick limit |
 
 ---
 
@@ -12,13 +46,15 @@ The system is designed around four difficulty levels with explicit computational
 
 | Level | Name | Key Capabilities | Budget per Call |
 |-------|------|-------------------|-----------------|
-| 1 | Novice | Positional heuristics, safe captures, basic threat avoidance | < 0.5ms |
-| 2 | Intermediate | Arrival time fields, commitment penalty, capture feasibility with priority rules | < 2.5ms |
-| 3 | Advanced | Dodgeability filters, anticipatory positioning, bounded rollout search | < 5ms |
+| 1 | Novice | Positional heuristics, basic captures, high noise | < 0.5ms |
+| 2 | Intermediate | Arrival time fields, safety scoring, commitment penalty, evasion, threat scoring | < 2.5ms |
+| 3 | Advanced | Dodgeability with ray filtering, recapture positioning, reduced noise | < 5ms |
 
-All levels share the same code path with features gated by level. Every call is interruptible and returns best-so-far if budget is exceeded.
+All levels share the same code path with features gated by level.
 
 ### Concurrency Model
+
+> **Status: Not yet implemented.** AI currently runs synchronously within the game tick loop. The design below describes the planned thread pool model.
 
 AI decisions run on a **thread pool**, off the main game tick loop. This keeps the tick loop fast regardless of AI computation time.
 
@@ -27,18 +63,16 @@ AI decisions run on a **thread pool**, off the main game tick loop. This keeps t
 3. **Apply**: When the AI decision completes, the resulting move is queued and applied on the next tick. This adds 1–2 ticks of latency (~33–66ms) which is imperceptible.
 4. **Cancellation**: If the game state changes meaningfully before a pending decision completes (e.g., a capture invalidates the plan), the pending result is discarded and a new decision is triggered.
 
-This means the per-call budgets above are wall-clock time on a worker thread, not time stolen from the game loop. A server running many games shares the thread pool — the pool size limits concurrent AI computations, not the tick rate.
-
 ### Decision Frequency
 
-AI does not run every tick. Decisions are triggered only by events:
+AI does not evaluate every tick. The controller uses a **think delay** — a random pause between moves that varies by level and speed. When the delay expires, it checks for idle pieces and runs the full pipeline.
 
-- **Piece becomes movable**: cooldown expires on an idle piece (~every 2–10s depending on speed)
-- **Enemy move issued**: a new piece starts traveling
-- **Capture occurs**: material changes
-- **Fallback timer**: if no event fires within ~200ms and pieces are movable
+**Current implementation** (in `AIController.should_move()`):
+1. Check think delay: `ticks_since_last_move < think_delay_ticks` → return False (cheap, no allocations)
+2. Quick idle piece check: scan board for any non-captured, non-moving, non-cooldown piece
+3. Full state extraction and movable piece check
 
-In practice, most ticks have zero AI work. A typical game might trigger 2–5 AI calls per second, not 30.
+> **Planned but not implemented**: Event-driven triggers (enemy move issued, capture occurs, fallback timer). Currently only cooldown-expiry and idle-piece checks.
 
 ---
 
@@ -47,15 +81,16 @@ In practice, most ticks have zero AI work. A typical game might trigger 2–5 AI
 ```
 ┌─────────────────────────────────────────────┐
 │              AIController                    │
-│  Event triggers, budget management,          │
+│  Think delay, budget management,            │
 │  difficulty gating, action selection         │
-├──────────┬──────────┬───────────┬───────────┤
-│ MoveGen  │  Eval    │ Tactics   │ Search    │
-│ Candidate│ Scoring  │ Capture   │ Bounded   │
-│ moves    │ function │ feasib.,  │ rollout   │
-│ + prune  │          │ dodge,    │ (L3-4)    │
-│          │          │ anticip.  │           │
-├──────────┴──────────┴───────────┴───────────┤
+├──────────┬──────────┬───────────────────────┤
+│ MoveGen  │  Eval    │ Tactics               │
+│ Candidate│ Scoring  │ capture_value,         │
+│ moves    │ function │ move_safety,           │
+│ + prune  │          │ dodge_probability,     │
+│          │          │ threaten_score,        │
+│          │          │ recapture_bonus        │
+├──────────┴──────────┴───────────────────────┤
 │            ArrivalField (L2+)               │
 │  Per-side timing fields on the board        │
 ├─────────────────────────────────────────────┤
@@ -66,19 +101,22 @@ In practice, most ticks have zero AI work. A typical game might trigger 2–5 AI
 
 ### Component Responsibilities
 
-**StateExtractor** — Converts `GameState` into AI-friendly structures. For each piece: side, type, grid position, status (idle/traveling/cooldown), cooldown remaining. For the AI's own traveling pieces: full path and destination. For enemy traveling pieces: current position and direction of travel only (destination is hidden). Computed once per AI call.
+**StateExtractor** `state_extractor.py` — Converts `GameState` into `AIState`. For each piece: side, type, grid position, status (idle/traveling/cooldown), cooldown remaining. For the AI's own traveling pieces: full path and destination. For enemy traveling pieces: current position and direction of travel only (destination is hidden). Also stores `enemy_escape_moves: dict[str, list[tuple[int, int]]]` for L3 dodge analysis. Computed once per AI call, cached between `should_move()` and `get_move()`.
 
-**ArrivalField** (Level 2+) — Computes `T[side][square]`: the minimum ticks for any piece on `side` to reach each square, accounting for cooldowns and travel time. Used for margin analysis (`T_enemy[sq] - T_us[sq]`) and identifying critical squares.
+**ArrivalField** `arrival_field.py` — Computes `T[side][square]`: the minimum ticks for any piece on `side` to reach each square, accounting for cooldowns and travel time. Supports all 6 piece types with correct pathfinding (slider blocking, knight BFS, pawn direction per player). Critical-squares-only mode for 4-player boards (king zones + center 4×4). Also computes per-piece enemy arrival times (`enemy_time_by_piece`) for recapture and threat analysis.
 
-**MoveGen** — Generates ~6–12 candidate moves per idle, movable piece. Includes safe captures, defensive evasions, king threats, partial slider stops, and anticipatory positioning moves (Level 3+). Prunes moves landing on squares with strongly negative margin (Level 2+).
+**MoveGen** `move_gen.py` — Generates candidate moves with `capture_type: PieceType | None` and `is_evasion: bool` flags. Uses `GameEngine.get_legal_moves_fast()` for efficient move enumeration. Threatened pieces are evaluated first when arrival data is available. Unsafe non-capture moves are pruned by margin threshold. Evasion is determined by checking if the piece is threatened (negative safety margin) and the destination is safe; for captures, safety is recomputed excluding the captured piece.
 
-**Eval** — Scores candidate moves with a weighted sum. Terms: material delta, king danger, destination safety (margin), commitment penalty (proportional to travel time), positional heuristics (center control, piece mobility, open files). All terms use arrival fields when available.
+**Eval** `eval.py` — Scores candidates with a weighted sum. Level-gated terms described in Scoring Function section below.
 
-**Tactics** — Pre-scoring filters for move correctness under continuous collision rules. Capture feasibility (timing + priority), dodgeability analysis (Level 3+), anticipatory positioning (Level 3+).
+**Tactics** `tactics.py` — Five tactical functions:
+- `capture_value`: Simple piece value lookup for captures
+- `move_safety`: Probability-based recapture cost for all moves (L2+)
+- `dodge_probability`: Dodge likelihood with attack ray filtering (L3+)
+- `threaten_score`: Value of best safely threatened enemy piece (L3), king capped at queen value
+- `recapture_bonus`: Positioning reward for recapturing incoming attackers (L3+)
 
-**Search** (Level 3–4) — Bounded rollout when top-scored moves are close or involve high-value pieces. Simulates forward 1–2 seconds using a lightweight event sim. Enemy responses chosen by greedy policy.
-
-**AIController** — Orchestrates everything. Manages event-driven triggers, enforces wall-clock budget, gates features by difficulty level, selects final action(s).
+**AIController** `controller.py` — Manages think delays, gates features by level, caches state between should_move/get_move, computes enemy escape moves for L3, orchestrates the full pipeline.
 
 ---
 
@@ -88,130 +126,155 @@ For each side, compute `T[square]` = minimum ticks for any piece to reach that s
 
 For each idle piece on the side:
 - `T_piece[sq]` = `cooldown_remaining` + `travel_time(piece, sq)`
-- Knights: BFS over L-shaped moves
+- Knights: BFS over L-shaped moves (1-2 hops, with cooldown between)
 - Sliders (B/R/Q): ray traversal, blocked by static occupancy (ignore moving pieces for speed)
-- King/Pawn: adjacent square BFS
+- King/Pawn: adjacent square enumeration
+- Pawns: player-specific forward direction (2P and 4P), diagonal captures
 
 Aggregate: `T_side[sq]` = min over all pieces. Traveling pieces are excluded (they can't be retasked).
 
 **Derived values:**
 - `margin[sq]` = `T_enemy[sq] - T_us[sq]` (positive = we control it)
-- Critical squares `C`: king zones, high-value piece neighborhoods, open lines between major pieces and kings, lanes of traveling sliders
+- Critical squares `C`: king zones (3×3 around each king), center region
+- `post_arrival_safety(sq, travel, exclude_piece_id, moving_from)`: safety margin accounting for travel time, cooldown, and reaction time. Can exclude a specific piece (for capture analysis). The `moving_from` parameter recomputes enemy arrival with the origin square vacated, preventing self-blocking where the piece's own position falsely blocks enemy slider rays.
+- `is_piece_at_risk(sq, cooldown_remaining)`: whether a piece can be captured before it can move
+- `enemy_time_by_piece`: per-piece enemy arrival times for threat and recapture analysis
 
-Evaluation focuses on critical squares to keep cost O(|C|) rather than O(board_size).
-
-**Caching:** Fields are cached and incrementally updated — only recompute for pieces whose state changed since last call.
+**Current limitations:**
+- No caching between calls — full recomputation every time (planned: incremental updates)
+- Critical-squares-only mode uses static king zones + center (planned: also open lines, traveling piece lanes)
 
 ---
 
 ## Candidate Generation
 
-For each idle, movable AI piece, generate up to ~12 candidates:
+For each idle, movable AI piece, generate candidates:
 
-1. **Safe captures** — Targets where we arrive first or win on priority. Validated by tactical capture feasibility check.
-2. **Defensive evasions** — If the piece is threatened (enemy can reach its square soon), move to the highest-margin safe square nearby.
-3. **King threats** — Moves that reach the enemy king zone with positive margin.
-4. **Partial slider stops** (Level 2+) — For sliders, include 1–3 intermediate squares along rays that improve margin or create threats. This models the "fake move" mechanic from our side.
-5. **Anticipatory positioning** (Level 3+) — Infer likely destinations of enemy traveling pieces from their direction of travel, and move to squares that threaten or contest the most probable landing zones before they arrive and come off cooldown.
-6. **Positional improvements** — Moves toward better-margin squares when no tactical candidates exist.
+### Current Implementation
 
-**Pruning:** Discard moves to squares with margin < -threshold (Level 2+), unless they win material. Penalize long travel unless it creates a forced advantage.
+**Piece limits by level:**
 
-**Multi-piece coordination:** When multiple pieces are movable, use sequential greedy selection: pick the best move, update state, pick next best. Avoid self-collisions and lane conflicts.
+| Level | Pieces Considered | Candidates per Piece |
+|-------|-------------------|---------------------|
+| 1 | Up to 4 | Up to 4 |
+| 2 | Up to 8 | Up to 8 |
+| 3 | Up to 16 | Up to 12 |
+
+**Move properties:**
+
+Each `CandidateMove` has:
+- `piece_id`, `to_row`, `to_col`: the move itself
+- `capture_type: PieceType | None`: type of piece being captured, or None for non-captures
+- `is_evasion: bool`: True if this move saves a threatened piece by moving to a safe square
+- `ai_piece: AIPiece | None`: reference to the moving piece's AI state
+
+A move can be both a capture and an evasion simultaneously. Evasion for captures is determined by recomputing post-arrival safety at the destination excluding the captured piece.
+
+**Prioritization:** Captures first, then evasions, then positional moves.
+
+**Pruning (L2+):** Discard non-capture moves to squares where `post_arrival_safety < -(cooldown_ticks / 2)`.
+
+**Fast move generation:** `GameEngine.get_legal_moves_fast()` generates only geometrically reachable squares per piece type before calling `validate_move()`, reducing calls from ~1024 to ~100 per position:
+- Pawns: 2-4 squares (forward + diagonal captures)
+- Knights: up to 8 L-shapes
+- Sliders: ray-cast stopping at first stationary piece
+- King: 8 adjacents + castling targets
+
+### Not Yet Implemented
+
+- **Partial slider stops** (planned L2+) — For sliders, include 1–3 intermediate squares along rays that improve margin or create threats.
+- **Multi-piece coordination** — Sequential greedy selection with self-collision avoidance.
 
 ---
 
 ## Scoring Function
 
-Each candidate move is scored with a deterministic weighted sum:
+Each candidate move is scored with a deterministic weighted sum plus noise.
 
-| Term | Description | Levels |
-|------|-------------|--------|
-| **Material** | Captures that actually complete (validated by tactics) | All |
-| **King danger** | Improvement in time-to-reach enemy king zone, penalty if enemy gains access to our king | All |
-| **Safety** | Margin at destination square; en-prise penalty if enemy can reach it first | L2+ |
-| **Commitment** | Penalty proportional to travel time; larger if dodgeable (L3+) | L2+ |
-| **Positional** | Center control, piece mobility (reachable squares with positive margin), rook on open files, king exposure | All |
-| **Coordination** | Bonus for moves that improve margin on critical squares | L2+ |
+### Implemented Terms
 
-Weights are tuned per difficulty level. Novice uses only material + king danger + positional with loose weights, producing reasonable but imperfect play.
+| Term | Weight | Levels | Description |
+|------|--------|--------|-------------|
+| **Material** | 10.0 | All | Piece value of captured target (via `capture_value`) |
+| **Center control** | 1.0 | All | Distance from board center (closer = better) |
+| **Development** | 0.8 | All | Bonus for moving knights/bishops off back rank |
+| **Pawn advancement** | 0.15 | All | Bonus for pawns closer to promotion rank (0.5 × 0.3) |
+| **Safety** | 10.0 | L2+ | P(recapture) × -piece_value at destination (all moves including captures) |
+| **Evasion** | 10.0 | L2+ | Saving a threatened piece ≈ capturing one of equal value |
+| **Commitment** | -0.15 | L2+ | Penalty proportional to Chebyshev travel distance (non-captures only) |
+| **Threat** | 1.0 | L3 | Value of best enemy piece we safely threaten post-move (king capped at queen value) |
+| **Dodge EV** | via Material | L3 | For captures: EV = (1-p)×capture + p×(-our_value×0.9), replaces raw material |
+| **Recapture** | 4.0 | L3 | Value of enemy attacker we can recapture after it lands |
 
-### Positional Heuristics (All Levels)
+### Capture Value
 
-These provide sensible play in quiet positions:
+`capture_value(candidate) -> float`
 
-- **Center control**: Prefer squares closer to center, weighted by piece mobility from that square
-- **Piece activity**: Number of legal target squares from destination (more = better)
-- **Rook on open files**: Bonus for rooks on files/ranks with no friendly pawns
-- **King exposure**: Penalty for own king on squares with low margin; bonus for maintaining pawn cover
-- **Development**: Early-game bonus for moving pieces off back rank (minor pieces especially)
-- **Pawn structure**: Mild penalty for isolated/doubled pawns, bonus for connected pawns
-- **Pawn advancement**: Bonus for pawns closer to promotion rank (auto-promotes to queen)
+Simple lookup: returns `PIECE_VALUES[capture_type]` for captures, 0.0 for non-captures. Post-arrival safety (recapture risk) is handled separately by `move_safety`.
 
----
+### Move Safety (L2+)
 
-## Tactical Filters
+`move_safety(candidate, ai_state, arrival_data) -> float`
 
-### Capture Feasibility
+Returns expected material loss from recapture at the destination:
+1. Compute `post_arrival_safety` margin (excluding captured piece if this is a capture)
+2. If margin ≥ TICK_RATE_HZ: safe, return 0.0
+3. Otherwise: `P(recapture) = clamp(1.0 - margin / TICK_RATE_HZ, 0, 1)`
+4. Return `-P(recapture) × our_piece_value`
 
-Given candidate "A captures B":
+Applies to ALL moves including captures. For captures, the captured piece is excluded from enemy arrival time calculations via `exclude_piece_id`.
 
-1. Compute earliest intercept time where `dist(A(t), B(t)) < 0.4` under assumed B behavior.
-2. Check capture priority: compare `move.start_tick` values. The piece whose move was issued earlier wins on contact. Same tick = mutual destruction.
-3. Special rules: pawns moving straight cannot capture; knights only capture at ≥85% progress; airborne knights cannot be captured.
+### Dodge Probability (L3)
 
-### Dodgeability (Level 3+)
+`dodge_probability(candidate, ai_state, arrival_data) -> float`
 
-Before committing to a long chase, enumerate the target's plausible dodge actions:
-- Step perpendicular (1–2 squares)
-- Continue forward
-- Stop early at intermediate square
+For capture moves, estimates probability (0.0–1.0) that the target dodges:
+1. Compute our travel time to target
+2. Check target's `cooldown_remaining + reaction_ticks` vs our arrival — if target can't move in time, return 0.0
+3. Get target's escape moves from `enemy_escape_moves`
+4. Filter out escapes along the attack ray (via `_is_along_attack_ray`) — moves in the same direction as the attack still get captured
+5. `time_factor = min(1.0, dodge_window / (2 × tps))` (speed-proportional)
+6. `escape_factor = min(1.0, valid_dodge_count / 2.0)`
+7. Return `time_factor × escape_factor`
 
-For each dodge, simulate intercept kinematics. If any dodge avoids capture and enables a counter-threat, apply a penalty scaled by:
-- `dodge_window = distance_to_threat * ticks_per_square - estimated_reaction_ticks`
-- Reaction time estimate: varies by game speed (~6 ticks standard, ~3 ticks lightning, representing ~200ms / ~100ms human reaction)
-- Penalty is stronger when `dodge_window` is large (easy to dodge)
+Used in EV framework: `EV = (1-p) × capture_value + p × (-our_value × 0.9)`
 
-### Anticipatory Positioning (Level 3+)
+### Threat Score (L3)
 
-Moving pieces cannot be usefully intercepted mid-travel because the interceptor's move is issued later and loses on capture priority. Instead, the AI reasons about where enemy pieces are likely heading based on their direction of travel, and positions to exploit them post-arrival:
+`threaten_score(candidate, ai_state, arrival_data) -> float`
 
-1. For each enemy traveling piece E, the AI only knows its current position and direction — not its destination. Enumerate candidate stop squares along E's ray (every valid square from current position to board edge or first blocking piece).
-2. Score each candidate stop by how tactically useful it would be for the enemy (threats created, king pressure, piece safety). Weight candidates accordingly — the AI assumes the enemy is making a reasonable move.
-3. For the top candidate stops, compute estimated arrival tick and cooldown expiry.
-4. For each movable AI piece P, check if P can reach a square that threatens a likely landing zone before E comes off cooldown.
-5. Bonus for positions that cover multiple likely stops (hedging), or that attack the most probable destination.
+After arriving at dest and completing cooldown, finds the highest-value enemy piece we can attack that can't counter-capture us:
+1. For each non-traveling enemy piece: compute time for us to attack it from dest
+2. Check if enemy can reach our dest before our attack lands (recomputed with our origin vacated from occupancy to avoid self-blocking)
+3. If enemy can counter-capture: not a safe threat, skip
+4. King threat value is capped at queen level (9.0) to prevent it from dominating scoring
+5. Return max piece value among safely threatened enemies
 
----
+### Recapture Bonus (L3)
 
-## Bounded Rollout Search (Level 3)
+`recapture_bonus(candidate, ai_state, arrival_data) -> float`
 
-### When to Search
+Detects enemy pieces traveling toward our pieces and rewards positioning for recapture:
+1. For each traveling enemy piece, project along travel ray to find targeted own piece
+2. Compute enemy landing time and vulnerability window (landing + cooldown)
+3. Compute our total time: travel to dest + cooldown + reaction + travel to target
+4. If we can arrive before enemy vulnerability expires: bonus = enemy attacker's piece value
+5. Return max across all incoming attacks
 
-Run rollout when:
-- Top-2 scored actions are within 15% of each other
-- The move involves queen or creates a king threat
-- A capture sequence is detected (multiple captures possible)
+### Move Selection (Weighted Rank)
 
-### Search Parameters
+Instead of perturbing scores with Gaussian noise, moves are scored deterministically, sorted by score, then selected using rank-based weighted random choice. The AI picks one move from the top N candidates using level-specific weights:
 
-| Parameter | Value |
-|-----------|-------|
-| Horizon | 1.0–2.0s |
-| Our branches | 8–16 |
-| Enemy model | Greedy best response |
-| Max rollouts | 20–100 |
+| Rank | L1 | L2 | L3 |
+|------|-----|-----|-----|
+| 1st | 30 | 50 | 75 |
+| 2nd | 25 | 20 | 15 |
+| 3rd | 20 | 15 | 5 |
+| 4th | 15 | 5 | 3 |
+| 5th | 5 | 5 | 2 |
+| 6th | 5 | 5 | — |
 
-### Simulation
-
-Lightweight event sim (not full engine):
-1. Apply chosen actions (issue moves)
-2. Advance time to next event (arrival, contact, cooldown expiry)
-3. Resolve captures deterministically using priority rules
-4. Update cooldowns
-5. Evaluate terminal position
-
-Only resolves interactions involving moving pieces — does not simulate full board physics for uninvolved pieces.
+L1 spreads weight across 6 candidates (frequently picks suboptimal moves). L3 concentrates on the top 1-2 (nearly always picks the best move).
 
 ---
 
@@ -219,7 +282,7 @@ Only resolves interactions involving moving pieces — does not simulate full bo
 
 ### Interface
 
-The new AI implements the existing `AIPlayer` abstract base class:
+The AI implements the existing `AIPlayer` abstract base class:
 
 ```python
 class KungFuAI(AIPlayer):
@@ -232,16 +295,16 @@ class KungFuAI(AIPlayer):
         # one piece is movable (idle + off cooldown).
 
     def get_move(self, state: GameState, player: int) -> tuple[str, int, int] | None:
-        # Full pipeline: extract → arrival fields → generate → filter → score → (search) → select
+        # Full pipeline: extract → arrival fields → generate → score → select
 ```
 
 ### Game Service Integration
 
-The game service needs minor changes to support the thread pool model:
-
 - `_create_ai()` routes to `KungFuAI` with the requested level.
-- `tick_game()` checks for completed AI decisions in the result queue and applies them via `validate_move` + `apply_move`. At most one move per AI player per tick.
-- On state-changing events (enemy move issued, capture), the controller is notified so it can trigger new decisions or cancel stale ones.
+- `tick_game()` calls `should_move()` and `get_move()` synchronously during the tick loop.
+- Move is validated via `validate_move` + `apply_move` before being applied.
+
+> **Planned**: Thread pool model where AI runs off the tick loop, with result queue and stale-decision cancellation.
 
 ### State Access
 
@@ -249,71 +312,62 @@ AI uses `GameState.copy()` for any lookahead/rollout to avoid mutating live stat
 
 ### Move Limit
 
-At most one move per AI player per tick. In practice, AI moves far less frequently — decisions are event-driven and bounded by piece cooldowns.
+At most one move per AI player per tick. In practice, AI moves far less frequently — decisions are bounded by think delays and piece cooldowns.
 
 ---
 
 ## Difficulty Imperfection
 
-Lower difficulty levels should feel like weaker human players, not just slower versions of the best AI. Imperfection is introduced through multiple independent knobs:
+Lower difficulty levels should feel like weaker human players, not just slower versions of the best AI.
 
-### Scoring Noise
+### Weighted Rank Selection — ✅ Implemented
 
-Add Gaussian noise to candidate scores before selection. Higher noise = more random-feeling play.
+Moves are scored deterministically, then selected via rank-based weighted random choice. Lower levels spread weight across more candidates, causing frequent suboptimal picks. See "Move Selection" above for weight tables.
 
-| Level | Noise σ (as % of score range) |
-|-------|-------------------------------|
-| Novice | 30–40% |
-| Intermediate | 15–20% |
-| Advanced | 5–10% |
+### Think Delay — ✅ Implemented
 
-### Think Delay
-
-After the AI issues a move, it enters a global think delay before it will consider its next move. This is the primary knob for making lower levels feel slower — they can only make decisions so often, regardless of how many pieces are available.
+After the AI issues a move, it enters a global think delay before it will consider its next move. A new random delay is rolled after each move using `random.uniform()`.
 
 | Level | Standard | Lightning |
 |-------|----------|-----------|
-| Novice | 0.5–5s | 0.3–2.5s |
-| Intermediate | 0.3–2s | 0.15–1s |
-| Advanced | 0.1–1s | 0.05–0.5s |
-
-A new random delay is rolled after each move. During the delay, the AI makes no moves even if multiple pieces are off cooldown. When the delay expires, the AI evaluates the current board and picks the best available move, then rolls a new delay.
+| Novice | 1–6s | 1–4s |
+| Intermediate | 0.6–5s | 0.6–3s |
+| Advanced | 0.3–3s | 0.3–2s |
 
 ### Tactical Blindness
 
-Lower levels intentionally skip some evaluation terms:
+- **Novice**: No arrival fields, no safety margin, no commitment penalty, no threat scoring. Sees only material, center control, development, and pawn advancement. High noise causes frequent suboptimal choices.
+- **Intermediate**: Arrival fields, safety scoring, evasion, commitment penalty.
+- **Advanced**: Threat scoring, dodgeability analysis with ray filtering, recapture positioning, tightest move selection.
 
-- **Novice**: No arrival fields, no safety margin, no commitment penalty. Sees only material, basic king danger, and positional heuristics. Occasionally misses free captures (via noise).
-- **Intermediate**: Has arrival fields but occasionally ignores defended-piece checks (~20% miss rate).
-- **Advanced**: Full evaluation with search.
-
-### Piece and Move Consideration Limits
-
-Lower levels don't scan the full board — they consider fewer pieces and fewer moves per piece, simulating a human who focuses on one area at a time.
+### Piece and Move Consideration Limits — ✅ Implemented
 
 | Level | Pieces Considered | Candidates per Piece |
 |-------|-------------------|---------------------|
-| Novice | 1–2 random movable pieces | ~3–4 |
-| Intermediate | Up to 4 movable pieces | ~6–8 |
-| Advanced | All movable pieces | ~10–12 |
+| Novice | Up to 4 | Up to 4 |
+| Intermediate | Up to 8 | Up to 8 |
+| Advanced | Up to 16 | Up to 12 |
 
-At Novice, the AI picks 1–2 random movable pieces and finds the best move among a small candidate set for those pieces. This naturally produces weaker play without artificial noise alone — the AI simply doesn't see the whole board.
+Pieces are selected randomly (with threatened pieces prioritized when arrival data is available). This naturally produces weaker play at lower levels — the AI simply doesn't see the whole board.
 
 ---
 
 ## 4-Player Mode
 
-### Design Constraints
+### Implemented
 
-4-player games on a 12x12 board with 4× the pieces demand much tighter computation. The AI must remain within budget despite the larger state space.
+- **Board awareness**: 12×12 board with corner cutouts detected via `board_width > 8`
+- **Pawn directions**: Per-player forward vectors for all 4 positions (N/S/E/W)
+- **Back rank detection**: Player-specific for development bonus
+- **Pawn advancement**: Uses correct axis per player orientation
+- **Critical-only arrival fields**: Restricts computation to king zones (3×3 around each king) + center 4×4 region
+- **Fast move generation**: `is_valid_square()` correctly excludes corner cutouts for all piece types
 
-### Simplifications for 4-Player
+### Not Yet Implemented
 
-- **Arrival fields**: Computed per-side but only for critical squares (king zones of all players + contested center). Skip full-board computation.
-- **Candidate generation**: Reduced to ~4–6 per piece (fewer slider partial stops, no anticipatory positioning below Level 3).
-- **Target selection**: AI must choose which opponent to pressure. Heuristic: target the opponent with the most exposed king or lowest material, unless another opponent is directly threatening the AI's king.
-- **Alliance detection**: No formal alliances, but the AI should avoid attacking an opponent who is currently pressuring a mutual threat. Simple heuristic: deprioritize attacking players who are actively engaged with another enemy.
-- **Positional heuristics**: Center control is more important on 12x12. King exposure is evaluated against all opponents' arrival fields (union of enemy T values).
+- **Target selection heuristic**: AI should choose which opponent to pressure.
+- **Alliance detection**: Deprioritize attacking players who are actively engaged with another enemy.
+- **Multi-opponent threat analysis**: Threat and safety should evaluate against all opponents' arrival fields.
 
 ### Budget Scaling
 
@@ -329,59 +383,61 @@ At Novice, the AI picks 1–2 random movable pieces and finds the best move amon
 
 ## AI-vs-AI Testing Harness
 
-An automated harness for running AI-vs-AI games, used for validation and weight tuning.
+### Current Implementation
 
-### Capabilities
+Located in `tests/unit/ai/test_ai_harness.py`. Excluded from normal test suite via `@pytest.mark.slow` (run with `uv run pytest -m slow --log-cli-level=INFO`).
 
-- Run N games between two AI configurations (level, speed, board type)
-- Track win/loss/draw rates, average game length, material at game end
-- Deterministic seeding for reproducibility
-- Output per-game logs for debugging (moves, evaluations, key decisions)
+**Features:**
+- 10 games per matchup, 20,000 tick limit
+- Games that hit the tick limit are adjudicated by material advantage (using PIECE_VALUES)
+- Results logged with win/loss/draw counts, percentages, and decisive vs adjudicated breakdown
+- Think delays active (not zeroed out) — tests actual AI strength including timing
+- Alternates player 1/player 2 sides in L2 vs L1 matchups
 
-### Validation Tests
+**Matchups tested:**
+- L1 vs DummyAI (standard + lightning)
+- L2 vs L1 (standard + lightning)
+- L3 vs L2 (standard + lightning)
 
-- **Level ordering**: Level N+1 beats Level N with >60% win rate over 100 games
-- **Speed consistency**: AI plays reasonably at both standard and lightning speeds
-- **4-player**: AI doesn't immediately lose or stalemate in 4-player games
-- **No regressions**: After weight/logic changes, re-run the suite to verify level ordering holds
+### Planned Additions
 
-### Tuning Workflow
-
-1. Adjust weights or imperfection knobs
-2. Run AI-vs-AI suite (Level 1 vs 2, 2 vs 3, 3 vs 4)
-3. Verify win rate ordering
-4. Spot-check games where the wrong level won — look for systematic issues
-5. Iterate
+- **4-player harness** — AI survives to endgame, doesn't immediately lose
+- **Deterministic seeding** for reproducibility
+- **Per-game logging** for debugging (moves, evaluations, key decisions)
+- **100-game runs** for statistically significant level ordering validation (>60% win rate)
 
 ---
 
 ## Build Order
 
-### Phase 1: Level 1 (Novice)
-- `StateExtractor`: engine snapshot → AI structures (2-player and 4-player)
-- `MoveGen`: candidate generation using `GameEngine.get_legal_moves()` + basic pruning
-- `Eval`: material + king danger + positional heuristics (no arrival fields)
-- `AIController`: basic trigger logic (cooldown expiry + fallback timer), budget enforcement, thread pool integration
-- `KungFuAI` class implementing `AIPlayer`
-- Imperfection knobs: scoring noise, reaction delay, move frequency
-- AI-vs-AI test harness (Level 1 vs DummyAI)
-- Tests: beats DummyAI consistently, doesn't hang pieces for free, stays within 0.5ms budget
+### Phase 1: Level 1 (Novice) — ✅ Complete
+- `StateExtractor`: engine snapshot → AI structures (2-player and 4-player) ✅
+- `MoveGen`: candidate generation using fast legal moves ✅
+- `Eval`: material + positional heuristics (no arrival fields) ✅
+- `AIController`: think delay, budget enforcement ✅
+- `KungFuAI` class implementing `AIPlayer` ✅
+- Imperfection knobs: scoring noise, think delay, piece/move limits ✅
+- AI-vs-AI test harness (Level 1 vs DummyAI) ✅
+- Fast move generation (`get_legal_moves_fast`) ✅
 
-### Phase 2: Level 2 (Intermediate)
-- `ArrivalField`: per-side timing computation with caching (critical-squares-only mode for 4-player)
-- `Tactics`: capture feasibility with priority rules
-- `Eval` upgrades: margin-based safety, commitment penalty, coordination
-- `MoveGen` upgrades: partial slider stops, margin-based pruning
+### Phase 2: Level 2 (Intermediate) — ✅ Complete
+- `ArrivalField`: per-side timing computation (critical-squares-only mode for 4-player) ✅
+- `Tactics`: capture_value, move_safety (probability-based), threaten_score ✅
+- `Eval` upgrades: safety scoring, commitment penalty, evasion bonus, threat bonus ✅
+- `MoveGen` upgrades: margin-based pruning, threatened piece prioritization, capture/evasion flags ✅
+- AI-vs-AI validation: Level 2 beats Level 1 ~80% over 10 games ✅
+
+**Remaining L2 work:**
+- Partial slider stops in MoveGen
+- Arrival field caching / incremental updates
 - 4-player target selection heuristic
-- AI-vs-AI validation: Level 2 beats Level 1 >60% over 100 games
-- Tests: avoids losing pieces to basic tactics, controls center
 
-### Phase 3: Level 3 (Advanced)
-- `Tactics` upgrades: dodgeability analysis, anticipatory positioning
-- `Search`: bounded rollout with greedy enemy model
-- Event-driven triggers (enemy move, capture events)
-- AI-vs-AI validation: Level 3 beats Level 2
-- Tests: positions against landing squares, avoids dodgeable chases, looks ahead through capture sequences
+### Phase 3: Level 3 (Advanced) — ✅ Complete
+- `Tactics` upgrades: dodge_probability with attack ray filtering, recapture_bonus ✅
+- `Eval` upgrades: L3 EV framework for captures (dodge × fail cost), recapture positioning ✅
+- Reduced noise (5% σ) and faster think delays ✅
+- Rollout search descoped (not needed for L3 differentiation)
+- AI-vs-AI validation: Level 3 vs Level 2 matchups ✅
 
 ---
 
@@ -391,13 +447,24 @@ An automated harness for running AI-vs-AI games, used for validation and weight 
 
 1. **Free capture**: Piece can safely capture an undefended piece → AI takes it at all levels
 2. **Defended piece**: Capture would result in losing a higher-value piece → AI avoids it (L2+)
-3. **Dodge scenario**: Chasing a rook on a long line where the rook can dodge → AI avoids or sets up a trap (L3+)
-4. **Priority race**: Simultaneous contact where earlier-issued move wins → AI avoids "arrive first but lose" scenarios (L2+)
-6. **Anticipatory positioning**: Enemy rook moving along a file → AI infers likely destination and moves to threaten the landing zone before cooldown expires (L3+)
-7. **King safety**: AI doesn't leave king exposed when other moves are available (all levels)
-8. **Quiet position**: No immediate tactics → AI makes positionally sensible moves (all levels)
+3. **Dodge scenario**: Chasing a piece where the target has escape squares off the attack ray → AI accounts for dodge probability (L3)
+4. **Recapture setup**: Enemy traveling toward our piece → AI positions to recapture after enemy lands (L3)
+5. **Safe threat**: AI moves to threaten a high-value enemy piece that can't counter-capture (L2+)
+6. **Evasion**: Threatened piece moves to safety; capture-evasions correctly identify safe landing squares excluding captured piece (L2+)
+7. **Quiet position**: No immediate tactics → AI makes positionally sensible moves (all levels)
 
-### Performance Tests
+### Current Test Coverage
+
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| `test_arrival_field.py` | 27+ | Computation, blocking, pawn directions, critical-only, post-arrival safety |
+| `test_tactics.py` | 21+ | capture_value (3), move_safety (2), dodge_probability (7), recapture_bonus (5), threaten_score (3) |
+| `test_eval.py` | 4+ | Scoring with captures, evasions, noise |
+| `test_ai_harness.py` | 6 | L1 vs Dummy (2 speeds), L2 vs L1 (2 speeds), L3 vs L2 (2 speeds) |
+| `test_state_extractor.py` | 9+ | Piece extraction, status tracking, enemy info hiding |
+| `test_move_gen.py` | — | Covered indirectly via harness |
+
+### Performance Tests (Planned)
 
 - Worst-case 2-player positions (many pieces, multiple traveling) stay within budget
 - Worst-case 4-player positions stay within halved budgets
@@ -409,4 +476,3 @@ An automated harness for running AI-vs-AI games, used for validation and weight 
 - Level N+1 beats Level N with >60% win rate over 100 games (2-player)
 - Level ordering holds at both standard and lightning speeds
 - 4-player: AI survives to endgame and doesn't immediately lose
-- No level hangs pieces that the level below wouldn't also hang

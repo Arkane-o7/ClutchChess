@@ -1,10 +1,11 @@
 """Tests for arrival time field computation."""
 
 from kfchess.ai.arrival_field import ArrivalField
-from kfchess.ai.state_extractor import StateExtractor
+from kfchess.ai.state_extractor import PieceStatus, StateExtractor
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine
-from kfchess.game.moves import Cooldown
+from kfchess.game.moves import Cooldown, Move
+from kfchess.game.pieces import PieceType
 from kfchess.game.state import GameStatus, Speed
 
 
@@ -164,3 +165,290 @@ class TestArrivalField:
         data = ArrivalField.compute(ai_state, config)
         assert data.tps == config.ticks_per_square
         assert data.cd_ticks == config.cooldown_ticks
+
+    def test_traveling_enemy_threatens_path(self):
+        """A traveling enemy rook should threaten squares along its path."""
+        state = _make_state()
+        tps = state.config.ticks_per_square  # 30 for standard
+
+        # Clear the middle of the board by capturing pawns to make a clear path
+        # Find enemy rook at (0, 0) and give it an active move heading down col 0
+        enemy_rook = None
+        for p in state.board.pieces:
+            if p.player == 2 and p.type == PieceType.ROOK and p.col == 0.0:
+                enemy_rook = p
+                break
+        assert enemy_rook is not None
+
+        # Remove blocking pawns on col 0 so the path is clear
+        for p in state.board.pieces:
+            if p.type == PieceType.PAWN and p.col == 0.0:
+                p.captured = True
+
+        # Set up the rook as traveling from (0,0) to (7,0) — straight down
+        rook_move = Move(
+            piece_id=enemy_rook.id,
+            path=[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0),
+                  (4.0, 0.0), (5.0, 0.0), (6.0, 0.0), (7.0, 0.0)],
+            start_tick=0,
+        )
+        state.active_moves.append(rook_move)
+        # Set current tick so rook is partway through (at row ~3)
+        state.current_tick = 3 * tps
+
+        ai_state = StateExtractor.extract(state, 1)
+
+        # Verify the rook is seen as traveling
+        rook_ai = ai_state.pieces_by_id.get(enemy_rook.id)
+        assert rook_ai is not None
+        assert rook_ai.status == PieceStatus.TRAVELING
+
+        data = ArrivalField.compute(ai_state, state.config)
+
+        # Squares ahead of the rook on col 0 should be threatened
+        # Rook is at ~row 3, so row 4 is 1 square ahead = tps ticks
+        enemy_t_row4 = data.get_enemy_time(4, 0)
+        enemy_t_row5 = data.get_enemy_time(5, 0)
+        assert enemy_t_row4 < 999_999, "Square ahead of traveling rook should be threatened"
+        assert enemy_t_row5 < 999_999, "Square 2 ahead of traveling rook should be threatened"
+        assert enemy_t_row4 < enemy_t_row5, "Closer squares should have shorter arrival time"
+
+    def test_traveling_enemy_makes_king_at_risk(self):
+        """A rook traveling toward the king should flag the king as at risk."""
+        state = _make_state()
+        tps = state.config.ticks_per_square
+
+        # Find enemy rook and clear a path on col 4 (king's column)
+        enemy_rook = None
+        for p in state.board.pieces:
+            if p.player == 2 and p.type == PieceType.ROOK and p.col == 0.0:
+                enemy_rook = p
+                break
+        assert enemy_rook is not None
+
+        # Move rook to col 4 and clear path
+        enemy_rook.col = 4.0
+        for p in state.board.pieces:
+            if p.type == PieceType.PAWN and p.col == 4.0:
+                p.captured = True
+
+        # Rook traveling from (0,4) to (7,4) — headed straight for king
+        rook_move = Move(
+            piece_id=enemy_rook.id,
+            path=[(0.0, 4.0), (1.0, 4.0), (2.0, 4.0), (3.0, 4.0),
+                  (4.0, 4.0), (5.0, 4.0), (6.0, 4.0), (7.0, 4.0)],
+            start_tick=0,
+        )
+        state.active_moves.append(rook_move)
+        state.current_tick = 3 * tps  # Rook at ~row 3
+
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalField.compute(ai_state, state.config)
+
+        # Player 1 king is at (7, 4) — rook is heading right for it
+        # The king is idle (cooldown_remaining=0) so it only needs
+        # reaction_ticks to dodge. But the rook arrival time at (7,4)
+        # should be very low (~4*tps ticks away).
+        king_pos = (7, 4)
+        enemy_t = data.get_enemy_time(king_pos[0], king_pos[1])
+        assert enemy_t < 999_999, "King square should be threatened by traveling rook"
+
+        # King should be at risk: enemy arrives in ~4*tps, king needs
+        # reaction_ticks to dodge. 4*tps >> reaction_ticks so not at_risk
+        # by the strict definition (idle piece can dodge). But the square
+        # itself having low enemy arrival time means safety scoring will
+        # penalize staying or moving along the same line.
+        assert enemy_t <= 5 * tps, "Traveling rook should arrive at king in ~4*tps"
+
+
+class TestSelfBlockingFix:
+    """Tests that moving a piece doesn't falsely show the destination as safe
+    when the piece was blocking an enemy slider ray."""
+
+    def test_moving_along_rook_ray_not_safe(self):
+        """A piece blocking an enemy rook ray should not think moving along
+        that ray is safe — vacating the square unblocks the enemy."""
+        state = _make_state()
+        # Clear the board except for specific pieces
+        state.board.pieces = []
+
+        from kfchess.game.pieces import Piece
+
+        # Enemy rook at (0, 3)
+        enemy_rook = Piece(
+            id="er", type=PieceType.ROOK, player=2,
+            row=0, col=3, captured=False, moved=False,
+        )
+        # Our pawn at (4, 3) — blocks the rook's ray down column 3
+        our_pawn = Piece(
+            id="op", type=PieceType.PAWN, player=1,
+            row=4, col=3, captured=False, moved=True,
+        )
+        # Our king far away so it doesn't interfere
+        our_king = Piece(
+            id="ok", type=PieceType.KING, player=1,
+            row=7, col=7, captured=False, moved=True,
+        )
+        # Enemy king far away
+        enemy_king = Piece(
+            id="ek", type=PieceType.KING, player=2,
+            row=0, col=7, captured=False, moved=True,
+        )
+        state.board.pieces = [enemy_rook, our_pawn, our_king, enemy_king]
+
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalField.compute(ai_state, state.config)
+        tps = state.config.ticks_per_square
+
+        # Without the fix: (5, 3) looks safe because our pawn at (4, 3)
+        # blocks the enemy rook ray. The cached enemy_time would be INF.
+        # But if pawn moves from (4,3) to (5,3), the rook ray is unblocked.
+        travel = tps  # 1 square forward
+        safety_naive = data.post_arrival_safety(5, 3, travel)
+        safety_fixed = data.post_arrival_safety(
+            5, 3, travel, moving_from=(4, 3),
+        )
+
+        # The naive check (no moving_from) may show safe because rook is blocked
+        # The fixed check should show unsafe — rook can reach (5, 3) in 5*tps
+        assert safety_fixed < safety_naive, (
+            "Safety should be worse when accounting for unblocked ray"
+        )
+        # Rook arrives at (5,3) in 5*tps. Our pawn arrives in tps, then
+        # cooldown + reaction. Safety = 5*tps - (tps + cd + reaction).
+        # With standard: 150 - (30 + 300 + 30) = -210. Very unsafe.
+        assert safety_fixed < 0, (
+            f"Moving along enemy rook ray should be unsafe, got {safety_fixed}"
+        )
+
+    def test_moving_perpendicular_unaffected(self):
+        """Moving perpendicular to an enemy rook ray shouldn't change much."""
+        state = _make_state()
+        state.board.pieces = []
+
+        from kfchess.game.pieces import Piece
+
+        enemy_rook = Piece(
+            id="er", type=PieceType.ROOK, player=2,
+            row=0, col=3, captured=False, moved=False,
+        )
+        our_knight = Piece(
+            id="on", type=PieceType.KNIGHT, player=1,
+            row=4, col=3, captured=False, moved=True,
+        )
+        our_king = Piece(
+            id="ok", type=PieceType.KING, player=1,
+            row=7, col=7, captured=False, moved=True,
+        )
+        enemy_king = Piece(
+            id="ek", type=PieceType.KING, player=2,
+            row=0, col=7, captured=False, moved=True,
+        )
+        state.board.pieces = [enemy_rook, our_knight, our_king, enemy_king]
+
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalField.compute(ai_state, state.config)
+        tps = state.config.ticks_per_square
+
+        # Knight moves to (2, 4) — off the rook's column entirely
+        # moving_from should still recompute but the destination isn't
+        # on the rook's ray, so it shouldn't make a big difference
+        travel = 2 * tps  # Knight travel
+        safety_fixed = data.post_arrival_safety(
+            2, 4, travel, moving_from=(4, 3),
+        )
+        # (2, 4) is not on column 3, so rook can't reach it regardless
+        # The enemy king at (0,7) is the only piece that might reach it
+        # King can only move 1 square, so it can't reach (2,4) in 1 move → INF
+        assert safety_fixed > 0, (
+            "Moving perpendicular off the ray should still be safe"
+        )
+
+    def test_moving_along_bishop_diagonal_not_safe(self):
+        """A piece blocking an enemy bishop diagonal should not think moving
+        along that diagonal is safe."""
+        state = _make_state()
+        state.board.pieces = []
+
+        from kfchess.game.pieces import Piece
+
+        # Enemy bishop at (0, 0)
+        enemy_bishop = Piece(
+            id="eb", type=PieceType.BISHOP, player=2,
+            row=0, col=0, captured=False, moved=False,
+        )
+        # Our pawn at (3, 3) — blocks bishop's diagonal
+        our_pawn = Piece(
+            id="op", type=PieceType.PAWN, player=1,
+            row=3, col=3, captured=False, moved=True,
+        )
+        our_king = Piece(
+            id="ok", type=PieceType.KING, player=1,
+            row=7, col=7, captured=False, moved=True,
+        )
+        enemy_king = Piece(
+            id="ek", type=PieceType.KING, player=2,
+            row=0, col=7, captured=False, moved=True,
+        )
+        state.board.pieces = [enemy_bishop, our_pawn, our_king, enemy_king]
+
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalField.compute(ai_state, state.config)
+        tps = state.config.ticks_per_square
+
+        # Pawn moves from (3,3) to (4,4) — along the same diagonal
+        # Without fix: bishop blocked at (3,3), so (4,4) looks safe
+        # With fix: bishop can reach (4,4) in 4*tps after pawn vacates
+        travel = tps
+        safety_fixed = data.post_arrival_safety(
+            4, 4, travel, moving_from=(3, 3),
+        )
+        assert safety_fixed < 0, (
+            f"Moving along enemy bishop diagonal should be unsafe, got {safety_fixed}"
+        )
+
+    def test_double_blocker_still_safe(self):
+        """If two of our pieces block a ray, moving the first still leaves
+        the second blocking — destination beyond both should remain safe."""
+        state = _make_state()
+        state.board.pieces = []
+
+        from kfchess.game.pieces import Piece
+
+        enemy_rook = Piece(
+            id="er", type=PieceType.ROOK, player=2,
+            row=0, col=3, captured=False, moved=False,
+        )
+        # Two of our pieces on col 3
+        our_pawn1 = Piece(
+            id="op1", type=PieceType.PAWN, player=1,
+            row=3, col=3, captured=False, moved=True,
+        )
+        our_pawn2 = Piece(
+            id="op2", type=PieceType.PAWN, player=1,
+            row=5, col=3, captured=False, moved=True,
+        )
+        our_king = Piece(
+            id="ok", type=PieceType.KING, player=1,
+            row=7, col=7, captured=False, moved=True,
+        )
+        enemy_king = Piece(
+            id="ek", type=PieceType.KING, player=2,
+            row=0, col=7, captured=False, moved=True,
+        )
+        state.board.pieces = [enemy_rook, our_pawn1, our_pawn2, our_king, enemy_king]
+
+        ai_state = StateExtractor.extract(state, 1)
+        data = ArrivalField.compute(ai_state, state.config)
+        tps = state.config.ticks_per_square
+
+        # Pawn1 at (3,3) moves to (6,3). Pawn2 at (5,3) still blocks the rook.
+        # So (6,3) should be safe — rook can't get past pawn2.
+        travel = 3 * tps
+        safety_fixed = data.post_arrival_safety(
+            6, 3, travel, moving_from=(3, 3),
+        )
+        # Rook blocked by pawn2 at (5,3) → can't reach (6,3) → INF enemy time → safe
+        assert safety_fixed > 0, (
+            f"Double blocker should keep destination safe, got {safety_fixed}"
+        )

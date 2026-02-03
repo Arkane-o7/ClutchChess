@@ -26,13 +26,14 @@ def run_ai_game(
     ai2,
     speed: Speed = Speed.STANDARD,
     max_ticks: int = MAX_TICKS,
-) -> tuple[int, bool]:
+) -> tuple[int, bool, int, int]:
     """Run a game between two AIs.
 
     Returns:
-        (winner, decisive) where winner is 1, 2, or 0 (draw).
+        (winner, decisive, p1_moves, p2_moves) where winner is 1, 2, or 0 (draw).
         decisive is True if the game ended naturally (king captured / draw),
         False if determined by material advantage at tick limit.
+        p1_moves/p2_moves are the total moves made by each player.
     """
     state = GameEngine.create_game(
         speed=speed,
@@ -40,6 +41,8 @@ def run_ai_game(
         board_type=BoardType.STANDARD,
     )
     state.status = GameStatus.PLAYING
+    p1_moves = 0
+    p2_moves = 0
 
     for _tick in range(max_ticks):
         # AI 1 moves
@@ -50,6 +53,7 @@ def run_ai_game(
                 move = GameEngine.validate_move(state, 1, piece_id, to_row, to_col)
                 if move:
                     GameEngine.apply_move(state, move)
+                    p1_moves += 1
 
         # AI 2 moves
         if ai2.should_move(state, 2, state.current_tick):
@@ -59,15 +63,16 @@ def run_ai_game(
                 move = GameEngine.validate_move(state, 2, piece_id, to_row, to_col)
                 if move:
                     GameEngine.apply_move(state, move)
+                    p2_moves += 1
 
         # Tick
         GameEngine.tick(state)
 
         if state.is_finished:
-            return state.winner or 0, True
+            return state.winner or 0, True, p1_moves, p2_moves
 
     # Tick limit reached — decide by material
-    return _material_winner(state), False
+    return _material_winner(state), False, p1_moves, p2_moves
 
 
 def _material_winner(state: GameState) -> int:
@@ -92,16 +97,21 @@ def _log_results(
     draws: int,
     decisive: int,
     num_games: int,
+    p1_total_moves: int = 0,
+    p2_total_moves: int = 0,
 ) -> None:
     """Log win rate summary for a matchup."""
     win_pct = wins / num_games * 100
     loss_pct = losses / num_games * 100
     draw_pct = draws / num_games * 100
+    p1_avg = p1_total_moves / num_games if num_games else 0
+    p2_avg = p2_total_moves / num_games if num_games else 0
     logger.info(
         "%s: %dW/%dL/%dD (%d games, %d decisive) — "
-        "%.0f%% win, %.0f%% loss, %.0f%% draw",
+        "%.0f%% win, %.0f%% loss, %.0f%% draw — "
+        "avg moves: p1=%.0f, p2=%.0f",
         matchup, wins, losses, draws, num_games, decisive,
-        win_pct, loss_pct, draw_pct,
+        win_pct, loss_pct, draw_pct, p1_avg, p2_avg,
     )
 
 
@@ -114,12 +124,15 @@ class TestAIHarness:
         draws = 0
         decisive = 0
 
+        p1_total = p2_total = 0
         for _i in range(NUM_GAMES):
             kungfu = KungFuAI(level=1, speed=Speed.STANDARD)
             dummy = DummyAI(speed=Speed.STANDARD)
 
-            result, is_decisive = run_ai_game(kungfu, dummy)
+            result, is_decisive, p1m, p2m = run_ai_game(kungfu, dummy)
             decisive += is_decisive
+            p1_total += p1m
+            p2_total += p2m
             if result == 1:
                 wins += 1
             elif result == 2:
@@ -127,7 +140,7 @@ class TestAIHarness:
             else:
                 draws += 1
 
-        _log_results("L1 vs Dummy (standard)", wins, losses, draws, decisive, NUM_GAMES)
+        _log_results("L1 vs Dummy (standard)", wins, losses, draws, decisive, NUM_GAMES, p1_total, p2_total)
 
         assert wins > losses, (
             f"KungFuAI won {wins}, lost {losses}, drew {draws} out of {NUM_GAMES} games"
@@ -141,12 +154,15 @@ class TestAIHarness:
         draws = 0
         decisive = 0
 
+        p1_total = p2_total = 0
         for _i in range(NUM_GAMES):
             kungfu = KungFuAI(level=1, speed=Speed.LIGHTNING)
             dummy = DummyAI(speed=Speed.LIGHTNING)
 
-            result, is_decisive = run_ai_game(kungfu, dummy, speed=Speed.LIGHTNING)
+            result, is_decisive, p1m, p2m = run_ai_game(kungfu, dummy, speed=Speed.LIGHTNING)
             decisive += is_decisive
+            p1_total += p1m
+            p2_total += p2m
             if result == 1:
                 wins += 1
             elif result == 2:
@@ -154,7 +170,7 @@ class TestAIHarness:
             else:
                 draws += 1
 
-        _log_results("L1 vs Dummy (lightning)", wins, losses, draws, decisive, NUM_GAMES)
+        _log_results("L1 vs Dummy (lightning)", wins, losses, draws, decisive, NUM_GAMES, p1_total, p2_total)
 
         assert wins >= losses, (
             f"KungFuAI won {wins}, lost {losses} out of {NUM_GAMES} lightning games"
@@ -167,14 +183,17 @@ class TestAIHarness:
         l1_wins = 0
         draws = 0
         decisive = 0
+        l2_total = l1_total = 0
 
         for i in range(NUM_GAMES):
             l2 = KungFuAI(level=2, speed=Speed.STANDARD)
             l1 = KungFuAI(level=1, speed=Speed.STANDARD)
 
             if i % 2 == 0:
-                result, is_decisive = run_ai_game(l2, l1)
+                result, is_decisive, p1m, p2m = run_ai_game(l2, l1)
                 decisive += is_decisive
+                l2_total += p1m
+                l1_total += p2m
                 if result == 1:
                     l2_wins += 1
                 elif result == 2:
@@ -182,8 +201,10 @@ class TestAIHarness:
                 else:
                     draws += 1
             else:
-                result, is_decisive = run_ai_game(l1, l2)
+                result, is_decisive, p1m, p2m = run_ai_game(l1, l2)
                 decisive += is_decisive
+                l1_total += p1m
+                l2_total += p2m
                 if result == 1:
                     l1_wins += 1
                 elif result == 2:
@@ -191,7 +212,7 @@ class TestAIHarness:
                 else:
                     draws += 1
 
-        _log_results("L2 vs L1 (standard)", l2_wins, l1_wins, draws, decisive, NUM_GAMES)
+        _log_results("L2 vs L1 (standard)", l2_wins, l1_wins, draws, decisive, NUM_GAMES, l2_total, l1_total)
 
     @pytest.mark.slow
     def test_level2_vs_level1_lightning(self):
@@ -200,14 +221,17 @@ class TestAIHarness:
         l1_wins = 0
         draws = 0
         decisive = 0
+        l2_total = l1_total = 0
 
         for i in range(NUM_GAMES):
             l2 = KungFuAI(level=2, speed=Speed.LIGHTNING)
             l1 = KungFuAI(level=1, speed=Speed.LIGHTNING)
 
             if i % 2 == 0:
-                result, is_decisive = run_ai_game(l2, l1, speed=Speed.LIGHTNING)
+                result, is_decisive, p1m, p2m = run_ai_game(l2, l1, speed=Speed.LIGHTNING)
                 decisive += is_decisive
+                l2_total += p1m
+                l1_total += p2m
                 if result == 1:
                     l2_wins += 1
                 elif result == 2:
@@ -215,8 +239,10 @@ class TestAIHarness:
                 else:
                     draws += 1
             else:
-                result, is_decisive = run_ai_game(l1, l2, speed=Speed.LIGHTNING)
+                result, is_decisive, p1m, p2m = run_ai_game(l1, l2, speed=Speed.LIGHTNING)
                 decisive += is_decisive
+                l1_total += p1m
+                l2_total += p2m
                 if result == 1:
                     l1_wins += 1
                 elif result == 2:
@@ -224,4 +250,80 @@ class TestAIHarness:
                 else:
                     draws += 1
 
-        _log_results("L2 vs L1 (lightning)", l2_wins, l1_wins, draws, decisive, NUM_GAMES)
+        _log_results("L2 vs L1 (lightning)", l2_wins, l1_wins, draws, decisive, NUM_GAMES, l2_total, l1_total)
+
+    @pytest.mark.slow
+    def test_level3_vs_level2(self):
+        """Level 3 vs Level 2 — L3 should have an edge."""
+        l3_wins = 0
+        l2_wins = 0
+        draws = 0
+        decisive = 0
+        l3_total = l2_total = 0
+
+        for i in range(NUM_GAMES):
+            l3 = KungFuAI(level=3, speed=Speed.STANDARD)
+            l2 = KungFuAI(level=2, speed=Speed.STANDARD)
+
+            if i % 2 == 0:
+                result, is_decisive, p1m, p2m = run_ai_game(l3, l2)
+                decisive += is_decisive
+                l3_total += p1m
+                l2_total += p2m
+                if result == 1:
+                    l3_wins += 1
+                elif result == 2:
+                    l2_wins += 1
+                else:
+                    draws += 1
+            else:
+                result, is_decisive, p1m, p2m = run_ai_game(l2, l3)
+                decisive += is_decisive
+                l2_total += p1m
+                l3_total += p2m
+                if result == 1:
+                    l2_wins += 1
+                elif result == 2:
+                    l3_wins += 1
+                else:
+                    draws += 1
+
+        _log_results("L3 vs L2 (standard)", l3_wins, l2_wins, draws, decisive, NUM_GAMES, l3_total, l2_total)
+
+    @pytest.mark.slow
+    def test_level3_vs_level2_lightning(self):
+        """Level 3 vs Level 2 lightning — L3 should have an edge."""
+        l3_wins = 0
+        l2_wins = 0
+        draws = 0
+        decisive = 0
+        l3_total = l2_total = 0
+
+        for i in range(NUM_GAMES):
+            l3 = KungFuAI(level=3, speed=Speed.LIGHTNING)
+            l2 = KungFuAI(level=2, speed=Speed.LIGHTNING)
+
+            if i % 2 == 0:
+                result, is_decisive, p1m, p2m = run_ai_game(l3, l2, speed=Speed.LIGHTNING)
+                decisive += is_decisive
+                l3_total += p1m
+                l2_total += p2m
+                if result == 1:
+                    l3_wins += 1
+                elif result == 2:
+                    l2_wins += 1
+                else:
+                    draws += 1
+            else:
+                result, is_decisive, p1m, p2m = run_ai_game(l2, l3, speed=Speed.LIGHTNING)
+                decisive += is_decisive
+                l2_total += p1m
+                l3_total += p2m
+                if result == 1:
+                    l2_wins += 1
+                elif result == 2:
+                    l3_wins += 1
+                else:
+                    draws += 1
+
+        _log_results("L3 vs L2 (lightning)", l3_wins, l2_wins, draws, decisive, NUM_GAMES, l3_total, l2_total)

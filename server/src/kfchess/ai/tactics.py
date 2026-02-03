@@ -5,20 +5,17 @@ analysis, ensuring the AI accounts for cooldown vulnerability.
 """
 
 from kfchess.ai.arrival_field import ArrivalData
-from kfchess.ai.move_gen import CandidateMove, MoveCategory
-from kfchess.ai.state_extractor import AIState
+from kfchess.ai.move_gen import CandidateMove
+from kfchess.ai.state_extractor import AIPiece, AIState, PieceStatus
 from kfchess.game.pieces import PieceType
-
-# Discount on our piece loss when recapture is possible but not certain.
-# 1.0 = assume recapture always happens, 0.0 = ignore recapture risk.
-RECAPTURE_DISCOUNT = 0.8
+from kfchess.game.state import TICK_RATE_HZ
 
 # Piece values for exchange evaluation
 PIECE_VALUES: dict[PieceType, float] = {
     PieceType.PAWN: 1.0,
     PieceType.KNIGHT: 3.0,
     PieceType.BISHOP: 3.0,
-    PieceType.ROOK: 3.0,
+    PieceType.ROOK: 5.0,
     PieceType.QUEEN: 9.0,
     PieceType.KING: 100.0,
 }
@@ -44,79 +41,350 @@ def compute_travel_ticks(
     return dist * tps
 
 
-def capture_feasibility(
+def capture_value(
+    candidate: CandidateMove,
+) -> float:
+    """Evaluate the raw material value of a capture.
+
+    Returns the captured piece value. Post-arrival safety (recapture
+    risk) is handled separately by move_safety in the eval layer.
+
+    Non-capture moves return 0.0.
+    """
+    if candidate.capture_type is None:
+        return 0.0
+
+    return PIECE_VALUES.get(candidate.capture_type, 0) if candidate.capture_type else 0
+
+
+def dodge_probability(
     candidate: CandidateMove,
     ai_state: AIState,
     arrival_data: ArrivalData,
 ) -> float:
-    """Evaluate the net value of a capture.
+    """Estimate probability (0.0–1.0) that the target dodges this capture.
 
-    Returns the expected material gain in piece-value units:
-    - Safe capture (no recapture): full captured piece value
-    - Recapture likely: captured_value - our_value * RECAPTURE_DISCOUNT
-      (discounted because the enemy might not actually recapture)
+    Factors:
+    - Dodge window: how many ticks the target has to react and move
+    - Escape squares: whether the target has legal moves
+    - Knight stealth: knights are invisible for 85% of travel
 
-    Non-capture moves return 0.0.
+    Returns 0.0 if target can't dodge, up to 1.0 if easily dodged.
+    Only meaningful for CAPTURE moves.
     """
-    if candidate.category != MoveCategory.CAPTURE:
+    if candidate.capture_type is None:
+        return 0.0
+
+    if candidate.ai_piece is None:
         return 0.0
 
     dest = (candidate.to_row, candidate.to_col)
-    capture_value = PIECE_VALUES.get(candidate.capture_type, 0) if candidate.capture_type else 0
-    our_value = PIECE_VALUES.get(candidate.ai_piece.piece.type, 0) if candidate.ai_piece else 0
+    tps = arrival_data.tps
 
-    # Find the captured piece ID for exclusion
-    captured_piece_id: str | None = None
-    if ai_state is not None:
-        for ep in ai_state.get_enemy_pieces():
-            if ep.piece.grid_position == dest:
-                captured_piece_id = ep.piece.id
+    # Find the target piece
+    target: AIPiece | None = None
+    for ep in ai_state.get_enemy_pieces():
+        if ep.piece.grid_position == dest:
+            target = ep
+            break
+
+    if target is None:
+        return 0.0
+
+    # Traveling targets aren't at their grid position — skip
+    if target.status == PieceStatus.TRAVELING:
+        return 0.0
+
+    # Our travel time to the target
+    from_pos = candidate.ai_piece.piece.grid_position
+    our_arrival_ticks = compute_travel_ticks(
+        from_pos[0], from_pos[1],
+        dest[0], dest[1],
+        candidate.ai_piece.piece.type,
+        tps,
+    )
+
+    # Target can dodge if cooldown expires + reaction before we arrive
+    dodge_start = target.cooldown_remaining + arrival_data.reaction_ticks
+    if dodge_start >= our_arrival_ticks:
+        # Target can't move before we arrive — no dodge possible
+        return 0.0
+
+    # Count escape moves that actually dodge the attack.
+    # Moving along the attack ray doesn't dodge — the attacker will
+    # still collide with the target on its path.
+    all_escapes = ai_state.enemy_escape_moves.get(target.piece.id, [])
+    if not all_escapes:
+        return 0.0
+
+    from_pos = candidate.ai_piece.piece.grid_position
+    attack_dr = dest[0] - from_pos[0]
+    attack_dc = dest[1] - from_pos[1]
+
+    dodge_count = 0
+    for er, ec in all_escapes:
+        escape_dr = er - dest[0]
+        escape_dc = ec - dest[1]
+        if _is_along_attack_ray(escape_dr, escape_dc, attack_dr, attack_dc):
+            continue  # Moving along attack path — still gets captured
+        dodge_count += 1
+
+    if dodge_count == 0:
+        return 0.0
+
+    # Dodge window: how many ticks the target has to escape
+    # Normalize by 2*tps (time to traverse 2 squares) so the factor
+    # scales with game speed rather than using a fixed constant.
+    dodge_window = our_arrival_ticks - dodge_start
+    time_factor = min(1.0, dodge_window / (2 * tps))
+
+    # More dodge squares = easier to dodge (maxes at 2)
+    escape_factor = min(1.0, dodge_count / 2.0)
+
+    return time_factor * escape_factor
+
+
+def _is_along_attack_ray(
+    escape_dr: int, escape_dc: int,
+    attack_dr: int, attack_dc: int,
+) -> bool:
+    """Check if an escape direction is along the attack ray.
+
+    An escape move is "along the ray" if it moves in the same direction
+    as the attack (i.e., the target runs away but stays on the attack
+    line, so the attacker still collides on the way through).
+    """
+    if escape_dr == 0 and escape_dc == 0:
+        return True  # Staying put (shouldn't happen, but safe)
+
+    # Normalize attack direction to unit steps
+    if attack_dr != 0 or attack_dc != 0:
+        # For sliders: attack is along a line (dr/dc are proportional)
+        # Normalize to sign only
+        a_r = (1 if attack_dr > 0 else -1) if attack_dr != 0 else 0
+        a_c = (1 if attack_dc > 0 else -1) if attack_dc != 0 else 0
+
+        e_r = (1 if escape_dr > 0 else -1) if escape_dr != 0 else 0
+        e_c = (1 if escape_dc > 0 else -1) if escape_dc != 0 else 0
+
+        # Escape is along the ray if it's in the same direction as the attack
+        # (target moves away from attacker but stays on the line)
+        return e_r == a_r and e_c == a_c
+
+    return False
+
+
+def recapture_bonus(
+    candidate: CandidateMove,
+    ai_state: AIState,
+    arrival_data: ArrivalData,
+) -> float:
+    """Compute bonus for setting up recapture against incoming enemy attacks.
+
+    When an enemy piece is traveling toward one of our pieces (likely
+    capture), rewards moves that position us to recapture the attacker
+    after it lands and enters cooldown.
+
+    Returns the max enemy attacker value we can recapture, or 0.0.
+    """
+    if candidate.ai_piece is None:
+        return 0.0
+
+    dest = (candidate.to_row, candidate.to_col)
+    tps = arrival_data.tps
+    cd_ticks = arrival_data.cd_ticks
+    board_w = ai_state.board_width
+    board_h = ai_state.board_height
+
+    # Build set of own piece positions for quick lookup
+    own_positions: dict[tuple[int, int], AIPiece] = {}
+    for op in ai_state.get_own_pieces():
+        if op.status != PieceStatus.TRAVELING and not op.piece.captured:
+            own_positions[op.piece.grid_position] = op
+
+    # Find traveling enemy pieces heading toward our pieces
+    best_recapture = 0.0
+
+    for ep in ai_state.get_enemy_pieces():
+        if ep.status != PieceStatus.TRAVELING or ep.travel_direction is None:
+            continue
+
+        dr, dc = ep.travel_direction
+        pr, pc = ep.current_position
+
+        # Project along travel ray to find which of our pieces they target
+        target_pos: tuple[int, int] | None = None
+        travel_dist = 0
+        for dist in range(1, max(board_w, board_h)):
+            sr = int(round(pr + dr * dist))
+            sc = int(round(pc + dc * dist))
+            if sr < 0 or sr >= board_h or sc < 0 or sc >= board_w:
+                break
+            sq = (sr, sc)
+            if sq in own_positions:
+                target_pos = sq
+                travel_dist = dist
                 break
 
-    # Compute our travel time
-    travel_ticks = arrival_data.tps  # Default 1 square
-    if candidate.ai_piece is not None:
+        if target_pos is None:
+            continue  # Not heading toward any of our pieces
+
+        # Enemy will land at target_pos after travel_dist squares,
+        # then be on cooldown for cd_ticks
+        enemy_remaining_travel = travel_dist * tps
+        # Enemy is vulnerable from landing until cooldown + reaction expires
+        enemy_vulnerable_until = enemy_remaining_travel + cd_ticks
+
+        # Can we recapture? Move to dest, cooldown, then travel to target_pos
         from_pos = candidate.ai_piece.piece.grid_position
-        travel_ticks = compute_travel_ticks(
+        our_travel_to_dest = compute_travel_ticks(
             from_pos[0], from_pos[1],
             dest[0], dest[1],
             candidate.ai_piece.piece.type,
-            arrival_data.tps,
+            tps,
+        )
+        recapture_travel = compute_travel_ticks(
+            dest[0], dest[1],
+            target_pos[0], target_pos[1],
+            candidate.ai_piece.piece.type,
+            tps,
+        )
+        # Total time: travel to dest + our cooldown + reaction + travel to target
+        our_recapture_arrival = (
+            our_travel_to_dest + cd_ticks + arrival_data.reaction_ticks
+            + recapture_travel
         )
 
-    # Post-arrival safety: can enemy recapture during our cooldown?
-    safety = arrival_data.post_arrival_safety(
-        dest[0], dest[1], travel_ticks,
-        exclude_piece_id=captured_piece_id,
-    )
+        if our_recapture_arrival < enemy_vulnerable_until:
+            attacker_value = PIECE_VALUES.get(ep.piece.type, 0)
+            if attacker_value > best_recapture:
+                best_recapture = attacker_value
 
-    if safety >= 0:
-        # No recapture possible — full value
-        return capture_value
-
-    # Enemy can recapture — net exchange with discount
-    return capture_value - our_value * RECAPTURE_DISCOUNT
+    return best_recapture
 
 
 def move_safety(
     candidate: CandidateMove,
+    ai_state: AIState,
     arrival_data: ArrivalData,
-) -> int:
-    """Compute post-arrival safety for a non-capture move.
+) -> float:
+    """Compute expected safety cost for landing on a square.
 
-    Returns safety margin in ticks. Positive = safe (enemy can't
-    reach destination before our cooldown expires).
+    Returns a value <= 0 representing the expected material loss from
+    recapture. Uses the post-arrival safety margin to estimate recapture
+    probability: negative margin → 100%, scaling to 0% at TICK_RATE_HZ.
+
+    For captures, the captured piece is excluded from enemy arrival times.
     """
+    if candidate.ai_piece is None:
+        return 0.0
+
     dest = (candidate.to_row, candidate.to_col)
+    our_value = PIECE_VALUES.get(candidate.ai_piece.piece.type, 0)
 
-    travel_ticks = arrival_data.tps  # Default
-    if candidate.ai_piece is not None:
-        from_pos = candidate.ai_piece.piece.grid_position
-        travel_ticks = compute_travel_ticks(
-            from_pos[0], from_pos[1],
+    # Find captured piece ID for exclusion
+    exclude_id: str | None = None
+    if candidate.capture_type is not None:
+        for ep in ai_state.get_enemy_pieces():
+            if ep.piece.grid_position == dest:
+                exclude_id = ep.piece.id
+                break
+
+    from_pos = candidate.ai_piece.piece.grid_position
+    travel_ticks = compute_travel_ticks(
+        from_pos[0], from_pos[1],
+        dest[0], dest[1],
+        candidate.ai_piece.piece.type,
+        arrival_data.tps,
+    )
+
+    margin = arrival_data.post_arrival_safety(
+        dest[0], dest[1], travel_ticks,
+        exclude_piece_id=exclude_id,
+        moving_from=from_pos,
+    )
+
+    if margin >= TICK_RATE_HZ:
+        return 0.0  # Safe — no recapture risk
+
+    # Linear interpolation: margin <= 0 → p=1.0, margin = TICK_RATE_HZ → p=0.0
+    recapture_prob = max(0.0, min(1.0, 1.0 - margin / TICK_RATE_HZ))
+    return -recapture_prob * our_value
+
+
+def threaten_score(
+    candidate: CandidateMove,
+    ai_state: AIState,
+    arrival_data: ArrivalData,
+) -> float:
+    """Compute the value of the best enemy piece we safely threaten post-move.
+
+    After arriving at dest and completing cooldown, check which enemy
+    pieces we can attack. A threat is "safe" if the enemy piece can't
+    reach our destination before our attack would land.
+
+    Returns the max piece value among safely threatened enemies, or 0.0.
+    """
+    if candidate.ai_piece is None:
+        return 0.0
+
+    dest = (candidate.to_row, candidate.to_col)
+    our_type = candidate.ai_piece.piece.type
+    tps = arrival_data.tps
+    cd_ticks = arrival_data.cd_ticks
+
+    # Time for us to arrive at dest
+    from_pos = candidate.ai_piece.piece.grid_position
+    our_travel = compute_travel_ticks(
+        from_pos[0], from_pos[1],
+        dest[0], dest[1],
+        our_type, tps,
+    )
+
+    # Pre-compute modified occupancy (our origin vacated)
+    modified_occ = (arrival_data._occupied - {from_pos}) if arrival_data._occupied else None
+
+    best_threat = 0.0
+
+    for ep in ai_state.get_enemy_pieces():
+        if ep.status == PieceStatus.TRAVELING or ep.piece.captured:
+            continue
+        ep_pos = ep.piece.grid_position
+        if ep_pos == dest:
+            continue  # That's a capture, not a threat
+
+        # Time for us to attack this enemy from dest (after arriving + cooldown)
+        attack_travel = compute_travel_ticks(
             dest[0], dest[1],
-            candidate.ai_piece.piece.type,
-            arrival_data.tps,
+            ep_pos[0], ep_pos[1],
+            our_type, tps,
         )
+        our_attack_time = our_travel + cd_ticks + attack_travel
 
-    return arrival_data.post_arrival_safety(dest[0], dest[1], travel_ticks)
+        # Can the enemy reach our dest before our attack lands?
+        # If so, it can counter-capture us — not a safe threat.
+        # Recompute with our origin vacated to avoid self-blocking.
+        if modified_occ is not None:
+            from kfchess.ai.arrival_field import _piece_arrival_time
+            enemy_to_dest = _piece_arrival_time(
+                ep, dest, tps, cd_ticks, modified_occ,
+                arrival_data._board_w, arrival_data._board_h,
+                arrival_data._is_4p,
+            )
+        else:
+            enemy_to_dest = arrival_data.enemy_time_by_piece.get(
+                ep.piece.id, {},
+            ).get(dest, 999_999)
+
+        if enemy_to_dest <= our_attack_time:
+            continue  # Enemy can capture us back
+
+        value = PIECE_VALUES.get(ep.piece.type, 0)
+        # Cap king threat value at queen level — threatening the king is
+        # important but shouldn't dominate all other scoring terms.
+        if ep.piece.type == PieceType.KING:
+            value = PIECE_VALUES[PieceType.QUEEN]
+        if value > best_threat:
+            best_threat = value
+
+    return best_threat

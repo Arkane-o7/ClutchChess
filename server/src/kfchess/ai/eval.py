@@ -6,7 +6,7 @@ import math
 import random
 from typing import TYPE_CHECKING
 
-from kfchess.ai.move_gen import CandidateMove, MoveCategory
+from kfchess.ai.move_gen import CandidateMove
 from kfchess.ai.state_extractor import AIState
 from kfchess.ai.tactics import PIECE_VALUES
 from kfchess.game.pieces import PieceType
@@ -16,25 +16,28 @@ if TYPE_CHECKING:
 
 # Scoring weights for Level 1
 MATERIAL_WEIGHT = 10.0
-KING_DANGER_WEIGHT = 3.0
 CENTER_CONTROL_WEIGHT = 1.0
 DEVELOPMENT_WEIGHT = 0.8
 PAWN_ADVANCE_WEIGHT = 0.5
 
 # Level 2 weights
-SAFETY_WEIGHT = 4.0
+SAFETY_WEIGHT = MATERIAL_WEIGHT
 COMMITMENT_WEIGHT = 0.15
 EVASION_WEIGHT = MATERIAL_WEIGHT  # Saving a piece ≈ capturing one of equal value
+THREATEN_WEIGHT = 0.1 * MATERIAL_WEIGHT
 
-# Noise fractions by level
-NOISE_SIGMA_BY_LEVEL: dict[int, float] = {
-    1: 0.35,
-    2: 0.17,
-    3: 0.08,
+# Level 3 weights
+DODGE_FAILURE_COST = 0.9  # Fraction of our piece value lost if target dodges
+RECAPTURE_WEIGHT = 0.4 * MATERIAL_WEIGHT
+
+# Selection weights by rank position per level.
+# The AI picks a move from the sorted list using these as relative weights.
+# Weights are extended geometrically for candidates beyond the list length.
+SELECTION_WEIGHTS_BY_LEVEL: dict[int, list[float]] = {
+    1: [30, 25, 20, 15, 5, 5],
+    2: [50, 20, 15, 5, 5, 5],
+    3: [75, 15, 5, 3, 2],
 }
-
-# Backward compat
-NOISE_SIGMA_FRACTION = 0.35
 
 
 class Eval:
@@ -50,23 +53,22 @@ class Eval:
     ) -> list[tuple[CandidateMove, float]]:
         """Score all candidate moves and return sorted (best first).
 
+        When noise is enabled, the list is reordered by weighted random
+        selection: higher-ranked moves are more likely to be picked first,
+        with the distribution controlled by SELECTION_WEIGHTS_BY_LEVEL.
+
         Args:
             candidates: Moves to score
             ai_state: AI state snapshot
-            noise: Whether to add Gaussian noise
+            noise: Whether to apply weighted selection (imperfection)
             level: AI difficulty level (affects scoring terms)
             arrival_data: Arrival fields for margin-based scoring (L2+)
 
         Returns:
-            List of (move, score) sorted by score descending
+            List of (move, score) sorted by selection order (best first)
         """
         if not candidates:
             return []
-
-        enemy_king = ai_state.get_enemy_king()
-        enemy_king_pos = enemy_king.piece.grid_position if enemy_king else None
-        own_king = ai_state.get_own_king()
-        own_king_pos = own_king.piece.grid_position if own_king else None
 
         center_r = ai_state.board_height / 2.0
         center_c = ai_state.board_width / 2.0
@@ -76,32 +78,50 @@ class Eval:
         scored: list[tuple[CandidateMove, float]] = []
         for candidate in candidates:
             score = _score_move(
-                candidate, ai_state, enemy_king_pos, own_king_pos,
+                candidate, ai_state,
                 center_r, center_c, max_dist,
                 level=level, arrival_data=arrival_data, tps=tps,
             )
             scored.append((candidate, score))
 
-        # Add noise
-        if noise and scored:
-            scores = [s for _, s in scored]
-            score_range = max(scores) - min(scores) if len(scores) > 1 else 1.0
-            sigma_frac = NOISE_SIGMA_BY_LEVEL.get(level, 0.35)
-            sigma = max(score_range * sigma_frac, 0.1)
-            scored = [
-                (m, s + random.gauss(0, sigma))
-                for m, s in scored
-            ]
-
+        # Sort deterministically by score (best first)
         scored.sort(key=lambda x: x[1], reverse=True)
+
+        # Apply weighted selection to reorder
+        if noise and len(scored) > 1:
+            scored = _weighted_select(scored, level)
+
         return scored
+
+
+def _weighted_select(
+    scored: list[tuple[CandidateMove, float]],
+    level: int,
+) -> list[tuple[CandidateMove, float]]:
+    """Select a move from the top candidates using rank-based weights.
+
+    Only considers the top N candidates where N is the length of the
+    weight list for this level. Picks one move using weighted random
+    selection, then returns the full list reordered with the pick first.
+    """
+    weights = SELECTION_WEIGHTS_BY_LEVEL.get(level, [50, 20, 15, 5, 5, 5])
+    max_choices = len(weights)
+    top = scored[:max_choices]
+
+    w = weights[:len(top)]
+    chosen = random.choices(top, weights=w, k=1)[0]
+
+    # Put chosen first, then the rest in original score order
+    result = [chosen]
+    for item in scored:
+        if item is not chosen:
+            result.append(item)
+    return result
 
 
 def _score_move(
     candidate: CandidateMove,
     ai_state: AIState,
-    enemy_king_pos: tuple[int, int] | None,
-    own_king_pos: tuple[int, int] | None,
     center_r: float,
     center_c: float,
     max_dist: float,
@@ -114,44 +134,32 @@ def _score_move(
     dest = (candidate.to_row, candidate.to_col)
 
     # Material: value of captured piece
-    if candidate.category == MoveCategory.CAPTURE and candidate.capture_type:
-        if arrival_data is not None:
-            # Net exchange value accounting for recapture risk
-            from kfchess.ai.tactics import capture_feasibility as _cap_feas
-            exchange_value = _cap_feas(candidate, ai_state, arrival_data)
-            score += exchange_value * MATERIAL_WEIGHT
+    if candidate.capture_type:
+        from kfchess.ai.tactics import capture_value as _cap_feas
+        net_capture = _cap_feas(candidate)
+
+        if level >= 3 and arrival_data is not None:
+            # EV framework: account for dodge probability
+            from kfchess.ai.tactics import dodge_probability as _dodge_prob
+            p = _dodge_prob(candidate, ai_state, arrival_data)
+            our_value = PIECE_VALUES.get(
+                candidate.ai_piece.piece.type, 1.0,
+            ) if candidate.ai_piece else 1.0
+            # If dodged: we land on empty square on cooldown, likely lose our piece
+            fail_value = -our_value * DODGE_FAILURE_COST
+            ev = (1.0 - p) * net_capture + p * fail_value
+            score += ev * MATERIAL_WEIGHT
         else:
-            # Fallback: assume all captures are safe
-            score += PIECE_VALUES.get(candidate.capture_type, 0) * MATERIAL_WEIGHT
+            score += net_capture * MATERIAL_WEIGHT
 
     # Evasion bonus: scale by piece value (saving a queen >> saving a pawn)
-    if candidate.category == MoveCategory.EVASION and candidate.ai_piece is not None:
+    if candidate.is_evasion and candidate.ai_piece is not None:
         evading_value = PIECE_VALUES.get(candidate.ai_piece.piece.type, 1.0)
         score += evading_value * EVASION_WEIGHT
 
-    # King danger: bonus for approaching enemy king
-    if enemy_king_pos:
-        dist = _chebyshev_distance(dest, enemy_king_pos)
-        if dist <= 1:
-            score += 5.0 * KING_DANGER_WEIGHT
-        elif dist <= 3:
-            score += (4.0 - dist) * KING_DANGER_WEIGHT
-
-    # Use ai_piece directly (O(1) instead of O(n) search)
     ai_piece = candidate.ai_piece
     if ai_piece is not None:
         piece = ai_piece.piece
-
-        # Own king safety: penalty for moving defenders away
-        if own_king_pos:
-            current_dist = _chebyshev_distance(piece.grid_position, own_king_pos)
-            new_dist = _chebyshev_distance(dest, own_king_pos)
-            if current_dist <= 2 and new_dist > current_dist:
-                score -= 1.0
-            if piece.type == PieceType.KING:
-                dist_to_center = _euclidean_distance(dest, (center_r, center_c))
-                if dist_to_center < 2.0:
-                    score -= 2.0  # Don't rush king to center
 
         # Development: bonus for moving minor pieces off back rank
         if piece.type in (PieceType.KNIGHT, PieceType.BISHOP):
@@ -163,24 +171,30 @@ def _score_move(
             advancement = _pawn_advancement(
                 candidate.to_row, candidate.to_col, ai_state,
             )
-            score += advancement * PAWN_ADVANCE_WEIGHT * 0.1
+            score += advancement * PAWN_ADVANCE_WEIGHT * 0.3
 
-        # Safety and commitment scoring
-        if arrival_data is not None:
+        # Safety: expected material loss from recapture (L2+)
+        if arrival_data is not None and level >= 2:
             from kfchess.ai.tactics import move_safety as _move_safety
 
-            # Post-arrival safety: can enemy reach dest before our
-            # cooldown expires? Positive = safe, negative = vulnerable.
-            safety_ticks = _move_safety(candidate, arrival_data)
-            # Normalize: scale ticks to ~[-5, 5] range
-            safety_score = max(-5.0, min(5.0, safety_ticks / (tps * 2)))
-            score += safety_score * SAFETY_WEIGHT
+            safety_cost = _move_safety(candidate, ai_state, arrival_data)
+            score += safety_cost * SAFETY_WEIGHT
 
-            # Commitment penalty: penalize long-distance moves
-            from_pos = piece.grid_position
-            travel_dist = _chebyshev_distance(from_pos, dest)
-            commitment = travel_dist * COMMITMENT_WEIGHT
-            score -= commitment
+            # Commitment penalty: penalize long-distance moves (non-captures)
+            if candidate.capture_type is None:
+                from_pos = piece.grid_position
+                travel_dist = _chebyshev_distance(from_pos, dest)
+                commitment = travel_dist * COMMITMENT_WEIGHT
+                score -= commitment
+
+        # Level 3: threat bonus + recapture positioning
+        if arrival_data is not None and level >= 3:
+            # Threat bonus: value of best enemy piece we safely threaten
+            from kfchess.ai.tactics import threaten_score as _threaten
+            score += _threaten(candidate, ai_state, arrival_data) * THREATEN_WEIGHT
+            from kfchess.ai.tactics import recapture_bonus as _recap_bonus
+
+            score += _recap_bonus(candidate, ai_state, arrival_data) * RECAPTURE_WEIGHT
 
     # Center control
     dist_to_center = _euclidean_distance(dest, (center_r, center_c))

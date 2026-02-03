@@ -20,7 +20,7 @@ INF_TICKS = 999_999
 
 # Reaction time: how long it takes to see an incoming threat and issue
 # a dodge move after cooldown expires. 100ms converted to ticks.
-REACTION_TIME_SECONDS = 0.1
+REACTION_TIME_SECONDS = 1.0
 
 
 @dataclass
@@ -43,7 +43,13 @@ class ArrivalData:
     )
     tps: int = 30
     cd_ticks: int = 300
-    reaction_ticks: int = 3  # ~100ms at 30Hz
+    reaction_ticks: int = 30  # 1s at 30Hz
+    # Stored for recomputation when a piece vacates its square
+    _occupied: set[tuple[int, int]] = field(default_factory=set)
+    _enemy_pieces: list[AIPiece] = field(default_factory=list)
+    _board_w: int = 8
+    _board_h: int = 8
+    _is_4p: bool = False
 
     def get_our_time(self, row: int, col: int) -> int:
         """Get our minimum arrival time at a square."""
@@ -70,9 +76,48 @@ class ArrivalData:
                 best = t
         return best
 
+    def _recompute_enemy_time(
+        self, row: int, col: int,
+        unblocked_pos: tuple[int, int],
+        exclude_piece_id: str | None = None,
+    ) -> int:
+        """Recompute enemy arrival at (row, col) with unblocked_pos removed from occupancy.
+
+        This handles the case where our piece vacating its square unblocks
+        an enemy slider ray. Only recomputes for idle enemy sliders that
+        could benefit from the unblocked position.
+        """
+        modified_occupied = self._occupied - {unblocked_pos}
+        best = INF_TICKS
+
+        for ep in self._enemy_pieces:
+            if exclude_piece_id and ep.piece.id == exclude_piece_id:
+                continue
+            t = _piece_arrival_time(
+                ep, (row, col), self.tps, self.cd_ticks,
+                modified_occupied, self._board_w, self._board_h, self._is_4p,
+            )
+            if t < best:
+                best = t
+
+        # Also check traveling enemy pieces (not affected by occupancy changes,
+        # but need to include them for completeness)
+        for pid, times in self.enemy_time_by_piece.items():
+            if exclude_piece_id and pid == exclude_piece_id:
+                continue
+            # Skip idle pieces — already recomputed above
+            if any(ep.piece.id == pid for ep in self._enemy_pieces):
+                continue
+            t = times.get((row, col), INF_TICKS)
+            if t < best:
+                best = t
+
+        return best
+
     def post_arrival_safety(
         self, row: int, col: int, travel_ticks: int,
         exclude_piece_id: str | None = None,
+        moving_from: tuple[int, int] | None = None,
     ) -> int:
         """Compute post-arrival safety margin for a move.
 
@@ -85,11 +130,18 @@ class ArrivalData:
             row, col: Destination square
             travel_ticks: How long our move takes
             exclude_piece_id: Enemy piece to exclude (e.g., one we're capturing)
+            moving_from: Our piece's origin square. When set, recomputes enemy
+                arrival times as if this square is vacated, fixing the
+                self-blocking bug where our piece blocks an enemy slider ray.
 
         Returns:
             Safety margin in ticks. Positive = safe, negative = vulnerable.
         """
-        if exclude_piece_id:
+        if moving_from is not None and self._enemy_pieces:
+            enemy_t = self._recompute_enemy_time(
+                row, col, moving_from, exclude_piece_id,
+            )
+        elif exclude_piece_id:
             enemy_t = self.get_enemy_time_excluding(row, col, exclude_piece_id)
         else:
             enemy_t = self.get_enemy_time(row, col)
@@ -181,6 +233,36 @@ class ArrivalField:
                     enemy_time[sq] = t
             enemy_time_by_piece[ep.piece.id] = piece_times
 
+        # Account for traveling enemy pieces: they will arrive at squares
+        # along their remaining path. These are already committed moves
+        # that WILL happen — ignoring them is a critical safety blind spot.
+        for ep in ai_state.get_enemy_pieces():
+            if ep.status != PieceStatus.TRAVELING or ep.piece.captured:
+                continue
+            if ep.travel_direction is None:
+                continue
+
+            pr, pc = ep.current_position
+            dr, dc = ep.travel_direction
+            piece_times: dict[tuple[int, int], int] = {}
+
+            # Project along the travel ray: the piece will pass through
+            # each square at dist * tps ticks from now (approximate)
+            for dist in range(0, max(w, h)):
+                sr = int(round(pr + dr * dist))
+                sc = int(round(pc + dc * dist))
+                if sr < 0 or sr >= h or sc < 0 or sc >= w:
+                    break
+                sq = (sr, sc)
+                # Arrival time: distance from current position in ticks
+                t = dist * tps
+                if sq in enemy_time:
+                    piece_times[sq] = t
+                    if t < enemy_time[sq]:
+                        enemy_time[sq] = t
+
+            enemy_time_by_piece[ep.piece.id] = piece_times
+
         reaction_ticks = int(REACTION_TIME_SECONDS * TICK_RATE_HZ)
 
         return ArrivalData(
@@ -190,6 +272,11 @@ class ArrivalField:
             tps=tps,
             cd_ticks=cd_ticks,
             reaction_ticks=reaction_ticks,
+            _occupied=occupied,
+            _enemy_pieces=enemy_pieces,
+            _board_w=w,
+            _board_h=h,
+            _is_4p=is_4p,
         )
 
 

@@ -2,17 +2,17 @@
 
 import os
 
-# Disable rate limiting and email sending for all tests
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+# Disable rate limiting and email sending for all tests - must happen before app import
 os.environ["RATE_LIMITING_ENABLED"] = "false"
 os.environ["SEND_EMAILS"] = "false"
 
-# Clear the settings cache to pick up the new environment variable
-from kfchess.settings import get_settings
+# Clear the settings cache to pick up the new environment variables
+from kfchess.settings import get_settings  # noqa: E402
 
 get_settings.cache_clear()
-
-import pytest  # noqa: E402
-from httpx import ASGITransport, AsyncClient  # noqa: E402
 
 from kfchess.main import app  # noqa: E402
 

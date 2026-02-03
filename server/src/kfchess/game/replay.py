@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from kfchess.game.board import BoardType
+from kfchess.game.engine import GameEngine
 from kfchess.game.state import TICK_RATE_HZ, GameStatus, ReplayMove, Speed
 
 if TYPE_CHECKING:
@@ -223,9 +224,6 @@ class ReplayEngine:
         Returns:
             GameState at the specified tick
         """
-        # Import here to avoid circular imports
-        from kfchess.game.engine import GameEngine
-
         # Create initial game state
         state = GameEngine.create_game(
             speed=self.replay.speed,
@@ -277,9 +275,6 @@ class ReplayEngine:
         Returns:
             The same state object, advanced by one tick
         """
-        # Import here to avoid circular imports
-        from kfchess.game.engine import GameEngine
-
         # Apply any moves that start at this tick
         for replay_move in self._moves_by_tick.get(state.current_tick, []):
             move = GameEngine.validate_move(

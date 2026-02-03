@@ -63,7 +63,7 @@ class TestGetCurrentUserWithDevBypass:
                 mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch("kfchess.db.repositories.UserRepository") as MockUserRepo:
+                with patch("kfchess.auth.dependencies.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=mock_user)
                     MockUserRepo.return_value = mock_repo
@@ -86,7 +86,7 @@ class TestGetCurrentUserWithDevBypass:
                 mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch("kfchess.db.repositories.UserRepository") as MockUserRepo:
+                with patch("kfchess.auth.dependencies.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=None)
                     MockUserRepo.return_value = mock_repo

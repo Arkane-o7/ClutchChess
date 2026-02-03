@@ -14,6 +14,26 @@ if TYPE_CHECKING:
     from kfchess.ai.arrival_field import ArrivalData
 
 
+def compute_travel_ticks(
+    from_row: int, from_col: int,
+    to_row: int, to_col: int,
+    piece_type: PieceType,
+    tps: int,
+) -> int:
+    """Estimate travel time in ticks for a move.
+
+    This is an approximation — the engine computes exact path length,
+    but we use Chebyshev distance for sliders and fixed costs for knights.
+    """
+    if piece_type == PieceType.KNIGHT:
+        return 2 * tps  # Knights always move 2 segments
+    # Sliders, king, pawn: distance along the path
+    dr = abs(to_row - from_row)
+    dc = abs(to_col - from_col)
+    dist = max(dr, dc)  # Chebyshev = path length for diagonal/straight
+    return dist * tps
+
+
 class CandidateMove:
     """A candidate move with metadata for scoring."""
 
@@ -176,7 +196,6 @@ def _build_candidates(
         travel = 0
         safety = 0
         if arrival_data is not None:
-            from kfchess.ai.tactics import compute_travel_ticks
             travel = compute_travel_ticks(
                 ai_piece.piece.grid_position[0],
                 ai_piece.piece.grid_position[1],

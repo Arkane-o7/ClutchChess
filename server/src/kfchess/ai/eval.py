@@ -8,7 +8,14 @@ from typing import TYPE_CHECKING
 
 from kfchess.ai.move_gen import CandidateMove
 from kfchess.ai.state_extractor import AIState
-from kfchess.ai.tactics import PIECE_VALUES
+from kfchess.ai.tactics import (
+    PIECE_VALUES,
+    capture_value,
+    dodge_probability,
+    move_safety,
+    recapture_bonus,
+    threaten_score,
+)
 from kfchess.game.pieces import PieceType
 
 if TYPE_CHECKING:
@@ -135,13 +142,11 @@ def _score_move(
 
     # Material: value of captured piece
     if candidate.capture_type:
-        from kfchess.ai.tactics import capture_value as _cap_feas
-        net_capture = _cap_feas(candidate)
+        net_capture = capture_value(candidate)
 
         if level >= 3 and arrival_data is not None:
             # EV framework: account for dodge probability
-            from kfchess.ai.tactics import dodge_probability as _dodge_prob
-            p = _dodge_prob(candidate, ai_state, arrival_data)
+            p = dodge_probability(candidate, ai_state, arrival_data)
             our_value = PIECE_VALUES.get(
                 candidate.ai_piece.piece.type, 1.0,
             ) if candidate.ai_piece else 1.0
@@ -175,9 +180,7 @@ def _score_move(
 
         # Safety: expected material loss from recapture (L2+)
         if arrival_data is not None and level >= 2:
-            from kfchess.ai.tactics import move_safety as _move_safety
-
-            safety_cost = _move_safety(candidate, ai_state, arrival_data)
+            safety_cost = move_safety(candidate, ai_state, arrival_data)
             score += safety_cost * SAFETY_WEIGHT
 
             # Commitment penalty: penalize long-distance moves (non-captures)
@@ -190,11 +193,8 @@ def _score_move(
         # Level 3: threat bonus + recapture positioning
         if arrival_data is not None and level >= 3:
             # Threat bonus: value of best enemy piece we safely threaten
-            from kfchess.ai.tactics import threaten_score as _threaten
-            score += _threaten(candidate, ai_state, arrival_data) * THREATEN_WEIGHT
-            from kfchess.ai.tactics import recapture_bonus as _recap_bonus
-
-            score += _recap_bonus(candidate, ai_state, arrival_data) * RECAPTURE_WEIGHT
+            score += threaten_score(candidate, ai_state, arrival_data) * THREATEN_WEIGHT
+            score += recapture_bonus(candidate, ai_state, arrival_data) * RECAPTURE_WEIGHT
 
     # Center control
     dist_to_center = _euclidean_distance(dest, (center_r, center_c))

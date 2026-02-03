@@ -93,7 +93,7 @@ class TestGetUserReplays:
         with patch(
             "kfchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
+            "kfchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -130,7 +130,7 @@ class TestGetUserReplays:
         with patch(
             "kfchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
+            "kfchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
             "kfchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
@@ -180,7 +180,7 @@ class TestGetUserReplays:
         with patch(
             "kfchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
+            "kfchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
             "kfchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
@@ -240,7 +240,7 @@ class TestGetUserReplays:
         with patch(
             "kfchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.db.repositories.user_game_history.UserGameHistoryRepository"
+            "kfchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)

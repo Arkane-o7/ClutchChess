@@ -4,11 +4,24 @@ import asyncio
 import json
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from kfchess.game.state import TICK_RATE_HZ
+from kfchess.db.repositories.replays import ReplayRepository
+from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
+from kfchess.db.session import async_session_factory
+from kfchess.game.collision import (
+    get_interpolated_position,
+    is_piece_moving,
+    is_piece_on_cooldown,
+)
+from kfchess.game.state import TICK_RATE_HZ, GameStatus
+from kfchess.lobby.manager import get_lobby_manager
+from kfchess.services.game_service import get_game_service
+from kfchess.services.rating_service import RatingService
+from kfchess.ws.lobby_handler import notify_game_ended
 from kfchess.ws.protocol import (
     CountdownMessage,
     ErrorMessage,
@@ -202,8 +215,6 @@ async def _start_game_loop_if_needed(game_id: str) -> None:
     Uses a lock to prevent race conditions when multiple connections
     try to start the loop simultaneously.
     """
-    from kfchess.services.game_service import get_game_service
-
     service = get_game_service()
     lock = _get_game_loop_lock(game_id)
 
@@ -221,12 +232,6 @@ async def _start_game_loop_if_needed(game_id: str) -> None:
 
 async def _send_initial_state(websocket: WebSocket, game_id: str, service: Any) -> None:
     """Send the current game state to a newly connected client."""
-    from kfchess.game.collision import (
-        get_interpolated_position,
-        is_piece_moving,
-        is_piece_on_cooldown,
-    )
-
     state = service.get_game(game_id)
     if state is None:
         return
@@ -307,9 +312,6 @@ async def handle_websocket(
         player_key: The player's secret key (None for spectators)
     """
     logger.info(f"WebSocket connection attempt: game_id={game_id}, has_player_key={player_key is not None}")
-
-    # Import here to avoid circular imports
-    from kfchess.services.game_service import get_game_service
 
     service = get_game_service()
 
@@ -533,10 +535,6 @@ async def _save_replay(game_id: str, service: Any) -> None:
             return
 
         # Save to database
-        from kfchess.db.repositories.replays import ReplayRepository
-        from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
-        from kfchess.db.session import async_session_factory
-
         async with async_session_factory() as session:
             try:
                 # Save the replay
@@ -544,8 +542,6 @@ async def _save_replay(game_id: str, service: Any) -> None:
                 await repository.save(game_id, replay)
 
                 # Save to user_game_history for each human player
-                from datetime import UTC, datetime
-
                 history_repo = UserGameHistoryRepository(session)
                 game_time = replay.created_at or datetime.now(UTC)
 
@@ -598,9 +594,6 @@ async def _notify_lobby_game_ended(game_id: str, winner: int | None, reason: str
         reason: The reason the game ended
     """
     try:
-        from kfchess.lobby.manager import get_lobby_manager
-        from kfchess.ws.lobby_handler import notify_game_ended
-
         manager = get_lobby_manager()
         lobby_code = manager.find_lobby_by_game(game_id)
 
@@ -629,10 +622,6 @@ async def _update_ratings(
     Returns:
         Dict of {player_num: RatingChange} or None if not eligible
     """
-    from kfchess.db.session import async_session_factory
-    from kfchess.lobby.manager import get_lobby_manager
-    from kfchess.services.rating_service import RatingService
-
     try:
         manager = get_lobby_manager()
         lobby_code = manager.find_lobby_by_game(game_id)
@@ -714,14 +703,6 @@ async def _run_game_loop(game_id: str) -> None:
     - Active moves have changed (piece started/finished moving)
     - Cooldowns have changed (piece entered/exited cooldown)
     """
-    from kfchess.game.collision import (
-        get_interpolated_position,
-        is_piece_moving,
-        is_piece_on_cooldown,
-    )
-    from kfchess.game.state import TICK_RATE_HZ, GameStatus
-    from kfchess.services.game_service import get_game_service
-
     service = get_game_service()
     # Derive tick timing from global tick rate
     tick_interval = 1.0 / TICK_RATE_HZ

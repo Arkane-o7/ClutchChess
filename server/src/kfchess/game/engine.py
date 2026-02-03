@@ -7,20 +7,18 @@ for performance. Use GameState.copy() if you need to preserve state
 
 import logging
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
 
-logger = logging.getLogger(__name__)
-from dataclasses import dataclass  # noqa: E402
-from datetime import UTC, datetime  # noqa: E402
-from enum import Enum  # noqa: E402
-
-from kfchess.game.board import Board, BoardType  # noqa: E402
-from kfchess.game.collision import (  # noqa: E402
+from kfchess.game.board import Board, BoardType
+from kfchess.game.collision import (
     detect_collisions,
     get_interpolated_position,
     is_piece_moving,
     is_piece_on_cooldown,
 )
-from kfchess.game.moves import (  # noqa: E402
+from kfchess.game.moves import (
     FOUR_PLAYER_ORIENTATIONS,
     Cooldown,
     Move,
@@ -28,14 +26,16 @@ from kfchess.game.moves import (  # noqa: E402
     compute_move_path,
     should_promote_pawn,
 )
-from kfchess.game.pieces import Piece, PieceType  # noqa: E402
-from kfchess.game.state import (  # noqa: E402
+from kfchess.game.pieces import Piece, PieceType
+from kfchess.game.state import (
     GameState,
     GameStatus,
     ReplayMove,
     Speed,
     WinReason,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class GameEventType(Enum):

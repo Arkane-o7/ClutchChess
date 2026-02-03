@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import Request
 from fastapi_users import BaseUserManager, IntegerIDMixin
 from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users.exceptions import UserAlreadyExists
+from fastapi_users.jwt import generate_jwt
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -173,8 +175,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         Raises:
             OAuthUserAlreadyExists: If email is already used by a password-based user
         """
-        from fastapi_users.exceptions import UserAlreadyExists
-
         # Validate token data (log warnings for suspicious values)
         self._validate_oauth_tokens(access_token, expires_at, refresh_token)
 
@@ -418,8 +418,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         Raises:
             UserAlreadyExists: If email belongs to a legacy Google-only user
         """
-        from fastapi_users.exceptions import UserAlreadyExists
-
         # Check if this email belongs to a legacy Google-only user
         # Legacy users have google_id set (same as email) but no password
         email = getattr(user_create, "email", None)
@@ -475,8 +473,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         This is a simplified implementation - FastAPI-Users handles this
         internally when you use the verification routes.
         """
-        from fastapi_users.jwt import generate_jwt
-
         return generate_jwt(
             data={"sub": str(user.id), "email": user.email, "aud": "fastapi-users:verify"},
             secret=self.verification_token_secret,

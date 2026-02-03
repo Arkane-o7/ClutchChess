@@ -6,6 +6,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from kfchess.db.repositories.replays import ReplayRepository
+from kfchess.db.session import async_session_factory
 from kfchess.game.board import BoardType
 from kfchess.game.collision import (
     get_interpolated_position,
@@ -13,7 +15,10 @@ from kfchess.game.collision import (
     is_piece_on_cooldown,
 )
 from kfchess.game.state import Speed
+from kfchess.lobby.manager import get_lobby_manager
+from kfchess.lobby.models import LobbyStatus
 from kfchess.services.game_service import get_game_service
+from kfchess.utils.display_name import resolve_player_info
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +155,6 @@ async def list_live_games(
     This endpoint returns all public games that are currently being played.
     Users can spectate any game by connecting to its WebSocket without a player key.
     """
-    from kfchess.lobby.manager import get_lobby_manager
-    from kfchess.lobby.models import LobbyStatus
-
     lobby_manager = get_lobby_manager()
     service = get_game_service()
 
@@ -212,9 +214,6 @@ async def list_live_games(
 @router.get("/{game_id}")
 async def get_game(game_id: str) -> dict[str, Any]:
     """Get the current game state."""
-    from kfchess.db.session import async_session_factory
-    from kfchess.utils.display_name import resolve_player_info
-
     service = get_game_service()
     state = service.get_game(game_id)
 
@@ -370,9 +369,6 @@ async def get_replay(game_id: str) -> dict[str, Any]:
     Returns:
         Replay data including moves, players, and game outcome
     """
-    from kfchess.db.repositories.replays import ReplayRepository
-    from kfchess.db.session import async_session_factory
-
     # First, try to get from database
     async with async_session_factory() as session:
         repository = ReplayRepository(session)

@@ -4,8 +4,8 @@ Validates captures and positional moves using post-arrival safety
 analysis, ensuring the AI accounts for cooldown vulnerability.
 """
 
-from kfchess.ai.arrival_field import ArrivalData
-from kfchess.ai.move_gen import CandidateMove
+from kfchess.ai.arrival_field import ArrivalData, _piece_arrival_time
+from kfchess.ai.move_gen import CandidateMove, compute_travel_ticks
 from kfchess.ai.state_extractor import AIPiece, AIState, PieceStatus
 from kfchess.game.pieces import PieceType
 from kfchess.game.state import TICK_RATE_HZ
@@ -19,26 +19,6 @@ PIECE_VALUES: dict[PieceType, float] = {
     PieceType.QUEEN: 9.0,
     PieceType.KING: 100.0,
 }
-
-
-def compute_travel_ticks(
-    from_row: int, from_col: int,
-    to_row: int, to_col: int,
-    piece_type: PieceType,
-    tps: int,
-) -> int:
-    """Estimate travel time in ticks for a move.
-
-    This is an approximation — the engine computes exact path length,
-    but we use Chebyshev distance for sliders and fixed costs for knights.
-    """
-    if piece_type == PieceType.KNIGHT:
-        return 2 * tps  # Knights always move 2 segments
-    # Sliders, king, pawn: distance along the path
-    dr = abs(to_row - from_row)
-    dc = abs(to_col - from_col)
-    dist = max(dr, dc)  # Chebyshev = path length for diagonal/straight
-    return dist * tps
 
 
 def capture_value(
@@ -365,7 +345,6 @@ def threaten_score(
         # If so, it can counter-capture us — not a safe threat.
         # Recompute with our origin vacated to avoid self-blocking.
         if modified_occ is not None:
-            from kfchess.ai.arrival_field import _piece_arrival_time
             enemy_to_dest = _piece_arrival_time(
                 ep, dest, tps, cd_ticks, modified_occ,
                 arrival_data._board_w, arrival_data._board_h,

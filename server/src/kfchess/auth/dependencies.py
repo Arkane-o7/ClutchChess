@@ -4,17 +4,20 @@ Provides the FastAPIUsers instance and dependency functions for
 getting current user, with DEV_MODE bypass support.
 """
 
+import logging
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi_users import FastAPIUsers
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kfchess.auth.backend import auth_backend
 from kfchess.auth.users import UserManager
+from kfchess.db import session as db_session
 from kfchess.db.models import OAuthAccount, User
+from kfchess.db.repositories.users import UserRepository
 from kfchess.db.session import get_db_session
 from kfchess.settings import get_settings
 
@@ -82,8 +85,6 @@ async def get_current_user_with_dev_bypass(
     Returns:
         The authenticated user, dev user (if no auth and DEV_MODE), or None
     """
-    import logging
-
     logger = logging.getLogger(__name__)
 
     # If user is already authenticated, return them (don't override)
@@ -93,10 +94,7 @@ async def get_current_user_with_dev_bypass(
     # Only use dev bypass when no user is authenticated
     settings = get_settings()
     if settings.dev_mode and settings.dev_user_id is not None:
-        from kfchess.db.repositories import UserRepository
-        from kfchess.db.session import async_session_factory
-
-        async with async_session_factory() as session:
+        async with db_session.async_session_factory() as session:
             repo = UserRepository(session)
             dev_user = await repo.get_by_id(settings.dev_user_id)
             if dev_user:
@@ -124,8 +122,6 @@ async def get_required_user_with_dev_bypass(
     Raises:
         HTTPException: If no user is authenticated and DEV_MODE is off
     """
-    from fastapi import HTTPException, status
-
     result = await get_current_user_with_dev_bypass(request, user)
     if result is None:
         raise HTTPException(

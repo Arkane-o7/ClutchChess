@@ -15,7 +15,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from kfchess.db.repositories.lobbies import LobbyRepository
 from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
+from kfchess.services.game_service import _generate_game_id
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -89,8 +91,6 @@ class LobbyManager:
         if self._session_factory is None:
             return
 
-        from kfchess.db.repositories.lobbies import LobbyRepository
-
         try:
             async with self._session_factory() as session:
                 repository = LobbyRepository(session)
@@ -112,8 +112,6 @@ class LobbyManager:
         """
         if self._session_factory is None:
             return
-
-        from kfchess.db.repositories.lobbies import LobbyRepository
 
         try:
             async with self._session_factory() as session:
@@ -884,8 +882,6 @@ class LobbyManager:
             lobby.games_played += 1
 
             # Generate game ID
-            from kfchess.services.game_service import _generate_game_id
-
             game_id = _generate_game_id()
             lobby.current_game_id = game_id
 

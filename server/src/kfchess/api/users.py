@@ -4,6 +4,7 @@ These routes replace FastAPI-Users' built-in /users routes to support
 DEV_MODE authentication bypass for local development.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Annotated
 
@@ -20,6 +21,7 @@ from kfchess.auth.dependencies import (
 from kfchess.auth.schemas import UserRead, UserUpdate
 from kfchess.auth.users import UserManager
 from kfchess.db.models import User
+from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
 from kfchess.db.repositories.users import UserRepository
 from kfchess.db.session import get_db_session
 from kfchess.services.s3 import (
@@ -147,8 +149,6 @@ async def upload_picture(
         )
 
     try:
-        import asyncio
-
         url = await asyncio.to_thread(upload_profile_picture, file_bytes, file.content_type)
     except ValueError as e:
         raise HTTPException(
@@ -225,8 +225,6 @@ async def get_user_replays(
     Raises:
         HTTPException: 404 if user not found
     """
-    from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
-
     # Verify user exists
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(user_id)

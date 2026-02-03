@@ -7,8 +7,11 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from kfchess.game.board import BoardType
+from kfchess.game.state import Speed
 from kfchess.lobby.manager import LobbyError, get_lobby_manager
 from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
+from kfchess.services.game_service import get_game_service
 
 logger = logging.getLogger(__name__)
 
@@ -606,10 +609,6 @@ async def _create_game_from_lobby(
         game_id: The generated game ID (from lobby manager, unused - we generate new one)
         game_player_keys: Player keys for the game {slot: key} (from lobby manager)
     """
-    from kfchess.game.board import BoardType
-    from kfchess.game.state import Speed
-    from kfchess.services.game_service import get_game_service
-
     service = get_game_service()
 
     # Map settings to game parameters

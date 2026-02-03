@@ -24,6 +24,7 @@ In a distributed deployment where replay sessions can migrate between servers:
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from fastapi import WebSocket
@@ -235,8 +236,6 @@ class ReplaySession:
 
         Only sends state updates when state changes (active moves or cooldowns changed).
         """
-        import time
-
         # Use the tick rate the replay was recorded at for accurate playback
         # Old replays default to 10 Hz, new replays use current tick rate
         tick_rate_hz = self.replay.tick_rate_hz
@@ -336,8 +335,6 @@ class ReplaySession:
             tick_start_time: Monotonic time when this tick started (from time.monotonic())
             tick_interval_ms: Tick interval in milliseconds (for clamping time_since_tick)
         """
-        import time
-
         if self._closed:
             return
 

@@ -717,36 +717,44 @@ async def _run_game_loop(game_id: str) -> None:
 
     try:
         # === Countdown phase (before any ticks) ===
-        _games_in_countdown.add(game_id)
-        logger.info(f"Game {game_id} starting {COUNTDOWN_SECONDS}s countdown")
+        # Only run countdown if game hasn't started yet (tick 0).
+        # If the loop was restarted (e.g., after all players disconnected
+        # and one reconnected), skip countdown since the game is already
+        # in progress.
+        managed_game = service.get_managed_game(game_id)
+        if managed_game is not None and managed_game.state.current_tick == 0:
+            _games_in_countdown.add(game_id)
+            logger.info(f"Game {game_id} starting {COUNTDOWN_SECONDS}s countdown")
 
-        for seconds_remaining in range(COUNTDOWN_SECONDS, 0, -1):
-            # Check if game still exists and has connections
-            managed_game = service.get_managed_game(game_id)
-            if managed_game is None:
-                logger.info(f"Game {game_id} not found during countdown, stopping")
-                return
+            for seconds_remaining in range(COUNTDOWN_SECONDS, 0, -1):
+                # Check if game still exists and has connections
+                managed_game = service.get_managed_game(game_id)
+                if managed_game is None:
+                    logger.info(f"Game {game_id} not found during countdown, stopping")
+                    return
 
-            if not connection_manager.has_connections(game_id):
-                logger.info(f"No connections for game {game_id} during countdown, stopping")
-                return
+                if not connection_manager.has_connections(game_id):
+                    logger.info(f"No connections for game {game_id} during countdown, stopping")
+                    return
 
-            # Broadcast countdown
+                # Broadcast countdown
+                await connection_manager.broadcast(
+                    game_id,
+                    CountdownMessage(seconds=seconds_remaining).model_dump(),
+                )
+
+                # Wait 1 second
+                await asyncio.sleep(1.0)
+
+            # Countdown complete - remove from countdown set and broadcast game_started
+            _games_in_countdown.discard(game_id)
             await connection_manager.broadcast(
                 game_id,
-                CountdownMessage(seconds=seconds_remaining).model_dump(),
+                GameStartedMessage(tick=0).model_dump(),
             )
-
-            # Wait 1 second
-            await asyncio.sleep(1.0)
-
-        # Countdown complete - remove from countdown set and broadcast game_started
-        _games_in_countdown.discard(game_id)
-        await connection_manager.broadcast(
-            game_id,
-            GameStartedMessage(tick=0).model_dump(),
-        )
-        logger.info(f"Game {game_id} countdown complete, game started")
+            logger.info(f"Game {game_id} countdown complete, game started")
+        else:
+            logger.info(f"Game {game_id} loop restarted, skipping countdown (tick={managed_game.state.current_tick if managed_game else 'N/A'})")
 
         # === Main game loop ===
         while True:

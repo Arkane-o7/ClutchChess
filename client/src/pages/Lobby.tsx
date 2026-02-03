@@ -261,6 +261,7 @@ export function Lobby() {
   const removeAi = useLobbyStore((s) => s.removeAi);
   const changeAiDifficulty = useLobbyStore((s) => s.changeAiDifficulty);
   const startGame = useLobbyStore((s) => s.startGame);
+  const returnToLobby = useLobbyStore((s) => s.returnToLobby);
   const leaveLobby = useLobbyStore((s) => s.leaveLobby);
   const clearError = useLobbyStore((s) => s.clearError);
 
@@ -312,6 +313,15 @@ export function Lobby() {
       navigate(`/game/${pendingGameId}`);
     }
   }, [pendingGameId, navigate]);
+
+  // Auto-transition lobby back to waiting when returning from a game.
+  // The "return_to_lobby" message may have been lost if the lobby WS was
+  // disconnected while the player was on the game page.
+  useEffect(() => {
+    if (lobby?.status === 'finished' && connectionState === 'connected') {
+      returnToLobby();
+    }
+  }, [lobby?.status, connectionState, returnToLobby]);
 
   // Cleanup on unmount (unless navigating to game)
   useEffect(() => {

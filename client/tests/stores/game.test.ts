@@ -252,6 +252,43 @@ describe('Game Store', () => {
     });
   });
 
+  describe('offerDraw', () => {
+    it('does nothing when no wsClient', () => {
+      useGameStore.setState({ status: 'playing', wsClient: null });
+      useGameStore.getState().offerDraw();
+    });
+
+    it('does nothing when game is not playing', () => {
+      const mockSendOfferDraw = vi.fn();
+      useGameStore.setState({
+        status: 'waiting',
+        wsClient: { sendOfferDraw: mockSendOfferDraw, disconnect: vi.fn() } as unknown as ReturnType<typeof useGameStore.getState>['wsClient'],
+      });
+      useGameStore.getState().offerDraw();
+      expect(mockSendOfferDraw).not.toHaveBeenCalled();
+    });
+
+    it('sends offer_draw message when playing', () => {
+      const mockSendOfferDraw = vi.fn();
+      useGameStore.setState({
+        status: 'playing',
+        wsClient: { sendOfferDraw: mockSendOfferDraw, disconnect: vi.fn() } as unknown as ReturnType<typeof useGameStore.getState>['wsClient'],
+      });
+      useGameStore.getState().offerDraw();
+      expect(mockSendOfferDraw).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('handleDrawOffered', () => {
+    it('updates drawOffers from server message', () => {
+      useGameStore.getState().handleDrawOffered({ type: 'draw_offered', player: 1, draw_offers: [1] });
+      expect(useGameStore.getState().drawOffers).toEqual([1]);
+
+      useGameStore.getState().handleDrawOffered({ type: 'draw_offered', player: 2, draw_offers: [1, 2] });
+      expect(useGameStore.getState().drawOffers).toEqual([1, 2]);
+    });
+  });
+
   describe('selectIsPlayerEliminated', () => {
     it('returns false for spectators', () => {
       useGameStore.setState({ playerNumber: 0, pieces: [] });

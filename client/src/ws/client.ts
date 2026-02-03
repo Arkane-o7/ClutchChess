@@ -118,6 +118,13 @@ export class GameWebSocketClient {
   }
 
   /**
+   * Send draw offer
+   */
+  sendOfferDraw(): void {
+    this.send({ type: 'offer_draw' });
+  }
+
+  /**
    * Get current connection state
    */
   getConnectionState(): ConnectionState {
@@ -181,6 +188,9 @@ export class GameWebSocketClient {
         break;
       case 'rating_update':
         this.options.onRatingUpdate?.(data);
+        break;
+      case 'draw_offered':
+        this.options.onDrawOffered?.(data);
         break;
       case 'move_rejected':
         this.options.onMoveRejected?.(data);

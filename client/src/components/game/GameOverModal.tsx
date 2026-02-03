@@ -61,6 +61,8 @@ export function GameOverModal() {
         return 'King was captured';
       case 'draw_timeout':
         return 'Game timed out';
+      case 'draw':
+        return 'Draw agreed';
       case 'resignation':
         if (playerNumber === 0) return 'Player resigned';
         return winner === playerNumber ? 'Opponent resigned' : 'You resigned';

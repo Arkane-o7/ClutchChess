@@ -588,3 +588,175 @@ class TestResign:
         assert state.status == GameStatus.FINISHED
         assert state.winner == 4
         assert state.win_reason == WinReason.RESIGNATION
+
+
+class TestOfferDraw:
+    """Tests for GameService.offer_draw()."""
+
+    def _create_playing_game_with_bot(
+        self,
+    ) -> tuple[GameService, str, str]:
+        """Helper: create a 2P game (human vs bot) and start it."""
+        service = GameService()
+        game_id, player_key, _ = service.create_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.STANDARD,
+            opponent="bot:dummy",
+        )
+        service.mark_ready(game_id, player_key)
+        return service, game_id, player_key
+
+    def _create_lobby_game_2_humans(
+        self,
+    ) -> tuple[GameService, str]:
+        """Helper: create a 2P lobby game with 2 human players."""
+        service = GameService()
+        player_keys = {1: "key1", 2: "key2"}
+        game_id = service.create_lobby_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.STANDARD,
+            player_keys=player_keys,
+        )
+        return service, game_id
+
+    def test_offer_draw_succeeds(self) -> None:
+        """Basic draw offer should succeed."""
+        service, game_id = self._create_lobby_game_2_humans()
+        success, error = service.offer_draw(game_id, 1)
+        assert success is True
+        assert error is None
+
+        managed = service.get_managed_game(game_id)
+        assert managed is not None
+        assert 1 in managed.draw_offers
+
+    def test_offer_draw_all_humans_accept_ends_game(self) -> None:
+        """When all human players offer draw, game ends as draw."""
+        service, game_id = self._create_lobby_game_2_humans()
+
+        service.offer_draw(game_id, 1)
+        service.offer_draw(game_id, 2)
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.FINISHED
+        assert state.winner == 0
+        assert state.win_reason == WinReason.DRAW
+
+    def test_offer_draw_rejected_when_only_human(self) -> None:
+        """Draw offer should be rejected when there are no other human players."""
+        service, game_id, _ = self._create_playing_game_with_bot()
+        success, error = service.offer_draw(game_id, 1)
+        assert success is False
+        assert error == "No other human players to agree"
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.PLAYING
+
+    def test_offer_draw_invalid_game(self) -> None:
+        """Draw offer for nonexistent game should fail."""
+        service = GameService()
+        success, error = service.offer_draw("nonexistent", 1)
+        assert success is False
+        assert error == "Game not found"
+
+    def test_offer_draw_game_not_playing(self) -> None:
+        """Draw offer before game starts should fail."""
+        service = GameService()
+        game_id, _, _ = service.create_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.STANDARD,
+            opponent="bot:dummy",
+        )
+        success, error = service.offer_draw(game_id, 1)
+        assert success is False
+        assert error == "Game is not in progress"
+
+    def test_offer_draw_already_offered(self) -> None:
+        """Offering draw twice should fail."""
+        service, game_id = self._create_lobby_game_2_humans()
+        service.offer_draw(game_id, 1)
+
+        success, error = service.offer_draw(game_id, 1)
+        assert success is False
+        assert error == "Already offered draw"
+
+    def test_offer_draw_ai_cannot_offer(self) -> None:
+        """AI players should not be able to offer draw."""
+        service, game_id, _ = self._create_playing_game_with_bot()
+        success, error = service.offer_draw(game_id, 2)
+        assert success is False
+        assert error == "AI players cannot offer draw"
+
+    def test_offer_draw_eliminated_player(self) -> None:
+        """Eliminated player should not be able to offer draw."""
+        service = GameService()
+        player_keys = {1: "key1", 2: "key2", 3: "key3", 4: "key4"}
+        game_id = service.create_lobby_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.FOUR_PLAYER,
+            player_keys=player_keys,
+        )
+
+        # Eliminate player 1 via resignation
+        service.resign(game_id, 1)
+
+        success, error = service.offer_draw(game_id, 1)
+        assert success is False
+        assert error == "Eliminated players cannot offer draw"
+
+    def test_offer_draw_4player_mixed_humans_and_bots(self) -> None:
+        """In 4-player with 2 humans + 2 bots, both humans must offer."""
+        service = GameService()
+        player_keys = {1: "key1", 2: "key2"}
+        game_id = service.create_lobby_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.FOUR_PLAYER,
+            player_keys=player_keys,
+            ai_players_config={3: "dummy", 4: "dummy"},
+        )
+
+        # One human offers — game should continue
+        success, _ = service.offer_draw(game_id, 1)
+        assert success is True
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.PLAYING
+
+        # Second human offers — game should end as draw
+        success, _ = service.offer_draw(game_id, 2)
+        assert success is True
+
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.FINISHED
+        assert state.winner == 0
+        assert state.win_reason == WinReason.DRAW
+
+    def test_offer_draw_4player_human_eliminated_then_remaining_draw(self) -> None:
+        """In 4-player with 3 humans, if one is eliminated the other 2 can draw."""
+        service = GameService()
+        player_keys = {1: "key1", 2: "key2", 3: "key3"}
+        game_id = service.create_lobby_game(
+            speed=Speed.STANDARD,
+            board_type=BoardType.FOUR_PLAYER,
+            player_keys=player_keys,
+            ai_players_config={4: "dummy"},
+        )
+
+        # Eliminate player 3
+        service.resign(game_id, 3)
+        state = service.get_game(game_id)
+        assert state is not None
+        assert state.status == GameStatus.PLAYING
+
+        # Remaining humans draw
+        service.offer_draw(game_id, 1)
+        assert state.status == GameStatus.PLAYING
+
+        service.offer_draw(game_id, 2)
+        assert state.status == GameStatus.FINISHED
+        assert state.winner == 0
+        assert state.win_reason == WinReason.DRAW

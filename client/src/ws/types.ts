@@ -81,7 +81,7 @@ export interface GameStartedMessage {
 export interface GameOverMessage {
   type: 'game_over';
   winner: number; // 0 for draw, 1-4 for player
-  reason: 'king_captured' | 'draw_timeout' | 'resignation';
+  reason: 'king_captured' | 'draw_timeout' | 'resignation' | 'draw';
 }
 
 export interface RatingChangePayload {
@@ -107,6 +107,12 @@ export interface PongMessage {
   type: 'pong';
 }
 
+export interface DrawOfferedMessage {
+  type: 'draw_offered';
+  player: number;
+  draw_offers: number[];
+}
+
 export interface ErrorMessage {
   type: 'error';
   message: string;
@@ -120,6 +126,7 @@ export type ServerMessage =
   | GameOverMessage
   | RatingUpdateMessage
   | MoveRejectedMessage
+  | DrawOfferedMessage
   | PongMessage
   | ErrorMessage;
 
@@ -142,6 +149,10 @@ export interface ResignClientMessage {
   type: 'resign';
 }
 
+export interface OfferDrawClientMessage {
+  type: 'offer_draw';
+}
+
 export interface PingClientMessage {
   type: 'ping';
 }
@@ -150,6 +161,7 @@ export type ClientMessage =
   | MoveClientMessage
   | ReadyClientMessage
   | ResignClientMessage
+  | OfferDrawClientMessage
   | PingClientMessage;
 
 // ============================================
@@ -167,6 +179,7 @@ export interface WebSocketClientOptions {
   onGameStarted?: (msg: GameStartedMessage) => void;
   onGameOver?: (msg: GameOverMessage) => void;
   onRatingUpdate?: (msg: RatingUpdateMessage) => void;
+  onDrawOffered?: (msg: DrawOfferedMessage) => void;
   onMoveRejected?: (msg: MoveRejectedMessage) => void;
   onError?: (msg: ErrorMessage) => void;
   onConnectionChange?: (state: ConnectionState) => void;

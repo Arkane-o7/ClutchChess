@@ -157,6 +157,7 @@ export interface PlayerDisplay {
   name: string;
   picture_url: string | null;
   user_id: number | null;
+  is_bot: boolean;
 }
 
 // Summary of a replay for listing

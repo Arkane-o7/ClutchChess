@@ -129,7 +129,7 @@ class TestResolveFromInfo:
     def test_bot_player(self) -> None:
         """Should resolve bot player."""
         result = _resolve_from_info({1: "bot:dummy"}, {})
-        assert result[1] == PlayerDisplay(name="AI (Dummy)", picture_url=None, user_id=None)
+        assert result[1] == PlayerDisplay(name="AI (Dummy)", picture_url=None, user_id=None, is_bot=True)
 
     def test_mixed_players(self) -> None:
         """Should handle mixed player types."""

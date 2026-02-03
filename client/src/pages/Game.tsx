@@ -7,7 +7,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useGameStore } from '../stores/game';
-import { GameBoard, GameStatus, GameOverModal, AudioControls, ResignButton } from '../components/game';
+import { GameBoard, GameStatus, GameOverModal, AudioControls, ResignButton, DrawOfferButton } from '../components/game';
 import { useAudio } from '../hooks/useAudio';
 import './Game.css';
 
@@ -164,7 +164,10 @@ export function Game() {
             onMusicVolumeChange={setMusicVolume}
             onSoundVolumeChange={setSoundVolume}
           />
-          <ResignButton />
+          <div className="game-action-buttons">
+            <DrawOfferButton />
+            <ResignButton />
+          </div>
         </div>
       </div>
       <GameOverModal />

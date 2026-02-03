@@ -185,6 +185,16 @@
   background: var(--color-primary-dark);
 }
 
+/* Action Buttons (Draw + Resign) */
+.game-action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.game-action-buttons > * {
+  flex: 1;
+}
+
 /* Resign Button */
 .resign-button {
   width: 100%;
@@ -202,6 +212,30 @@
 .resign-button:hover {
   background: #f87171;
   color: white;
+}
+
+/* Draw Offer Button */
+.draw-offer-button {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: #60a5fa;
+  border: 1px solid #60a5fa;
+  border-radius: 6px;
+  font-size: 0.925rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.draw-offer-button:hover:not(:disabled) {
+  background: #60a5fa;
+  color: white;
+}
+
+.draw-offer-button.draw-offered {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* Resign Confirmation Modal */

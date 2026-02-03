@@ -24,12 +24,14 @@ from kfchess.services.rating_service import RatingService
 from kfchess.ws.lobby_handler import notify_game_ended
 from kfchess.ws.protocol import (
     CountdownMessage,
+    DrawOfferedMessage,
     ErrorMessage,
     GameOverMessage,
     GameStartedMessage,
     JoinedMessage,
     MoveMessage,
     MoveRejectedMessage,
+    OfferDrawMessage,
     PongMessage,
     RatingChangeData,
     RatingUpdateMessage,
@@ -298,6 +300,16 @@ async def _send_initial_state(websocket: WebSocket, game_id: str, service: Any) 
         ).model_dump_json()
     )
 
+    # Send current draw offers if any
+    managed_game = service.get_managed_game(game_id)
+    if managed_game is not None and managed_game.draw_offers:
+        await websocket.send_text(
+            DrawOfferedMessage(
+                player=0,  # Not a specific player, just a sync
+                draw_offers=sorted(managed_game.draw_offers),
+            ).model_dump_json()
+        )
+
 
 async def handle_websocket(
     websocket: WebSocket,
@@ -403,6 +415,8 @@ async def _handle_message(
         await _handle_ready(websocket, game_id, player, service)
     elif isinstance(message, ResignMessage):
         await _handle_resign(websocket, game_id, player, service)
+    elif isinstance(message, OfferDrawMessage):
+        await _handle_offer_draw(websocket, game_id, player, service)
     else:
         # Ping - respond with pong
         await websocket.send_text(PongMessage().model_dump_json())
@@ -515,6 +529,38 @@ async def _handle_resign(
     if not success:
         await websocket.send_text(
             ErrorMessage(message="Cannot resign").model_dump_json()
+        )
+
+
+async def _handle_offer_draw(
+    websocket: WebSocket,
+    game_id: str,
+    player: int | None,
+    service: Any,
+) -> None:
+    """Handle a draw offer message."""
+    if player is None:
+        await websocket.send_text(
+            ErrorMessage(message="Spectators cannot offer draw").model_dump_json()
+        )
+        return
+
+    success, error = service.offer_draw(game_id, player)
+    if not success:
+        await websocket.send_text(
+            ErrorMessage(message=error or "Cannot offer draw").model_dump_json()
+        )
+        return
+
+    # Broadcast the draw offer to all players
+    managed_game = service.get_managed_game(game_id)
+    if managed_game is not None:
+        await connection_manager.broadcast(
+            game_id,
+            DrawOfferedMessage(
+                player=player,
+                draw_offers=sorted(managed_game.draw_offers),
+            ).model_dump(),
         )
 
 

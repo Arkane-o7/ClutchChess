@@ -7,3 +7,4 @@ export { GameStatus } from './GameStatus';
 export { GameOverModal } from './GameOverModal';
 export { AudioControls } from './AudioControls';
 export { ResignButton } from './ResignButton';
+export { DrawOfferButton } from './DrawOfferButton';

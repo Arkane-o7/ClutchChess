@@ -20,6 +20,7 @@ class PlayerDisplay(BaseModel):
     name: str
     picture_url: str | None
     user_id: int | None
+    is_bot: bool = False
 
 
 def format_player_id(player_id: str, username_map: dict[int, str] | None = None) -> str:
@@ -153,6 +154,7 @@ def _resolve_from_info(
                 name=format_player_id(player_id),
                 picture_url=None,
                 user_id=None,
+                is_bot=player_id.startswith("bot:"),
             )
     return result
 

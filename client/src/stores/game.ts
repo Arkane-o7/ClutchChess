@@ -16,6 +16,7 @@ import type {
   GameStartedMessage,
   GameOverMessage,
   RatingUpdateMessage,
+  DrawOfferedMessage,
   MoveRejectedMessage,
   WsPieceState,
 } from '../ws/types';
@@ -86,6 +87,7 @@ interface GameState {
   ratingChange: RatingChangeData | null;
 
   // Audio events (for sound effects)
+  drawOffers: number[]; // Player numbers who have offered a draw
   captureCount: number; // Increments on each capture (for triggering capture sounds)
 
   // Internal
@@ -105,6 +107,7 @@ interface GameActions {
   selectPiece: (pieceId: string | null) => void;
   makeMove: (toRow: number, toCol: number) => void;
   resign: () => void;
+  offerDraw: () => void;
 
   // Internal updates
   updateFromStateMessage: (msg: StateUpdateMessage) => void;
@@ -112,6 +115,7 @@ interface GameActions {
   handleCountdown: (msg: CountdownMessage) => void;
   handleGameStarted: (msg: GameStartedMessage) => void;
   handleGameOver: (msg: GameOverMessage) => void;
+  handleDrawOffered: (msg: DrawOfferedMessage) => void;
   handleRatingUpdate: (msg: RatingUpdateMessage) => void;
   handleMoveRejected: (msg: MoveRejectedMessage) => void;
   setConnectionState: (state: ConnectionState) => void;
@@ -147,6 +151,7 @@ const initialState: GameState = {
   lastError: null,
   countdown: null,
   ratingChange: null,
+  drawOffers: [],
   captureCount: 0,
   wsClient: null,
 };
@@ -324,6 +329,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       onCountdown: (msg) => get().handleCountdown(msg),
       onGameStarted: (msg) => get().handleGameStarted(msg),
       onGameOver: (msg) => get().handleGameOver(msg),
+      onDrawOffered: (msg) => get().handleDrawOffered(msg),
       onRatingUpdate: (msg) => get().handleRatingUpdate(msg),
       onMoveRejected: (msg) => get().handleMoveRejected(msg),
       onError: (msg) => get().setError(msg.message),
@@ -424,6 +430,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     wsClient.sendResign();
   },
 
+  offerDraw: () => {
+    const { wsClient, status } = get();
+    if (!wsClient || status !== 'playing') return;
+    wsClient.sendOfferDraw();
+  },
+
   updateFromStateMessage: (msg) => {
     const { pieces: existingPieces, selectedPieceId, captureCount } = get();
 
@@ -499,6 +511,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       winner: msg.winner,
       winReason: msg.reason,
     });
+  },
+
+  handleDrawOffered: (msg) => {
+    set({ drawOffers: msg.draw_offers });
   },
 
   handleRatingUpdate: (msg) => {

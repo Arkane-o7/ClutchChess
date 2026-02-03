@@ -55,6 +55,7 @@ class ManagedGame:
     last_activity: datetime = field(default_factory=datetime.now)
     force_broadcast: bool = False
     resigned_piece_ids: list[str] = field(default_factory=list)
+    draw_offers: set[int] = field(default_factory=set)
 
 
 def _generate_player_key(player: int) -> str:
@@ -452,6 +453,58 @@ class GameService:
             managed_game.resigned_piece_ids.append(king.id)
 
         return True
+
+    def offer_draw(self, game_id: str, player: int) -> tuple[bool, str | None]:
+        """Process a draw offer from a player.
+
+        Args:
+            game_id: The game ID
+            player: The player number
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        managed_game = self.games.get(game_id)
+        if managed_game is None:
+            return False, "Game not found"
+
+        state = managed_game.state
+        if state.status != GameStatus.PLAYING:
+            return False, "Game is not in progress"
+
+        # Can't offer draw if you're an AI player
+        if player in managed_game.ai_players:
+            return False, "AI players cannot offer draw"
+
+        # Can't offer draw if eliminated (king captured)
+        king = state.board.get_king(player)
+        if king is None or king.captured:
+            return False, "Eliminated players cannot offer draw"
+
+        # Already offered
+        if player in managed_game.draw_offers:
+            return False, "Already offered draw"
+
+        # Check active human players
+        human_players = set(state.players.keys()) - set(managed_game.ai_players.keys())
+        active_humans = set()
+        for p in human_players:
+            p_king = state.board.get_king(p)
+            if p_king is not None and not p_king.captured:
+                active_humans.add(p)
+
+        # Need at least 2 active humans for a draw agreement
+        if len(active_humans) < 2:
+            return False, "No other human players to agree"
+
+        managed_game.draw_offers.add(player)
+
+        if managed_game.draw_offers >= active_humans:
+            state.winner = 0
+            state.status = GameStatus.FINISHED
+            state.win_reason = WinReason.DRAW
+
+        return True, None
 
     def mark_ready(self, game_id: str, player_key: str) -> tuple[bool, bool]:
         """Mark a player as ready.

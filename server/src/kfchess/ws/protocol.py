@@ -16,6 +16,7 @@ class ServerMessageType(Enum):
     GAME_OVER = "game_over"
     RATING_UPDATE = "rating_update"
     MOVE_REJECTED = "move_rejected"
+    DRAW_OFFERED = "draw_offered"
     PONG = "pong"
     ERROR = "error"
 
@@ -26,6 +27,7 @@ class ClientMessageType(Enum):
     MOVE = "move"
     READY = "ready"
     RESIGN = "resign"
+    OFFER_DRAW = "offer_draw"
     PING = "ping"
 
 
@@ -76,7 +78,7 @@ class GameOverMessage(BaseModel):
 
     type: str = "game_over"
     winner: int  # 0 for draw, 1-4 for player number
-    reason: str  # "king_captured" | "draw_timeout" | "resignation"
+    reason: str  # "king_captured" | "draw_timeout" | "resignation" | "draw"
 
 
 class RatingChangeData(BaseModel):
@@ -141,6 +143,20 @@ class ResignMessage(BaseModel):
     type: str = "resign"
 
 
+class OfferDrawMessage(BaseModel):
+    """Request to offer a draw."""
+
+    type: str = "offer_draw"
+
+
+class DrawOfferedMessage(BaseModel):
+    """Sent when a player offers a draw."""
+
+    type: str = "draw_offered"
+    player: int  # Player who just offered
+    draw_offers: list[int]  # All players who have offered so far
+
+
 class PingMessage(BaseModel):
     """Keepalive ping."""
 
@@ -149,7 +165,7 @@ class PingMessage(BaseModel):
 
 def parse_client_message(
     data: dict[str, Any],
-) -> MoveMessage | ReadyMessage | ResignMessage | PingMessage | None:
+) -> MoveMessage | ReadyMessage | ResignMessage | OfferDrawMessage | PingMessage | None:
     """Parse a client message from JSON data.
 
     Args:
@@ -175,6 +191,9 @@ def parse_client_message(
 
     elif msg_type == "resign":
         return ResignMessage()
+
+    elif msg_type == "offer_draw":
+        return OfferDrawMessage()
 
     elif msg_type == "ping":
         return PingMessage()

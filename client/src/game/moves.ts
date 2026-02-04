@@ -53,66 +53,122 @@ function isMoving(activeMoves: ActiveMove[], pieceId: string): boolean {
 }
 
 /**
+ * Get the forward path squares for a moving piece (squares not yet reached).
+ * Returns squares the piece will traverse but hasn't reached yet.
+ * Skips non-integer coordinates (knight midpoints don't block - knights jump).
+ */
+function getForwardPath(
+  move: ActiveMove,
+  currentTick: number,
+  ticksPerSquare: number
+): [number, number][] {
+  const path = move.path;
+  if (path.length < 2) {
+    return [];
+  }
+
+  // Helper to check if a coordinate is an integer (not a knight midpoint)
+  const isInteger = (n: number) => n === Math.floor(n);
+
+  const elapsed = currentTick - move.startTick;
+  if (elapsed < 0) {
+    // Move hasn't started yet - entire path (except start) is forward
+    // Skip non-integer coordinates (knight midpoints)
+    return path
+      .slice(1)
+      .filter(([r, c]) => isInteger(r) && isInteger(c))
+      .map(([r, c]) => [r, c]);
+  }
+
+  // Number of segments = path.length - 1
+  const numSegments = path.length - 1;
+  const totalTicks = numSegments * ticksPerSquare;
+
+  if (elapsed >= totalTicks) {
+    // Move completed - no forward path
+    return [];
+  }
+
+  // Current segment index (which segment we're currently traversing)
+  const currentSegment = Math.floor(elapsed / ticksPerSquare);
+
+  // Forward path = all squares from currentSegment + 1 onwards
+  // (the square we're moving toward and all subsequent squares)
+  // Skip non-integer coordinates (knight midpoints)
+  const forwardSquares: [number, number][] = [];
+  for (let i = currentSegment + 1; i < path.length; i++) {
+    const [r, c] = path[i];
+    if (isInteger(r) && isInteger(c)) {
+      forwardSquares.push([r, c]);
+    }
+  }
+
+  return forwardSquares;
+}
+
+/**
  * Check if a move path is legal (no blocking pieces, no friendly collisions)
+ *
+ * Rules:
+ * - Stationary pieces block (both own and enemy)
+ * - Own moving pieces' forward path (not yet traversed) blocks own pieces
+ * - Own moving pieces' already-traversed path does NOT block
+ * - Enemy moving pieces do NOT block (neither their start nor path)
+ * - Moving pieces have "vacated" their start position (treated as empty)
  */
 function isLegalMoveNoCross(
   pieces: Piece[],
   activeMoves: ActiveMove[],
-  _currentTick: number,
-  _ticksPerSquare: number,
+  currentTick: number,
+  ticksPerSquare: number,
   piece: Piece,
   rowDir: number,
   colDir: number,
   steps: number,
   canCapture: boolean
 ): boolean {
-  // Check each square along the path
-  for (let i = 1; i <= steps; i++) {
-    const iRow = piece.row + rowDir * i;
-    const iCol = piece.col + colDir * i;
-
-    // Check for stationary pieces
-    const blockingPiece = getPieceAtLocation(pieces, iRow, iCol);
-    if (blockingPiece && !blockingPiece.captured && !isMoving(activeMoves, blockingPiece.id)) {
-      // Can only pass through if this is the final square, capture is allowed,
-      // and it's an enemy piece that isn't moving
-      if (
-        !canCapture ||
-        i !== steps ||
-        blockingPiece.player === piece.player
-      ) {
-        return false;
-      }
-    }
-
-    // Check for same player's moving pieces ending at this square
-    for (const move of activeMoves) {
-      if (move.pieceId === piece.id) continue;
-
-      const movingPiece = pieces.find((p) => p.id === move.pieceId);
-      if (!movingPiece || movingPiece.player !== piece.player) continue;
-
-      const endPos = move.path[move.path.length - 1];
-      if (endPos[0] === iRow && endPos[1] === iCol) {
-        return false;
+  // Build set of forward path squares for own moving pieces
+  const ownForwardPath = new Set<string>();
+  for (const move of activeMoves) {
+    const movingPiece = pieces.find((p) => p.id === move.pieceId);
+    if (movingPiece && movingPiece.player === piece.player) {
+      const forwardSquares = getForwardPath(move, currentTick, ticksPerSquare);
+      for (const [r, c] of forwardSquares) {
+        ownForwardPath.add(`${r},${c}`);
       }
     }
   }
 
-  // Check that destination isn't the FINAL destination of same player's active moves
-  // (We can move through squares that friendly pieces are passing through, just not
-  // where they will end up)
-  const destRow = piece.row + rowDir * steps;
-  const destCol = piece.col + colDir * steps;
+  // Check each square along the path
+  for (let i = 1; i <= steps; i++) {
+    const iRow = piece.row + rowDir * i;
+    const iCol = piece.col + colDir * i;
+    const isDestination = i === steps;
 
-  for (const move of activeMoves) {
-    const movingPiece = pieces.find((p) => p.id === move.pieceId);
-    if (!movingPiece || movingPiece.player !== piece.player) continue;
+    // Check for pieces at this square
+    const blockingPiece = getPieceAtLocation(pieces, iRow, iCol);
+    if (blockingPiece && !blockingPiece.captured) {
+      const pieceIsMoving = isMoving(activeMoves, blockingPiece.id);
 
-    // Only check the final destination, not the entire path
-    const endPos = move.path[move.path.length - 1];
-    if (endPos[0] === destRow && endPos[1] === destCol) {
-      return false;
+      if (pieceIsMoving) {
+        // Moving piece has vacated - square is effectively empty
+        // (collision detection handles any mid-path interactions)
+      } else if (blockingPiece.player === piece.player) {
+        // Own stationary piece - blocked
+        return false;
+      } else {
+        // Enemy stationary piece
+        if (!isDestination || !canCapture) {
+          // Can't pass through enemy or capture not allowed at destination
+          return false;
+        }
+        // else: capture at destination - allowed
+      }
+    }
+
+    // Check for own moving piece's forward path
+    if (ownForwardPath.has(`${iRow},${iCol}`)) {
+      return false; // Can't move through/to own piece's forward path
     }
   }
 

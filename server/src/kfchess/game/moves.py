@@ -110,6 +110,8 @@ def compute_move_path(
     to_row: int,
     to_col: int,
     active_moves: list[Move],
+    current_tick: int = 0,
+    ticks_per_square: int = 30,
 ) -> list[PathPoint] | None:
     """Compute the path for a piece to move to a destination.
 
@@ -123,6 +125,8 @@ def compute_move_path(
         to_row: Destination row
         to_col: Destination column
         active_moves: Currently active moves (to check for path conflicts)
+        current_tick: Current game tick (for forward path blocking)
+        ticks_per_square: Ticks to move one square (for forward path blocking)
 
     Returns:
         List of (row, col) positions forming the path, or None if invalid
@@ -144,11 +148,11 @@ def compute_move_path(
 
     # Check for blocking pieces along the path (except knights which jump)
     if piece.type != PieceType.KNIGHT:
-        if not _is_path_clear(path, board, piece.player, active_moves):
+        if not _is_path_clear(path, board, piece.player, active_moves, current_tick, ticks_per_square):
             return None
     else:
         # Knights jump over pieces but still can't land on own pieces
-        if not _is_knight_destination_valid(path, board, piece.player, active_moves):
+        if not _is_knight_destination_valid(path, board, piece.player, active_moves, current_tick, ticks_per_square):
             return None
 
     return path
@@ -508,23 +512,26 @@ def _is_path_clear(
     board: Board,
     player: int,
     active_moves: list[Move],
+    current_tick: int = 0,
+    ticks_per_square: int = 30,
 ) -> bool:
     """Check if a path is clear of blocking pieces.
 
-    - Intermediate squares: blocked by ANY stationary piece (own or enemy)
-    - Destination square: blocked by own piece only (enemy = capture)
-    - Own moving pieces' destinations block our path
-    - Moving pieces have vacated their starting squares
+    Rules:
+    - Stationary pieces block (both own and enemy)
+    - Own moving pieces' forward path (not yet traversed) blocks own pieces
+    - Own moving pieces' already-traversed path does NOT block
+    - Enemy moving pieces do NOT block (neither their start nor path)
+    - Cannot capture moving enemies (destination with moving enemy = blocked)
     """
-    # Build set of destinations for own moving pieces
-    own_moving_destinations: set[tuple[int, int]] = set()
+    # Build set of forward path squares for own moving pieces
+    own_forward_path: set[tuple[int, int]] = set()
     for move in active_moves:
-        # Get the piece for this move to check player
-        end_row, end_col = move.end_position
-        # We need to check if this is our own piece - look up in board
         moving_piece = board.get_piece_by_id(move.piece_id)
         if moving_piece is not None and moving_piece.player == player:
-            own_moving_destinations.add((int(end_row), int(end_col)))
+            # Calculate which squares are in the forward path (not yet reached)
+            forward_squares = _get_forward_path(move, current_tick, ticks_per_square)
+            own_forward_path.update(forward_squares)
 
     # Check intermediate squares (excluding start and destination)
     for row, col in path[1:-1]:
@@ -532,32 +539,88 @@ def _is_path_clear(
 
         piece_at = board.get_piece_at(int_row, int_col)
         if piece_at is not None:
-            # Check if this piece is currently moving (if so, it's not blocking)
+            # Check if this piece is currently moving
             is_moving = any(m.piece_id == piece_at.id for m in active_moves)
             if not is_moving:
-                return False  # Blocked by stationary piece (own or enemy)
+                # Stationary piece blocks
+                return False
+            # Moving piece: only blocks if it's enemy (can't capture on intermediate)
+            # Own moving piece's START position doesn't block (vacated)
+            if piece_at.player != player:
+                # Enemy moving piece's start position doesn't block us
+                pass
 
-        # Check for own moving piece destination
-        if (int_row, int_col) in own_moving_destinations:
-            return False  # Can't move through where own piece will end up
+        # Check for own moving piece's forward path
+        if (int_row, int_col) in own_forward_path:
+            return False  # Can't move through own piece's forward path
 
-    # Check destination square (only blocked by own pieces, enemy = capture)
+    # Check destination square
     if len(path) >= 2:
         dest_row, dest_col = path[-1]
         int_row, int_col = int(dest_row), int(dest_col)
 
         piece_at = board.get_piece_at(int_row, int_col)
-        if piece_at is not None and piece_at.player == player:
-            # Check if this piece is currently moving (if so, it's not blocking)
+        if piece_at is not None:
             is_moving = any(m.piece_id == piece_at.id for m in active_moves)
-            if not is_moving:
-                return False  # Blocked by own stationary piece at destination
+            if is_moving:
+                # Moving piece has vacated - square is effectively empty
+                # (collision detection handles any mid-path interactions)
+                pass
+            elif piece_at.player == player:
+                # Own stationary piece at destination - blocked
+                return False
+            # else: enemy stationary piece at destination - capture allowed
 
-        # Check for own moving piece destination
-        if (int_row, int_col) in own_moving_destinations:
-            return False  # Can't move to where own piece will end up
+        # Check for own moving piece's forward path at destination
+        if (int_row, int_col) in own_forward_path:
+            return False  # Can't move to own piece's forward path
 
     return True
+
+
+def _get_forward_path(
+    move: Move,
+    current_tick: int,
+    ticks_per_square: int,
+) -> list[tuple[int, int]]:
+    """Get the forward path squares for a moving piece (squares not yet reached).
+
+    Returns squares the piece will traverse but hasn't reached yet.
+    """
+    path = move.path
+    if len(path) < 2:
+        return []
+
+    elapsed = current_tick - move.start_tick
+    if elapsed < 0:
+        # Move hasn't started yet - entire path (except start) is forward
+        # Skip non-integer coordinates (knight midpoints don't block - knights jump)
+        return [
+            (int(r), int(c)) for r, c in path[1:]
+            if r == int(r) and c == int(c)
+        ]
+
+    # Number of segments = len(path) - 1
+    num_segments = len(path) - 1
+    total_ticks = num_segments * ticks_per_square
+
+    if elapsed >= total_ticks:
+        # Move completed - no forward path
+        return []
+
+    # Current segment index (which segment we're currently traversing)
+    current_segment = elapsed // ticks_per_square
+
+    # Forward path = all squares from current_segment + 1 onwards
+    # (the square we're moving toward and all subsequent squares)
+    # Skip non-integer coordinates (knight midpoints don't block - knights jump)
+    forward_squares = []
+    for i in range(current_segment + 1, len(path)):
+        r, c = path[i]
+        if r == int(r) and c == int(c):
+            forward_squares.append((int(r), int(c)))
+
+    return forward_squares
 
 
 def _is_knight_destination_valid(
@@ -565,30 +628,37 @@ def _is_knight_destination_valid(
     board: Board,
     player: int,
     active_moves: list[Move],
+    current_tick: int = 0,
+    ticks_per_square: int = 30,
 ) -> bool:
     """Check if a knight's destination is valid.
 
-    Knights can jump over pieces but cannot land on their own pieces.
+    Knights can jump over pieces but cannot land on their own pieces
+    (stationary or in forward path).
     """
     # Get destination (last point in path)
     end_row, end_col = path[-1]
     int_row, int_col = int(end_row), int(end_col)
 
-    # Check for stationary own piece at destination
+    # Check piece at destination
     piece_at = board.get_piece_at(int_row, int_col)
-    if piece_at is not None and piece_at.player == player:
-        # Check if this piece is currently moving (if so, it won't be there)
+    if piece_at is not None:
         is_moving = any(m.piece_id == piece_at.id for m in active_moves)
-        if not is_moving:
-            return False  # Can't land on own stationary piece
+        if is_moving:
+            # Moving piece has vacated - square is effectively empty
+            pass
+        elif piece_at.player == player:
+            # Own stationary piece at destination - blocked
+            return False
+        # else: enemy stationary piece at destination - capture allowed
 
-    # Check for own moving piece destination
+    # Check for own moving piece's forward path at destination
     for move in active_moves:
-        move_end_row, move_end_col = move.end_position
         moving_piece = board.get_piece_by_id(move.piece_id)
         if moving_piece is not None and moving_piece.player == player:
-            if int(move_end_row) == int_row and int(move_end_col) == int_col:
-                return False  # Can't land where own piece will end up
+            forward_squares = _get_forward_path(move, current_tick, ticks_per_square)
+            if (int_row, int_col) in forward_squares:
+                return False  # Can't land on own piece's forward path
 
     return True
 

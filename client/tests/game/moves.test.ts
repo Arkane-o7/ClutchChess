@@ -406,6 +406,118 @@ describe('isLegalMove - moving piece interactions', () => {
 });
 
 // ============================================
+// Path Blocking Rules Tests
+// (Matching server-side TestPathBlocking)
+// ============================================
+
+describe('isLegalMove - path blocking rules', () => {
+  it('can move to vacating enemy square', () => {
+    // Moving enemy has vacated - square is effectively empty
+    const rook = createPiece('r1', 'R', 1, 4, 0);
+    const enemy = createPiece('e1', 'Q', 2, 4, 4);
+    const activeMoves = [
+      // Enemy queen is moving away (vacating)
+      createActiveMove('e1', [[4, 4], [4, 5], [4, 6], [4, 7]], 0),
+    ];
+
+    // Rook can move to (4, 4) - enemy has vacated, square is empty
+    expect(isLegalMove([rook, enemy], activeMoves, CURRENT_TICK, TICKS_PER_SQUARE, rook, 4, 4)).toBe(true);
+  });
+
+  it('can capture stationary enemy', () => {
+    const rook = createPiece('r1', 'R', 1, 4, 0);
+    const enemy = createPiece('e1', 'Q', 2, 4, 4);
+
+    // No active moves - enemy is stationary
+    expect(isLegalMove([rook, enemy], [], CURRENT_TICK, TICKS_PER_SQUARE, rook, 4, 4)).toBe(true);
+  });
+
+  it('own forward path blocks own pieces', () => {
+    // Rule 2: Own moving piece's forward path blocks own other pieces
+    const rook1 = createPiece('r1', 'R', 1, 4, 0); // Moving rook
+    const rook2 = createPiece('r2', 'R', 1, 0, 4); // Trying to move
+
+    // Rook1 is moving from (4,0) to (4,7) - forward path includes (4,4)
+    const activeMoves = [
+      createActiveMove('r1', [[4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7]], 0),
+    ];
+
+    // Rook2 tries to move from (0,4) to (4,4) - blocked by rook1's forward path
+    expect(isLegalMove([rook1, rook2], activeMoves, 0, TICKS_PER_SQUARE, rook2, 4, 4)).toBe(false);
+  });
+
+  it('own backward path (already traversed) does not block', () => {
+    // Own moving piece's already-traversed path does NOT block
+    const rook1 = createPiece('r1', 'R', 1, 4, 0); // Moving rook
+    const rook2 = createPiece('r2', 'R', 1, 0, 2); // Trying to move
+
+    // Rook1 is moving from (4,0) to (4,7)
+    const activeMoves = [
+      createActiveMove('r1', [[4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7]], 0),
+    ];
+
+    // At tick 30 (3 squares traversed with TICKS_PER_SQUARE=10), rook1 has passed (4,2)
+    // Rook2 should be able to move to (4,2) - already traversed
+    expect(isLegalMove([rook1, rook2], activeMoves, 30, TICKS_PER_SQUARE, rook2, 4, 2)).toBe(true);
+  });
+
+  it('enemy forward path does not block own pieces', () => {
+    // Enemy moving piece's forward path does NOT block own pieces
+    const enemyRook = createPiece('e1', 'R', 2, 4, 0); // Enemy moving
+    const ownRook = createPiece('r1', 'R', 1, 0, 4); // Trying to move
+
+    // Enemy rook is moving from (4,0) to (4,7) - forward path includes (4,4)
+    const activeMoves = [
+      createActiveMove('e1', [[4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7]], 0),
+    ];
+
+    // Own rook can move through enemy's forward path
+    expect(isLegalMove([enemyRook, ownRook], activeMoves, 0, TICKS_PER_SQUARE, ownRook, 4, 4)).toBe(true);
+  });
+
+  it('knight can move to vacating enemy square', () => {
+    const knight = createPiece('n1', 'N', 1, 4, 4);
+    const enemy = createPiece('e1', 'P', 2, 6, 5);
+
+    // Enemy pawn is moving away (vacating)
+    const activeMoves = [
+      createActiveMove('e1', [[6, 5], [5, 5]], 0),
+    ];
+
+    // Knight can move to (6, 5) - enemy has vacated, square is empty
+    expect(isLegalMove([knight, enemy], activeMoves, CURRENT_TICK, TICKS_PER_SQUARE, knight, 6, 5)).toBe(true);
+  });
+
+  it('knight blocked by own forward path', () => {
+    const knight = createPiece('n1', 'N', 1, 4, 4);
+    const rook = createPiece('r1', 'R', 1, 6, 0); // Moving rook
+
+    // Rook is moving from (6,0) to (6,7) - forward path includes (6,5)
+    const activeMoves = [
+      createActiveMove('r1', [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [6, 6], [6, 7]], 0),
+    ];
+
+    // Knight tries to land on (6, 5) - blocked by rook's forward path
+    expect(isLegalMove([knight, rook], activeMoves, 0, TICKS_PER_SQUARE, knight, 6, 5)).toBe(false);
+  });
+
+  it('knight forward path does not block other pieces', () => {
+    // Knight's forward path (including midpoints) should NOT block since knights jump
+    const knight = createPiece('n1', 'N', 1, 4, 4);
+    const rook = createPiece('r1', 'R', 1, 0, 5);
+
+    // Knight is moving from (4,4) to (6,5) with midpoint at (5,4.5)
+    const activeMoves = [
+      createActiveMove('n1', [[4, 4], [5, 4.5], [6, 5]], 0),
+    ];
+
+    // Rook tries to move from (0,5) to (5,5) - knight's path should not block
+    // because knight midpoints are not integer coordinates and don't block
+    expect(isLegalMove([knight, rook], activeMoves, 0, TICKS_PER_SQUARE, rook, 5, 5)).toBe(true);
+  });
+});
+
+// ============================================
 // getLegalMovesForPiece Tests
 // ============================================
 

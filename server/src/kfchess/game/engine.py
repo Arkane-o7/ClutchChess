@@ -258,7 +258,12 @@ class GameEngine:
             return king_move
 
         # Compute the move path
-        path = compute_move_path(piece, state.board, to_row, to_col, state.active_moves)
+        config = state.config
+        path = compute_move_path(
+            piece, state.board, to_row, to_col, state.active_moves,
+            current_tick=state.current_tick,
+            ticks_per_square=config.ticks_per_square,
+        )
         if path is None:
             logger.debug(
                 f"Move rejected: {piece_id} from ({piece.row},{piece.col}) to ({to_row},{to_col}) - invalid path"

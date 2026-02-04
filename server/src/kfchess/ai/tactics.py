@@ -346,9 +346,7 @@ def threaten_score(
         # Recompute with our origin vacated to avoid self-blocking.
         if modified_occ is not None:
             enemy_to_dest = _piece_arrival_time(
-                ep, dest, tps, cd_ticks, modified_occ,
-                arrival_data._board_w, arrival_data._board_h,
-                arrival_data._is_4p,
+                ep, dest, tps, modified_occ, arrival_data._is_4p,
             )
         else:
             enemy_to_dest = arrival_data.enemy_time_by_piece.get(

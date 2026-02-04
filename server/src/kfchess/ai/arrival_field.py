@@ -22,6 +22,20 @@ INF_TICKS = 999_999
 # a dodge move after cooldown expires. 100ms converted to ticks.
 REACTION_TIME_SECONDS = 1.0
 
+# Direction constants for piece movement
+_ROOK_DIRS = ((0, 1), (0, -1), (1, 0), (-1, 0))
+_BISHOP_DIRS = ((1, 1), (1, -1), (-1, 1), (-1, -1))
+_QUEEN_DIRS = _ROOK_DIRS + _BISHOP_DIRS
+_KNIGHT_OFFSETS = (
+    (-2, -1), (-2, 1), (-1, -2), (-1, 2),
+    (1, -2), (1, 2), (2, -1), (2, 1),
+)
+_KING_OFFSETS = (
+    (-1, -1), (-1, 0), (-1, 1),
+    (0, -1),           (0, 1),
+    (1, -1),  (1, 0),  (1, 1),
+)
+
 
 @dataclass
 class ArrivalData:
@@ -47,8 +61,6 @@ class ArrivalData:
     # Stored for recomputation when a piece vacates its square
     _occupied: set[tuple[int, int]] = field(default_factory=set)
     _enemy_pieces: list[AIPiece] = field(default_factory=list)
-    _board_w: int = 8
-    _board_h: int = 8
     _is_4p: bool = False
 
     def get_our_time(self, row: int, col: int) -> int:
@@ -94,8 +106,7 @@ class ArrivalData:
             if exclude_piece_id and ep.piece.id == exclude_piece_id:
                 continue
             t = _piece_arrival_time(
-                ep, (row, col), self.tps, self.cd_ticks,
-                modified_occupied, self._board_w, self._board_h, self._is_4p,
+                ep, (row, col), self.tps, modified_occupied, self._is_4p,
             )
             if t < best:
                 best = t
@@ -218,19 +229,21 @@ class ArrivalField:
 
         is_4p = w > 8
 
-        our_time = _compute_side_times(own_pieces, squares, tps, cd_ticks, occupied, w, h, is_4p)
+        our_time = _compute_side_times(own_pieces, squares, tps, occupied, is_4p, h, w)
 
         # Compute per-piece enemy times (for exclusion during capture analysis)
+        # Uses piece-first enumeration for efficiency
+        valid_squares = set(squares)
         enemy_time_by_piece: dict[str, dict[tuple[int, int], int]] = {}
         enemy_time: dict[tuple[int, int], int] = {sq: INF_TICKS for sq in squares}
 
         for ep in enemy_pieces:
             piece_times: dict[tuple[int, int], int] = {}
-            for sq in squares:
-                t = _piece_arrival_time(ep, sq, tps, cd_ticks, occupied, w, h, is_4p)
-                piece_times[sq] = t
-                if t < enemy_time[sq]:
-                    enemy_time[sq] = t
+            for sq, t in _enumerate_piece_arrivals(ep, tps, occupied, is_4p, h, w):
+                if sq in valid_squares:
+                    piece_times[sq] = t
+                    if t < enemy_time[sq]:
+                        enemy_time[sq] = t
             enemy_time_by_piece[ep.piece.id] = piece_times
 
         # Account for traveling enemy pieces: they will arrive at squares
@@ -274,8 +287,6 @@ class ArrivalField:
             reaction_ticks=reaction_ticks,
             _occupied=occupied,
             _enemy_pieces=enemy_pieces,
-            _board_w=w,
-            _board_h=h,
             _is_4p=is_4p,
         )
 
@@ -284,34 +295,142 @@ def _compute_side_times(
     pieces: list[AIPiece],
     squares: list[tuple[int, int]],
     tps: int,
-    cd_ticks: int,
     occupied: set[tuple[int, int]],
-    board_w: int,
-    board_h: int,
     is_4p: bool = False,
+    board_h: int = 8,
+    board_w: int = 8,
 ) -> dict[tuple[int, int], int]:
-    """Compute minimum arrival time for a set of pieces to each square."""
-    times: dict[tuple[int, int], int] = {}
+    """Compute minimum arrival time for a set of pieces to each square.
 
-    for sq in squares:
-        best = INF_TICKS
-        for piece in pieces:
-            t = _piece_arrival_time(piece, sq, tps, cd_ticks, occupied, board_w, board_h, is_4p)
-            if t < best:
-                best = t
-        times[sq] = best
+    Uses piece-first enumeration: for each piece, enumerate reachable squares
+    and update times. This is O(pieces × avg_reachable) instead of
+    O(squares × pieces), reducing work from ~1024 to ~150 per side.
+    """
+    # Convert to set for O(1) lookup
+    valid_squares = set(squares)
+    times: dict[tuple[int, int], int] = {sq: INF_TICKS for sq in squares}
+
+    for piece in pieces:
+        for sq, t in _enumerate_piece_arrivals(piece, tps, occupied, is_4p, board_h, board_w):
+            if sq in valid_squares and t < times[sq]:
+                times[sq] = t
 
     return times
+
+
+def _enumerate_piece_arrivals(
+    ap: AIPiece,
+    tps: int,
+    occupied: set[tuple[int, int]],
+    is_4p: bool,
+    board_h: int,
+    board_w: int,
+):
+    """Yield (square, arrival_time) for all squares a piece can reach.
+
+    Enumerates only reachable squares instead of checking all board squares.
+    This is the key optimization for arrival field computation.
+    """
+    pr, pc = ap.piece.grid_position
+    base_delay = ap.cooldown_remaining
+    ptype = ap.piece.type
+
+    # Current square (piece is already here, just needs cooldown)
+    yield (pr, pc), base_delay
+
+    if ptype == PieceType.KNIGHT:
+        move_time = base_delay + 2 * tps
+        for dr, dc in _KNIGHT_OFFSETS:
+            r, c = pr + dr, pc + dc
+            if 0 <= r < board_h and 0 <= c < board_w:
+                yield (r, c), move_time
+
+    elif ptype == PieceType.KING:
+        for dr, dc in _KING_OFFSETS:
+            r, c = pr + dr, pc + dc
+            if 0 <= r < board_h and 0 <= c < board_w:
+                dist = max(abs(dr), abs(dc))
+                yield (r, c), base_delay + dist * tps
+
+    elif ptype == PieceType.ROOK:
+        yield from _enumerate_slider_arrivals(pr, pc, _ROOK_DIRS, tps, base_delay, occupied, board_h, board_w)
+
+    elif ptype == PieceType.BISHOP:
+        yield from _enumerate_slider_arrivals(pr, pc, _BISHOP_DIRS, tps, base_delay, occupied, board_h, board_w)
+
+    elif ptype == PieceType.QUEEN:
+        yield from _enumerate_slider_arrivals(pr, pc, _QUEEN_DIRS, tps, base_delay, occupied, board_h, board_w)
+
+    elif ptype == PieceType.PAWN:
+        yield from _enumerate_pawn_arrivals(ap, tps, base_delay, is_4p, board_h, board_w)
+
+
+def _enumerate_slider_arrivals(
+    pr: int, pc: int,
+    directions: tuple[tuple[int, int], ...],
+    tps: int,
+    base_delay: int,
+    occupied: set[tuple[int, int]],
+    board_h: int,
+    board_w: int,
+):
+    """Yield reachable squares for a slider (rook/bishop/queen) by ray-casting."""
+    for dr, dc in directions:
+        dist = 1
+        r, c = pr + dr, pc + dc
+        while 0 <= r < board_h and 0 <= c < board_w:
+            if (r, c) in occupied:
+                break  # Blocked
+            yield (r, c), base_delay + dist * tps
+            dist += 1
+            r += dr
+            c += dc
+
+
+def _enumerate_pawn_arrivals(
+    ap: AIPiece,
+    tps: int,
+    base_delay: int,
+    is_4p: bool,
+    board_h: int,
+    board_w: int,
+):
+    """Yield reachable squares for a pawn (forward + diagonal threats)."""
+    pr, pc = ap.piece.grid_position
+    player = ap.piece.player
+    fr, fc = _pawn_forward(player, is_4p)
+
+    # Forward 1
+    r1, c1 = pr + fr, pc + fc
+    if 0 <= r1 < board_h and 0 <= c1 < board_w:
+        yield (r1, c1), base_delay + tps
+
+    # Forward 2 (from starting position)
+    if not ap.piece.moved:
+        r2, c2 = pr + 2 * fr, pc + 2 * fc
+        if 0 <= r2 < board_h and 0 <= c2 < board_w:
+            yield (r2, c2), base_delay + 2 * tps
+
+    # Diagonal captures (always included for threat assessment)
+    if fr != 0:
+        # Row-moving pawn: forward is (fr, 0), sideways is column ±1
+        for dc in (-1, 1):
+            r, c = pr + fr, pc + dc
+            if 0 <= r < board_h and 0 <= c < board_w:
+                yield (r, c), base_delay + tps
+    else:
+        # Column-moving pawn: forward is (0, fc), sideways is row ±1
+        for dr in (-1, 1):
+            r, c = pr + dr, pc + fc
+            if 0 <= r < board_h and 0 <= c < board_w:
+                yield (r, c), base_delay + tps
 
 
 def _piece_arrival_time(
     ap: AIPiece,
     target: tuple[int, int],
     tps: int,
-    cd_ticks: int,
     occupied: set[tuple[int, int]],
-    board_w: int,
-    board_h: int,
     is_4p: bool = False,
 ) -> int:
     """Compute ticks for a single piece to reach a target square.
@@ -337,7 +456,7 @@ def _piece_arrival_time(
         bt = _slider_time_bishop(pr, pc, tr, tc, tps, base_delay, occupied)
         return min(rt, bt)
     elif ptype == PieceType.KNIGHT:
-        return _knight_time(pr, pc, tr, tc, tps, base_delay, cd_ticks, board_w, board_h)
+        return _knight_time(pr, pc, tr, tc, tps, base_delay)
     elif ptype == PieceType.KING:
         return _king_time(pr, pc, tr, tc, tps, base_delay)
     elif ptype == PieceType.PAWN:
@@ -418,30 +537,12 @@ def _is_path_clear_diagonal(
 
 def _knight_time(
     pr: int, pc: int, tr: int, tc: int,
-    tps: int, base_delay: int, cd_ticks: int,
-    board_w: int, board_h: int,
+    tps: int, base_delay: int,
 ) -> int:
-    """Arrival time for a knight using BFS (up to 2 hops for budget)."""
-    # Knight moves 2 squares per move (L-shape), each taking 2*tps ticks
-    move_ticks = 2 * tps
-
-    # Check 1-hop
+    """Arrival time for a knight (1-hop only, 2-hop is too slow to be tactically relevant)."""
     dr, dc = abs(tr - pr), abs(tc - pc)
     if (dr, dc) in ((1, 2), (2, 1)):
-        return base_delay + move_ticks
-
-    # Check 2-hop: enumerate all intermediate squares reachable in 1 hop
-    KNIGHT_OFFSETS = [
-        (-2, -1), (-2, 1), (-1, -2), (-1, 2),
-        (1, -2), (1, 2), (2, -1), (2, 1),
-    ]
-    for dr1, dc1 in KNIGHT_OFFSETS:
-        mr, mc = pr + dr1, pc + dc1
-        if 0 <= mr < board_h and 0 <= mc < board_w:
-            dr2, dc2 = abs(tr - mr), abs(tc - mc)
-            if (dr2, dc2) in ((1, 2), (2, 1)):
-                return base_delay + move_ticks + cd_ticks + move_ticks
-
+        return base_delay + 2 * tps  # Knight move takes 2*tps ticks
     return INF_TICKS
 
 
@@ -496,26 +597,27 @@ def _pawn_time(
     return INF_TICKS
 
 
-# Forward direction per player.
+# Forward direction per player (indexed by player-1 for 0-based access).
 # 2-player: P1 bottom (up), P2 top (down).
 # 4-player: matches FOUR_PLAYER_ORIENTATIONS in moves.py.
-_PAWN_FORWARD_2P: dict[int, tuple[int, int]] = {
-    1: (-1, 0),  # Up
-    2: (1, 0),   # Down
-}
-_PAWN_FORWARD_4P: dict[int, tuple[int, int]] = {
-    1: (0, -1),  # Left (East player)
-    2: (-1, 0),  # Up (South player)
-    3: (0, 1),   # Right (West player)
-    4: (1, 0),   # Down (North player)
-}
+_PAWN_FORWARD_2P: tuple[tuple[int, int], ...] = (
+    (-1, 0),  # Player 1: Up
+    (1, 0),   # Player 2: Down
+)
+_PAWN_FORWARD_4P: tuple[tuple[int, int], ...] = (
+    (0, -1),  # Player 1: Left (East player)
+    (-1, 0),  # Player 2: Up (South player)
+    (0, 1),   # Player 3: Right (West player)
+    (1, 0),   # Player 4: Down (North player)
+)
 
 
 def _pawn_forward(player: int, is_4p: bool = False) -> tuple[int, int]:
     """Get pawn forward direction for a player."""
+    idx = player - 1
     if is_4p:
-        return _PAWN_FORWARD_4P.get(player, (-1, 0))
-    return _PAWN_FORWARD_2P.get(player, (-1, 0))
+        return _PAWN_FORWARD_4P[idx] if 0 <= idx < 4 else (-1, 0)
+    return _PAWN_FORWARD_2P[idx] if 0 <= idx < 2 else (-1, 0)
 
 
 def _get_critical_squares(ai_state: AIState) -> list[tuple[int, int]]:

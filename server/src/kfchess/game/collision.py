@@ -37,9 +37,11 @@ class Capture:
 
 def get_interpolated_position(
     piece: Piece,
-    active_moves: list[Move],
+    active_moves: list[Move] | None,
     current_tick: int,
     ticks_per_square: int,
+    *,
+    move: Move | None = None,
 ) -> tuple[float, float]:
     """Get a piece's interpolated position during movement.
 
@@ -47,19 +49,21 @@ def get_interpolated_position(
 
     Args:
         piece: The piece to get position for
-        active_moves: List of currently active moves
+        active_moves: List of currently active moves (can be None if move is provided)
         current_tick: Current game tick
         ticks_per_square: Number of ticks to move one square
+        move: Optional pre-looked-up move for this piece (avoids linear scan)
 
     Returns:
         (row, col) tuple with interpolated position
     """
-    # Find if this piece has an active move
-    active_move = None
-    for move in active_moves:
-        if move.piece_id == piece.id:
-            active_move = move
-            break
+    # Use provided move or scan for it
+    active_move = move
+    if active_move is None and active_moves is not None:
+        for m in active_moves:
+            if m.piece_id == piece.id:
+                active_move = m
+                break
 
     if active_move is None:
         return (piece.row, piece.col)
@@ -99,9 +103,11 @@ def get_interpolated_position(
 
 def get_knight_position(
     piece: Piece,
-    active_moves: list[Move],
+    active_moves: list[Move] | None,
     current_tick: int,
     ticks_per_square: int,
+    *,
+    move: Move | None = None,
 ) -> tuple[float, float] | None:
     """Get knight's position for collision detection.
 
@@ -111,15 +117,23 @@ def get_knight_position(
 
     Knight move takes 2 * ticks_per_square (path has 3 points: start, mid, end).
 
+    Args:
+        piece: The knight piece
+        active_moves: List of currently active moves (can be None if move is provided)
+        current_tick: Current game tick
+        ticks_per_square: Number of ticks to move one square
+        move: Optional pre-looked-up move for this piece (avoids linear scan)
+
     Returns:
         (row, col) if the knight can collide, None if airborne
     """
-    # Find if this piece has an active move
-    active_move = None
-    for move in active_moves:
-        if move.piece_id == piece.id:
-            active_move = move
-            break
+    # Use provided move or scan for it
+    active_move = move
+    if active_move is None and active_moves is not None:
+        for m in active_moves:
+            if m.piece_id == piece.id:
+                active_move = m
+                break
 
     if active_move is None:
         return (piece.row, piece.col)
@@ -185,87 +199,97 @@ def detect_collisions(
     """
     captures: list[Capture] = []
 
-    # Get positions for all pieces
-    piece_positions: dict[str, tuple[float, float] | None] = {}
+    # Build lookup for active moves by piece ID (do this first to avoid O(n) scans)
+    move_by_piece: dict[str, Move] = {m.piece_id: m for m in active_moves}
+
+    # Separate moving and stationary pieces
+    # Key insight: two stationary pieces can't collide - at least one must be moving
+    moving: list[tuple[Piece, tuple[float, float]]] = []
+    stationary: list[tuple[Piece, tuple[float, float]]] = []
 
     for piece in pieces:
         if piece.captured:
             continue
 
+        piece_move = move_by_piece.get(piece.id)
         if piece.type == PieceType.KNIGHT:
-            pos = get_knight_position(piece, active_moves, current_tick, ticks_per_square)
+            pos = get_knight_position(piece, None, current_tick, ticks_per_square, move=piece_move)
         else:
-            pos = get_interpolated_position(piece, active_moves, current_tick, ticks_per_square)
+            pos = get_interpolated_position(piece, None, current_tick, ticks_per_square, move=piece_move)
 
-        piece_positions[piece.id] = pos
+        if pos is not None:  # Skip airborne knights
+            if piece_move is not None:
+                moving.append((piece, pos))
+            else:
+                stationary.append((piece, pos))
 
-    # Build lookup for active moves by piece ID
-    move_by_piece: dict[str, Move] = {m.piece_id: m for m in active_moves}
+    # Helper to check a pair and append captures if collision detected
+    def check_pair(piece_a: Piece, pos_a: tuple[float, float],
+                   piece_b: Piece, pos_b: tuple[float, float]) -> None:
+        # Same player pieces don't capture each other
+        if piece_a.player == piece_b.player:
+            return
 
-    # Check all pairs for collisions
-    piece_list = [p for p in pieces if not p.captured]
+        # Check distance - early exit if either axis exceeds threshold (avoids sqrt)
+        dr = pos_a[0] - pos_b[0]
+        dc = pos_a[1] - pos_b[1]
+        if abs(dr) >= CAPTURE_DISTANCE or abs(dc) >= CAPTURE_DISTANCE:
+            return
+        dist = math.sqrt(dr * dr + dc * dc)
+        if dist >= CAPTURE_DISTANCE:
+            return
 
-    for i, piece_a in enumerate(piece_list):
-        pos_a = piece_positions.get(piece_a.id)
-        if pos_a is None:  # Airborne knight
-            continue
+        # Check if knights can capture (must be 85%+ through their move)
+        move_a = move_by_piece.get(piece_a.id)
+        move_b = move_by_piece.get(piece_b.id)
 
-        for piece_b in piece_list[i + 1 :]:
-            # Same player pieces don't capture each other
-            if piece_a.player == piece_b.player:
-                continue
+        if piece_a.type == PieceType.KNIGHT and move_a is not None:
+            if not can_knight_capture(move_a, current_tick, ticks_per_square):
+                return  # Knight can't capture yet
 
-            pos_b = piece_positions.get(piece_b.id)
-            if pos_b is None:  # Airborne knight
-                continue
+        if piece_b.type == PieceType.KNIGHT and move_b is not None:
+            if not can_knight_capture(move_b, current_tick, ticks_per_square):
+                return  # Knight can't capture yet
 
-            # Check distance
-            dist = math.sqrt((pos_a[0] - pos_b[0]) ** 2 + (pos_a[1] - pos_b[1]) ** 2)
-            if dist >= CAPTURE_DISTANCE:
-                continue
+        # Collision detected! Determine winner
+        winner, loser = _determine_capture_winner(piece_a, piece_b, move_by_piece)
 
-            # Check if knights can capture (must be 85%+ through their move)
-            move_a = move_by_piece.get(piece_a.id)
-            move_b = move_by_piece.get(piece_b.id)
+        collision_pos = ((pos_a[0] + pos_b[0]) / 2, (pos_a[1] + pos_b[1]) / 2)
 
-            if piece_a.type == PieceType.KNIGHT and move_a is not None:
-                if not can_knight_capture(move_a, current_tick, ticks_per_square):
-                    continue  # Knight can't capture yet
-
-            if piece_b.type == PieceType.KNIGHT and move_b is not None:
-                if not can_knight_capture(move_b, current_tick, ticks_per_square):
-                    continue  # Knight can't capture yet
-
-            # Collision detected! Determine winner
-            winner, loser = _determine_capture_winner(piece_a, piece_b, move_by_piece)
-
-            collision_pos = ((pos_a[0] + pos_b[0]) / 2, (pos_a[1] + pos_b[1]) / 2)
-
-            if winner and loser:
-                captures.append(
-                    Capture(
-                        capturing_piece_id=winner.id,
-                        captured_piece_id=loser.id,
-                        position=collision_pos,
-                    )
+        if winner and loser:
+            captures.append(
+                Capture(
+                    capturing_piece_id=winner.id,
+                    captured_piece_id=loser.id,
+                    position=collision_pos,
                 )
-            elif winner is None and loser is None:
-                # Mutual destruction - both pieces are captured
-                # We create two capture events with no capturing piece
-                captures.append(
-                    Capture(
-                        capturing_piece_id="",  # No winner
-                        captured_piece_id=piece_a.id,
-                        position=collision_pos,
-                    )
+            )
+        elif winner is None and loser is None:
+            # Mutual destruction - both pieces are captured
+            captures.append(
+                Capture(
+                    capturing_piece_id="",  # No winner
+                    captured_piece_id=piece_a.id,
+                    position=collision_pos,
                 )
-                captures.append(
-                    Capture(
-                        capturing_piece_id="",  # No winner
-                        captured_piece_id=piece_b.id,
-                        position=collision_pos,
-                    )
+            )
+            captures.append(
+                Capture(
+                    capturing_piece_id="",  # No winner
+                    captured_piece_id=piece_b.id,
+                    position=collision_pos,
                 )
+            )
+
+    # Check moving vs moving pairs
+    for i, (piece_a, pos_a) in enumerate(moving):
+        for piece_b, pos_b in moving[i + 1 :]:
+            check_pair(piece_a, pos_a, piece_b, pos_b)
+
+    # Check moving vs stationary pairs
+    for piece_a, pos_a in moving:
+        for piece_b, pos_b in stationary:
+            check_pair(piece_a, pos_a, piece_b, pos_b)
 
     return captures
 

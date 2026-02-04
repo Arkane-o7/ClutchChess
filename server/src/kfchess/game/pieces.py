@@ -1,6 +1,6 @@
 """Piece definitions for Kung Fu Chess."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -40,6 +40,11 @@ class Piece:
     captured: bool = False
     moved: bool = False
 
+    # Cache for grid_position to avoid repeated round() calls
+    _grid_cache: tuple[int, int] | None = field(default=None, repr=False, compare=False)
+    _grid_cache_row: float = field(default=float("nan"), repr=False, compare=False)
+    _grid_cache_col: float = field(default=float("nan"), repr=False, compare=False)
+
     @classmethod
     def create(cls, piece_type: PieceType, player: int, row: int, col: int) -> "Piece":
         """Create a new piece with auto-generated ID."""
@@ -71,5 +76,16 @@ class Piece:
 
     @property
     def grid_position(self) -> tuple[int, int]:
-        """Get the current position snapped to grid as (row, col) tuple."""
-        return (int(round(self.row)), int(round(self.col)))
+        """Get the current position snapped to grid as (row, col) tuple.
+
+        Cached to avoid repeated round() calls (profiling showed 1.6M calls).
+        """
+        # Check if cache is valid (row/col unchanged)
+        if self._grid_cache is not None and self._grid_cache_row == self.row and self._grid_cache_col == self.col:
+            return self._grid_cache
+        # Compute and cache
+        result = (int(round(self.row)), int(round(self.col)))
+        self._grid_cache = result
+        self._grid_cache_row = self.row
+        self._grid_cache_col = self.col
+        return result

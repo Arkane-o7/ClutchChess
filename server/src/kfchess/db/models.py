@@ -285,3 +285,30 @@ class UserGameHistory(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     game_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     game_info: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
+class CampaignProgress(Base):
+    """User's campaign progress.
+
+    Schema matches legacy kfchess for backward compatibility.
+    Progress is stored as JSONB with:
+        - levelsCompleted: dict[str, bool] - level index → completed
+        - beltsCompleted: dict[str, bool] - belt number → completed
+
+    Attributes:
+        id: Unique identifier
+        user_id: Foreign key to users table (unique per user)
+        progress: JSONB with levelsCompleted and beltsCompleted dicts
+    """
+
+    __tablename__ = "campaign_progress"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    progress: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)

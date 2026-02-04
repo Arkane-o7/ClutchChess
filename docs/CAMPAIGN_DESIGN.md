@@ -194,12 +194,8 @@ CREATE INDEX IF NOT EXISTS ix_campaign_progress_user_id ON campaign_progress(use
 
 ```python
 from dataclasses import dataclass
-from enum import Enum
 
-
-class BoardSize(Enum):
-    STANDARD = "standard"      # 8x8, 2 players
-    FOUR_PLAYER = "four_player" # 12x12, 2-4 players
+from kfchess.game.board import BoardType  # Reuse existing enum
 
 
 @dataclass
@@ -211,7 +207,7 @@ class CampaignLevel:
         belt: Belt number (1-9)
         speed: Game speed ("standard" or "lightning")
         board_str: Board layout in legacy string format
-        board_size: Board dimensions
+        board_type: Board dimensions (uses existing BoardType enum)
         player_count: Number of players (2 or 4)
         title: Display name
         description: Hint/objective text
@@ -220,7 +216,7 @@ class CampaignLevel:
     belt: int
     speed: str
     board_str: str
-    board_size: BoardSize = BoardSize.STANDARD
+    board_type: BoardType = BoardType.STANDARD
     player_count: int = 2
     title: str = ""
     description: str = ""
@@ -234,7 +230,6 @@ class CampaignLevel:
 **`server/src/kfchess/campaign/board_parser.py`:**
 
 ```python
-from kfchess.campaign.models import BoardSize
 from kfchess.game.board import Board, BoardType
 from kfchess.game.pieces import Piece, PieceType
 
@@ -248,31 +243,30 @@ PIECE_TYPE_MAP = {
 }
 
 
-def parse_board_string(board_str: str, board_size: BoardSize) -> Board:
+def parse_board_string(board_str: str, board_type: BoardType) -> Board:
     """Parse legacy board string format into a Board object.
 
     Args:
         board_str: Multi-line string with 2 chars per square
-        board_size: Target board dimensions
+        board_type: Target board dimensions
 
     Returns:
         Board object with pieces placed
     """
     lines = [line.strip() for line in board_str.strip().splitlines() if line.strip()]
 
-    if board_size == BoardSize.STANDARD:
-        board_type = BoardType.STANDARD
+    if board_type == BoardType.STANDARD:
         expected_rows = 8
         expected_cols = 8
     else:
-        board_type = BoardType.FOUR_PLAYER
         expected_rows = 12
         expected_cols = 12
 
     if len(lines) != expected_rows:
         raise ValueError(f"Expected {expected_rows} rows, got {len(lines)}")
 
-    pieces = []
+    board = Board.create_empty(board_type)
+
     for row, line in enumerate(lines):
         if len(line) != expected_cols * 2:
             raise ValueError(f"Row {row} has wrong length: {len(line)}, expected {expected_cols * 2}")
@@ -288,7 +282,7 @@ def parse_board_string(board_str: str, board_size: BoardSize) -> Board:
             if piece_type_char not in PIECE_TYPE_MAP:
                 raise ValueError(f"Unknown piece type: {piece_type_char}")
 
-            pieces.append(
+            board.add_piece(
                 Piece.create(
                     PIECE_TYPE_MAP[piece_type_char],
                     player=player,
@@ -297,12 +291,7 @@ def parse_board_string(board_str: str, board_size: BoardSize) -> Board:
                 )
             )
 
-    return Board(
-        pieces=pieces,
-        board_type=board_type,
-        width=expected_cols,
-        height=expected_rows,
-    )
+    return board
 ```
 
 ### 3. Level Definitions (All 32 Legacy Levels)
@@ -316,7 +305,7 @@ Levels 0-31: Legacy 2-player levels (preserved from original kfchess)
 Levels 32+: Future 4-player levels (to be designed)
 """
 
-from .models import BoardSize, CampaignLevel
+from .models import CampaignLevel
 
 # Belt names
 BELT_NAMES = [
@@ -949,8 +938,8 @@ from kfchess.game.state import GameState, Speed
 
 
 @dataclass
-class CampaignProgress:
-    """User's campaign progress."""
+class CampaignProgressData:
+    """User's campaign progress (domain object)."""
 
     levels_completed: dict[str, bool]
     belts_completed: dict[str, bool]
@@ -984,10 +973,10 @@ class CampaignService:
     def __init__(self, progress_repo: CampaignProgressRepository):
         self.progress_repo = progress_repo
 
-    async def get_progress(self, user_id: int) -> CampaignProgress:
+    async def get_progress(self, user_id: int) -> CampaignProgressData:
         """Get user's campaign progress."""
         data = await self.progress_repo.get_progress(user_id)
-        return CampaignProgress(
+        return CampaignProgressData(
             levels_completed=data.get("levelsCompleted", {}),
             belts_completed=data.get("beltsCompleted", {}),
         )
@@ -1008,7 +997,7 @@ class CampaignService:
             return None
 
         # Parse board from level definition
-        board = parse_board_string(level.board_str, level.board_size)
+        board = parse_board_string(level.board_str, level.board_type)
 
         # Create players map
         # Player 1 is always the human
@@ -1476,11 +1465,12 @@ R3P300000000000000000000P1R1
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
-- [ ] Add `CampaignProgress` DB model (or verify existing table)
-- [ ] Implement `CampaignProgressRepository`
-- [ ] Implement `board_parser.py` with tests
-- [ ] Add all 32 legacy levels to `levels.py`
-- [ ] Implement `CampaignService`
+- [x] Add `CampaignProgress` DB model (migration: `011_add_campaign_progress`)
+- [x] Implement `CampaignProgressRepository` (with upsert support)
+- [x] Implement `board_parser.py` with tests (47 unit tests)
+- [x] Add all 32 legacy levels to `levels.py`
+- [x] Implement `CampaignService` (with `CampaignProgressData`)
+- [x] Integration tests for repository (11 tests)
 
 ### Phase 2: API & Game Integration
 - [ ] Add campaign API endpoints

@@ -647,6 +647,66 @@ async def _save_replay(game_id: str, service: Any) -> None:
         logger.exception(f"Error saving replay for game {game_id}: {e}")
 
 
+async def _handle_campaign_completion(game_id: str, winner: int | None) -> None:
+    """Update campaign progress when player 1 wins a campaign game.
+
+    Args:
+        game_id: The game ID
+        winner: The winning player number (1 = human player won)
+    """
+    try:
+        service = get_game_service()
+        managed_game = service.get_managed_game(game_id)
+
+        if managed_game is None:
+            return
+
+        # Only process campaign games where player 1 won
+        if managed_game.campaign_level_id is None:
+            return
+
+        if winner != 1:
+            logger.debug(
+                f"Campaign game {game_id} level {managed_game.campaign_level_id} "
+                f"ended with winner={winner}, no progress update"
+            )
+            return
+
+        if managed_game.campaign_user_id is None:
+            logger.warning(
+                f"Campaign game {game_id} has level_id but no user_id"
+            )
+            return
+
+        # Import here to avoid circular import
+        from kfchess.campaign.service import CampaignService
+        from kfchess.db.repositories.campaign import CampaignProgressRepository
+
+        async with async_session_factory() as session:
+            repo = CampaignProgressRepository(session)
+            campaign_service = CampaignService(repo)
+
+            new_belt = await campaign_service.complete_level(
+                managed_game.campaign_user_id,
+                managed_game.campaign_level_id,
+            )
+            await session.commit()
+
+            if new_belt:
+                logger.info(
+                    f"User {managed_game.campaign_user_id} completed belt after "
+                    f"level {managed_game.campaign_level_id}"
+                )
+            else:
+                logger.info(
+                    f"User {managed_game.campaign_user_id} completed campaign "
+                    f"level {managed_game.campaign_level_id}"
+                )
+
+    except Exception as e:
+        logger.exception(f"Error handling campaign completion for game {game_id}: {e}")
+
+
 async def _notify_lobby_game_ended(game_id: str, winner: int | None, reason: str) -> None:
     """Notify the lobby that a game has ended.
 
@@ -881,6 +941,9 @@ async def _run_game_loop(game_id: str) -> None:
 
                 await _save_replay(game_id, service)
 
+                # Update campaign progress if this is a campaign game
+                await _handle_campaign_completion(game_id, state.winner)
+
                 rating_changes = await _update_ratings(game_id, state)
                 if rating_changes:
                     await _broadcast_rating_update(game_id, rating_changes)
@@ -1027,6 +1090,9 @@ async def _run_game_loop(game_id: str) -> None:
 
                 # Save replay to database
                 await _save_replay(game_id, service)
+
+                # Update campaign progress if this is a campaign game
+                await _handle_campaign_completion(game_id, state.winner)
 
                 # Update ratings for ranked games
                 rating_changes = await _update_ratings(game_id, state)

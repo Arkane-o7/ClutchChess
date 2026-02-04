@@ -16,6 +16,8 @@ from typing import Any
 from kfchess.ai.base import AIPlayer
 from kfchess.ai.dummy import DummyAI
 from kfchess.ai.kungfu_ai import KungFuAI
+from kfchess.campaign.board_parser import parse_board_string
+from kfchess.campaign.models import CampaignLevel
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine, GameEvent, GameEventType
 from kfchess.game.replay import Replay
@@ -45,6 +47,8 @@ class ManagedGame:
         loop_task: The async task running the game loop
         created_at: When the game was created
         last_activity: When the game was last accessed
+        campaign_level_id: Campaign level ID if this is a campaign game
+        campaign_user_id: User ID who started the campaign game
     """
 
     state: GameState
@@ -56,6 +60,8 @@ class ManagedGame:
     force_broadcast: bool = False
     resigned_piece_ids: list[str] = field(default_factory=list)
     draw_offers: set[int] = field(default_factory=set)
+    campaign_level_id: int | None = None
+    campaign_user_id: int | None = None
 
 
 def _generate_player_key(player: int) -> str:
@@ -236,6 +242,78 @@ class GameService:
         logger.info(f"Lobby game {game_id} created with {len(player_keys)} human players")
 
         return game_id
+
+    def create_campaign_game(
+        self,
+        level: CampaignLevel,
+        user_id: int,
+    ) -> tuple[str, str, int]:
+        """Create a campaign game with a custom board.
+
+        Args:
+            level: The campaign level definition
+            user_id: The user ID (for progress tracking)
+
+        Returns:
+            Tuple of (game_id, player_key, player_number)
+        """
+        game_id = _generate_game_id()
+
+        # Ensure unique game ID
+        while game_id in self.games:
+            game_id = _generate_game_id()
+
+        # Human player is always player 1
+        human_player = 1
+        player_key = _generate_player_key(human_player)
+
+        # Parse the board string to create custom board
+        board = parse_board_string(level.board_str, level.board_type)
+
+        # Map level speed to Speed enum
+        speed = Speed(level.speed)
+
+        # Build players dict - human player + AI opponents
+        players: dict[int, str] = {1: f"u:{user_id}"}
+        ai_instances: dict[int, AIPlayer] = {}
+
+        for p in range(2, level.player_count + 1):
+            players[p] = "bot:campaign"
+            ai_instances[p] = self._create_ai("campaign", speed)
+
+        # Create game with custom board
+        state = GameEngine.create_game_from_board(
+            speed=speed,
+            players=players,
+            board=board,
+            game_id=game_id,
+        )
+
+        # Auto-start the game (mark all players ready)
+        for player_num in players.keys():
+            GameEngine.set_player_ready(state, player_num)
+
+        logger.debug(
+            f"Campaign game {game_id} auto-started: status={state.status.value}, "
+            f"ready_players={state.ready_players}"
+        )
+
+        # Create managed game with campaign tracking
+        managed_game = ManagedGame(
+            state=state,
+            player_keys={human_player: player_key},
+            ai_players=ai_instances,
+            campaign_level_id=level.level_id,
+            campaign_user_id=user_id,
+        )
+
+        self.games[game_id] = managed_game
+        logger.info(
+            f"Campaign game {game_id} created for level {level.level_id} "
+            f"by user {user_id}"
+        )
+
+        return game_id, player_key, human_player
 
     # Difficulty names → KungFuAI levels
     _DIFFICULTY_MAP: dict[str, int] = {

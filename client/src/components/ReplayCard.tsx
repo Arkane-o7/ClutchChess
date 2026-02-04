@@ -9,11 +9,21 @@ interface ReplayCardProps {
 }
 
 export default function ReplayCard({ replay }: ReplayCardProps) {
+  // Build the speed label with modifiers
+  const isFourPlayer = replay.board_type === 'four_player';
+  const modifiers: string[] = [];
+  if (isFourPlayer) modifiers.push('4p');
+  if (replay.is_ranked) modifiers.push('Rated');
+
+  const speedLabel = modifiers.length > 0
+    ? `${replay.speed} (${modifiers.join(', ')})`
+    : replay.speed;
+
   return (
     <Link to={`/replay/${replay.game_id}`} className="match-history-item">
       <div className="match-info">
         <span className="match-date">{formatDate(replay.created_at)}</span>
-        <span className="match-speed">{replay.speed}</span>
+        <span className="match-speed">{speedLabel}</span>
       </div>
       <div className="match-players">
         {Object.entries(replay.players).map(([num, player]) => (
@@ -37,6 +47,10 @@ export default function ReplayCard({ replay }: ReplayCardProps) {
         {replay.win_reason && (
           <span className="match-reason">{formatWinReason(replay.win_reason)}</span>
         )}
+        <span className="like-badge" title={`${replay.likes} likes`}>
+          <span className="like-icon">{replay.user_has_liked ? '\u2764\ufe0f' : '\ud83e\udd0d'}</span>
+          <span className="like-count">{replay.likes}</span>
+        </span>
       </div>
     </Link>
   );

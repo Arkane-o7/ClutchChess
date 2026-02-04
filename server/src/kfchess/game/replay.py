@@ -37,6 +37,7 @@ class Replay:
         win_reason: Reason for game end
         created_at: When the game was completed
         tick_rate_hz: Tick rate used when recording (for backwards compatibility)
+        is_ranked: Whether this was a ranked game
     """
 
     version: int
@@ -49,6 +50,7 @@ class Replay:
     win_reason: str | None
     created_at: datetime | None
     tick_rate_hz: int = 10  # Default to 10 Hz for old replays
+    is_ranked: bool = False  # Default to False for backwards compatibility
 
     @staticmethod
     def from_game_state(state: "GameState") -> "Replay":
@@ -100,6 +102,7 @@ class Replay:
             "win_reason": self.win_reason,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "tick_rate_hz": self.tick_rate_hz,
+            "is_ranked": self.is_ranked,
         }
 
     def get_moves_at_tick(self, tick: int) -> list[ReplayMove]:
@@ -190,6 +193,7 @@ def _parse_v2(data: dict[str, Any]) -> Replay:
         win_reason=data.get("win_reason"),
         created_at=created_at,
         tick_rate_hz=data.get("tick_rate_hz", 10),  # Default to 10 Hz for old replays
+        is_ranked=data.get("is_ranked", False),  # Default to False for old replays
     )
 
 

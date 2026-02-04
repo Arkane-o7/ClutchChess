@@ -15,16 +15,17 @@ export function formatWinReason(reason: string | null): string {
   switch (reason) {
     case 'king_captured':
       return 'King captured';
-    case 'checkmate':
-      return 'Checkmate';
     case 'resignation':
       return 'Resignation';
-    case 'timeout':
-      return 'Timeout';
-    case 'disconnect':
-      return 'Disconnect';
-    default:
-      return reason.replace(/_/g, ' ');
+    case 'draw':
+      return 'Draw';
+    case 'invalid':
+      return 'Abandoned';
+    default: {
+      // Capitalize first letter and replace underscores with spaces
+      const formatted = reason.replace(/_/g, ' ');
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
   }
 }
 

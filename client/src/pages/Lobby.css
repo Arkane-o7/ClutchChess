@@ -505,3 +505,33 @@
 .join-code-form input::placeholder {
   text-transform: none;
 }
+
+/* Refresh Button */
+.refresh-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg {
+  display: block;
+}

@@ -527,6 +527,7 @@ class ReplaySession:
                 "winner": self.replay.winner,
                 "win_reason": self.replay.win_reason,
                 "tick_rate_hz": self.replay.tick_rate_hz,
+                "is_ranked": self.replay.is_ranked,
             }
         )
 

@@ -4,13 +4,15 @@
  * Main replay viewer that displays a recorded game with playback controls.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useReplayStore } from '../stores/replay';
+import { useAuthStore } from '../stores/auth';
 import { ReplayBoard, ReplayControls } from '../components/replay';
 import { AudioControls } from '../components/game';
 import { useAudio } from '../hooks/useAudio';
 import { formatWinReason } from '../utils/format';
+import { getReplayLikeStatus, likeReplay, unlikeReplay } from '../api/client';
 import PlayerBadge from '../components/PlayerBadge';
 import './Replay.css';
 
@@ -30,6 +32,7 @@ export function Replay() {
   const winner = useReplayStore((s) => s.winner);
   const winReason = useReplayStore((s) => s.winReason);
   const speed = useReplayStore((s) => s.speed);
+  const isRanked = useReplayStore((s) => s.isRanked);
 
   const isPlaying = useReplayStore((s) => s.isPlaying);
   const pieces = useReplayStore((s) => s.pieces);
@@ -38,6 +41,14 @@ export function Replay() {
 
   const connect = useReplayStore((s) => s.connect);
   const disconnect = useReplayStore((s) => s.disconnect);
+
+  // Auth state for like functionality
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Like state
+  const [likes, setLikes] = useState(0);
+  const [userHasLiked, setUserHasLiked] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
 
   // Audio management
   // Use currentTick >= totalTicks for isFinished (not winner, which is set at start from metadata)
@@ -97,6 +108,38 @@ export function Replay() {
     };
   }, [replayId, connect, disconnect, navigate]);
 
+  // Fetch like status when replay loads
+  useEffect(() => {
+    if (replayId) {
+      getReplayLikeStatus(replayId)
+        .then((response) => {
+          setLikes(response.likes);
+          setUserHasLiked(response.user_has_liked);
+        })
+        .catch(() => {
+          // Silently fail - likes are non-critical UI enhancement
+          // Default values (0 likes, not liked) are acceptable fallback
+        });
+    }
+  }, [replayId]);
+
+  const handleLikeClick = async () => {
+    if (!isAuthenticated || isLiking || !replayId) return;
+
+    setIsLiking(true);
+    try {
+      const response = userHasLiked
+        ? await unlikeReplay(replayId)
+        : await likeReplay(replayId);
+      setLikes(response.likes);
+      setUserHasLiked(response.user_has_liked);
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
   // Show loading state
   if (connectionState === 'connecting') {
     return (
@@ -145,8 +188,11 @@ export function Replay() {
             </div>
             {speed && (
               <div className="replay-info-row">
-                <span className="replay-info-label">Speed:</span>
-                <span className="replay-info-value">{speed}</span>
+                <span className="replay-info-label">Mode:</span>
+                <span className="replay-info-value">
+                  {speed.charAt(0).toUpperCase() + speed.slice(1)}
+                  {isRanked && ' (Rated)'}
+                </span>
               </div>
             )}
             {players && (
@@ -181,6 +227,21 @@ export function Replay() {
           </div>
 
           <ReplayControls />
+
+          <div className="replay-like-section">
+            <button
+              className={`replay-like-button ${userHasLiked ? 'liked' : ''}`}
+              onClick={handleLikeClick}
+              disabled={!isAuthenticated || isLiking}
+            >
+              <span className="like-icon">{userHasLiked ? '\u2764\ufe0f' : '\ud83e\udd0d'}</span>
+              <span>{userHasLiked ? 'Liked' : 'Like'}</span>
+              <span className="like-count">({likes})</span>
+            </button>
+            {!isAuthenticated && (
+              <span className="like-hint">Log in to like this replay</span>
+            )}
+          </div>
 
           <AudioControls
             musicVolume={musicVolume}

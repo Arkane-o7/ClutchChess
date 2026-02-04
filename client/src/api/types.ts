@@ -170,6 +170,15 @@ export interface ApiReplaySummary {
   winner: number | null;
   win_reason: string | null;
   created_at: string | null;
+  likes: number;
+  user_has_liked: boolean | null; // null if not authenticated
+  is_ranked: boolean;
+}
+
+// Response for like/unlike operations
+export interface LikeResponse {
+  likes: number;
+  user_has_liked: boolean;
 }
 
 // Response for listing replays

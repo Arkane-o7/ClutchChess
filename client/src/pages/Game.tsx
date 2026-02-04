@@ -158,16 +158,16 @@ export function Game() {
         </div>
         <div className="game-sidebar">
           <GameStatus />
+          <div className="game-action-buttons">
+            <DrawOfferButton />
+            <ResignButton />
+          </div>
           <AudioControls
             musicVolume={musicVolume}
             soundVolume={soundVolume}
             onMusicVolumeChange={setMusicVolume}
             onSoundVolumeChange={setSoundVolume}
           />
-          <div className="game-action-buttons">
-            <DrawOfferButton />
-            <ResignButton />
-          </div>
         </div>
       </div>
       <GameOverModal />

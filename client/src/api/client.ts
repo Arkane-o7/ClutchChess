@@ -15,6 +15,7 @@ import type {
   LegalMovesResponse,
   ApiReplay,
   ApiReplayListResponse,
+  LikeResponse,
   ApiUser,
   ApiPublicUser,
   RegisterRequest,
@@ -235,15 +236,46 @@ export async function getReplay(gameId: string): Promise<ApiReplay> {
 }
 
 /**
- * List recent replays
+ * List replays with optional sorting
  */
 export async function listReplays(
   limit: number = 10,
-  offset: number = 0
+  offset: number = 0,
+  sort: 'recent' | 'top' = 'recent'
 ): Promise<ApiReplayListResponse> {
   return request<ApiReplayListResponse>(
-    `/replays?limit=${limit}&offset=${offset}`
+    `/replays?limit=${limit}&offset=${offset}&sort=${sort}`,
+    { credentials: 'include' }
   );
+}
+
+/**
+ * Like a replay
+ */
+export async function likeReplay(gameId: string): Promise<LikeResponse> {
+  return request<LikeResponse>(`/replays/${gameId}/like`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+}
+
+/**
+ * Unlike a replay
+ */
+export async function unlikeReplay(gameId: string): Promise<LikeResponse> {
+  return request<LikeResponse>(`/replays/${gameId}/like`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
+/**
+ * Get like status for a replay
+ */
+export async function getReplayLikeStatus(gameId: string): Promise<LikeResponse> {
+  return request<LikeResponse>(`/replays/${gameId}/like`, {
+    credentials: 'include',
+  });
 }
 
 // ============================================

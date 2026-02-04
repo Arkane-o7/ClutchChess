@@ -4,7 +4,7 @@
  * Browse and join public lobbies, or join by code.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLobbyStore } from '../stores/lobby';
 import { useAuthStore } from '../stores/auth';
@@ -91,19 +91,36 @@ export function Lobbies() {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Refresh cooldown state
+  const [canRefresh, setCanRefresh] = useState(false);
+  const lastRefreshRef = useRef<number>(0);
+
   // Fetch lobbies on mount and when filters change
   useEffect(() => {
     fetchPublicLobbies(speedFilter || undefined, playerCountFilter, ratedFilter);
+    lastRefreshRef.current = Date.now();
+    setCanRefresh(false);
   }, [fetchPublicLobbies, speedFilter, playerCountFilter, ratedFilter]);
 
-  // Refresh lobbies periodically
+  // Enable refresh button after 10 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchPublicLobbies(speedFilter || undefined, playerCountFilter, ratedFilter);
-    }, 10000); // Refresh every 10 seconds
+    const checkRefreshCooldown = () => {
+      const elapsed = Date.now() - lastRefreshRef.current;
+      if (elapsed >= 10000) {
+        setCanRefresh(true);
+      }
+    };
 
+    const interval = setInterval(checkRefreshCooldown, 1000);
     return () => clearInterval(interval);
-  }, [fetchPublicLobbies, speedFilter, playerCountFilter, ratedFilter]);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    if (!canRefresh) return;
+    fetchPublicLobbies(speedFilter || undefined, playerCountFilter, ratedFilter);
+    lastRefreshRef.current = Date.now();
+    setCanRefresh(false);
+  }, [canRefresh, fetchPublicLobbies, speedFilter, playerCountFilter, ratedFilter]);
 
   const handleJoinLobby = useCallback(
     async () => {
@@ -202,6 +219,20 @@ export function Lobbies() {
           <option value="rated">Rated</option>
           <option value="unrated">Unrated</option>
         </select>
+
+        <button
+          className="refresh-btn"
+          onClick={handleRefresh}
+          disabled={!canRefresh || isLoadingLobbies}
+          title={canRefresh ? 'Refresh lobbies' : 'Wait 10 seconds to refresh'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M8 16H3v5" />
+          </svg>
+        </button>
       </div>
 
       {isLoadingLobbies && publicLobbies.length === 0 ? (

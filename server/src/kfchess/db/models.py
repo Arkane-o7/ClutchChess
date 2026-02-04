@@ -207,6 +207,38 @@ class GameReplay(Base):
     )
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     tick_rate_hz: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_ranked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class ReplayLike(Base):
+    """Records a user's like on a replay.
+
+    Attributes:
+        id: Unique identifier
+        replay_id: Foreign key to game_replays.id
+        user_id: Foreign key to users.id
+        created_at: When the like was created
+    """
+
+    __tablename__ = "replay_likes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    replay_id: Mapped[str] = mapped_column(
+        String, ForeignKey("game_replays.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("replay_id", "user_id", name="uq_replay_likes_replay_user"),
+        Index("ix_replay_likes_replay_id", "replay_id"),
+        Index("ix_replay_likes_user_id", "user_id"),
+    )
 
 
 class GameHistory(Base):

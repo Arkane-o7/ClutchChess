@@ -1,10 +1,11 @@
 /**
  * GameStatus Component
  *
- * Displays game info (ID, speed, players) and current connection state.
+ * Displays game info (ID, mode, players) and current connection state.
  */
 
 import { useGameStore } from '../../stores/game';
+import { useLobbyStore } from '../../stores/lobby';
 import PlayerBadge from '../PlayerBadge';
 
 export function GameStatus() {
@@ -15,6 +16,7 @@ export function GameStatus() {
   const connectionState = useGameStore((s) => s.connectionState);
   const playerNumber = useGameStore((s) => s.playerNumber);
   const lastError = useGameStore((s) => s.lastError);
+  const isRanked = useLobbyStore((s) => s.lobby?.settings.isRanked ?? false);
 
   const getStatusText = () => {
     switch (status) {
@@ -75,8 +77,11 @@ export function GameStatus() {
         )}
 
         <div className="game-info-row">
-          <span className="game-info-label">Speed:</span>
-          <span className="game-info-value">{speed}</span>
+          <span className="game-info-label">Mode:</span>
+          <span className="game-info-value">
+            {speed.charAt(0).toUpperCase() + speed.slice(1)}
+            {isRanked && ' (Rated)'}
+          </span>
         </div>
 
         {players && Object.entries(players).map(([playerNum, player]) => (

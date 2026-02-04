@@ -1,7 +1,7 @@
 """Replay repository for database operations."""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,7 +64,7 @@ class ReplayRepository:
         players_data = {str(k): v for k, v in replay.players.items()}
 
         # Convert timezone-aware datetime to naive UTC for database
-        created_at = replay.created_at or datetime.now()
+        created_at = replay.created_at or datetime.now(UTC)
         if created_at.tzinfo is not None:
             created_at = created_at.replace(tzinfo=None)
 
@@ -80,6 +80,7 @@ class ReplayRepository:
             created_at=created_at,
             is_public=True,
             tick_rate_hz=replay.tick_rate_hz,
+            is_ranked=replay.is_ranked,
         )
 
         self.session.add(record)
@@ -155,6 +156,68 @@ class ReplayRepository:
         )
         return result.scalar_one()
 
+    async def list_top(
+        self, limit: int = 20, offset: int = 0
+    ) -> list[tuple[str, Replay, int]]:
+        """List top replays by like count.
+
+        Only returns replays with at least one like.
+
+        Args:
+            limit: Maximum number of replays to return
+            offset: Number of replays to skip
+
+        Returns:
+            List of (game_id, replay, like_count) tuples ordered by likes (highest first)
+        """
+        result = await self.session.execute(
+            select(GameReplay)
+            .where(GameReplay.is_public.is_(True))
+            .where(GameReplay.like_count > 0)
+            .order_by(GameReplay.like_count.desc(), GameReplay.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        records = result.scalars().all()
+
+        return [(r.id, self._record_to_replay(r), r.like_count) for r in records]
+
+    async def get_like_count(self, game_id: str) -> int:
+        """Get the like count for a replay.
+
+        Args:
+            game_id: The game ID
+
+        Returns:
+            The like count, or 0 if replay not found
+        """
+        result = await self.session.execute(
+            select(GameReplay.like_count).where(GameReplay.id == game_id)
+        )
+        count = result.scalar_one_or_none()
+        return count if count is not None else 0
+
+    async def get_like_counts_batch(self, game_ids: list[str]) -> dict[str, int]:
+        """Get like counts for multiple replays in a single query.
+
+        Args:
+            game_ids: List of game IDs to fetch
+
+        Returns:
+            Dict mapping game_id to like_count (missing IDs get 0)
+        """
+        if not game_ids:
+            return {}
+
+        result = await self.session.execute(
+            select(GameReplay.id, GameReplay.like_count).where(
+                GameReplay.id.in_(game_ids)
+            )
+        )
+        counts = {row[0]: row[1] for row in result.fetchall()}
+        # Return 0 for any missing IDs
+        return {gid: counts.get(gid, 0) for gid in game_ids}
+
     async def delete(self, game_id: str) -> bool:
         """Delete a replay.
 
@@ -222,6 +285,8 @@ class ReplayRepository:
         try:
             # Get tick_rate_hz with default of 10 for old replays without this field
             tick_rate_hz = getattr(record, "tick_rate_hz", 10) or 10
+            # Get is_ranked with default of False for old replays
+            is_ranked = getattr(record, "is_ranked", False) or False
             return Replay(
                 version=2,
                 speed=Speed(record.speed),
@@ -233,6 +298,7 @@ class ReplayRepository:
                 win_reason=record.win_reason,
                 created_at=record.created_at,
                 tick_rate_hz=tick_rate_hz,
+                is_ranked=is_ranked,
             )
         except ValueError as e:
             logger.error(f"Invalid enum value in replay {record.id}: {e}")

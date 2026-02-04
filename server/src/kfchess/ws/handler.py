@@ -580,6 +580,23 @@ async def _save_replay(game_id: str, service: Any) -> None:
             logger.warning(f"Could not get replay for game {game_id}")
             return
 
+        # Get is_ranked from lobby if available
+        try:
+            manager = get_lobby_manager()
+            lobby_code = manager.find_lobby_by_game(game_id)
+            if lobby_code is not None:
+                lobby = manager.get_lobby(lobby_code)
+                if lobby is not None:
+                    replay.is_ranked = lobby.is_ranked
+                else:
+                    logger.warning(
+                        f"Lobby {lobby_code} not found when saving replay for game {game_id}, "
+                        "is_ranked will default to False"
+                    )
+            # Note: lobby_code being None is expected for games not started from lobbies
+        except Exception as e:
+            logger.warning(f"Error getting lobby info for game {game_id}: {e}")
+
         # Save to database
         async with async_session_factory() as session:
             try:
@@ -616,6 +633,7 @@ async def _save_replay(game_id: str, service: Any) -> None:
                         "gameId": game_id,
                         "ticks": replay.total_ticks,
                         "opponents": opponents,
+                        "isRanked": replay.is_ranked,
                     }
 
                     await history_repo.add(user_id, game_time, game_info)

@@ -273,6 +273,9 @@ async def get_user_replays(
             winner=info.get("winner"),
             win_reason=info.get("winReason"),
             created_at=game_time,
+            likes=0,  # User history doesn't track likes
+            user_has_liked=None,  # Not applicable for user history
+            is_ranked=info.get("isRanked", False),  # May not be present in old entries
         )
         for (game_id, info, game_time, _), resolved in zip(entry_data, resolved_list, strict=True)
     ]

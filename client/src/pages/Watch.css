@@ -72,6 +72,40 @@
   gap: 2rem;
 }
 
+.live-games-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refresh-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg {
+  display: block;
+}
+
 .games-section h3 {
   margin: 0 0 1rem;
   font-size: 1rem;

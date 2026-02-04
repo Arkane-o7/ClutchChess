@@ -378,14 +378,18 @@ function Profile() {
                 const belt = getBelt(stats.rating);
                 return (
                   <div key={mode} className="profile-rating-card">
-                    <BeltIcon belt={belt} size="lg" />
-                    <div className="rating-mode">{formatModeName(mode)}</div>
-                    <div className="rating-value">{stats.rating}</div>
-                    {stats.games > 0 && (
+                    <div className="rating-header">
+                      <BeltIcon belt={belt} size="lg" />
+                      <div className="rating-mode">{formatModeName(mode)}</div>
+                    </div>
+                    <div className="rating-details">
+                      <div className="rating-value">{stats.rating}</div>
                       <div className="rating-stats">
-                        {stats.wins}W / {stats.games - stats.wins}L ({stats.games} games)
+                        {stats.games > 0
+                          ? `${stats.wins}W / ${stats.games - stats.wins}L`
+                          : 'No games'}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}

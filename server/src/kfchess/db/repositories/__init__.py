@@ -1,7 +1,8 @@
 """Database repositories."""
 
 from kfchess.db.repositories.lobbies import LobbyRepository
+from kfchess.db.repositories.replay_likes import ReplayLikesRepository
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.repositories.users import UserRepository
 
-__all__ = ["LobbyRepository", "ReplayRepository", "UserRepository"]
+__all__ = ["LobbyRepository", "ReplayLikesRepository", "ReplayRepository", "UserRepository"]

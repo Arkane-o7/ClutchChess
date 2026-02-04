@@ -1,6 +1,40 @@
 """Fixtures for auth integration tests."""
 
 import pytest
+from sqlalchemy import delete, text
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_test_users():
+    """Clean up test users created during tests.
+
+    Runs before and after each test to ensure clean state.
+    Deletes users with emails matching 'test_%@example.com' pattern.
+    """
+    from kfchess.db.models import OAuthAccount, User
+    from kfchess.db.session import async_session_factory
+
+    async def _cleanup():
+        async with async_session_factory() as session:
+            # Delete OAuth accounts for test users first (foreign key constraint)
+            await session.execute(
+                delete(OAuthAccount).where(
+                    OAuthAccount.account_email.like("test_%@example.com")
+                )
+            )
+            # Delete test users
+            await session.execute(
+                delete(User).where(User.email.like("test_%@example.com"))
+            )
+            await session.commit()
+
+    # Clean up before test (in case previous run left data)
+    await _cleanup()
+
+    yield
+
+    # Clean up after test
+    await _cleanup()
 
 
 @pytest.fixture(autouse=True)

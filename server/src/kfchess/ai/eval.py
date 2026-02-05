@@ -142,7 +142,7 @@ def _score_move(
 
     # Material: value of captured piece
     if candidate.capture_type:
-        net_capture = capture_value(candidate)
+        net_capture = capture_value(candidate, ai_state)
 
         if level >= 3 and arrival_data is not None:
             # EV framework: account for dodge probability

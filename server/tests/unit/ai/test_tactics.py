@@ -4,6 +4,8 @@ from kfchess.ai.arrival_field import ArrivalData, ArrivalField
 from kfchess.ai.move_gen import CandidateMove
 from kfchess.ai.state_extractor import AIPiece, PieceStatus, StateExtractor
 from kfchess.ai.tactics import (
+    GAME_ENDING_KING_BONUS,
+    PIECE_VALUES,
     capture_value,
     dodge_probability,
     move_safety,
@@ -50,6 +52,81 @@ class TestCaptureFeasibility:
 
         )
         assert capture_value(candidate) == 0.0
+
+
+class TestGameEndingKingCapture:
+    """Tests for game-ending king capture bonus."""
+
+    def test_king_capture_without_ai_state_returns_base_value(self):
+        """King capture without ai_state returns base value (no bonus)."""
+        candidate = CandidateMove(
+            piece_id="p1_q1", to_row=0, to_col=4,
+            capture_type=PieceType.KING,
+        )
+        value = capture_value(candidate)
+        assert value == PIECE_VALUES[PieceType.KING]
+        assert value == 10.0  # Base king value
+
+    def test_king_capture_with_single_enemy_king_adds_bonus(self):
+        """Capturing the last enemy king adds game-ending bonus."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+
+        # Standard 2-player game has 1 enemy king
+        enemy_kings = [
+            ep for ep in ai_state.get_enemy_pieces()
+            if ep.piece.type == PieceType.KING
+        ]
+        assert len(enemy_kings) == 1
+
+        candidate = CandidateMove(
+            piece_id="p1_q1", to_row=0, to_col=4,
+            capture_type=PieceType.KING,
+        )
+        value = capture_value(candidate, ai_state)
+        expected = PIECE_VALUES[PieceType.KING] + GAME_ENDING_KING_BONUS
+        assert value == expected
+        assert value == 100.0  # 10 + 90
+
+    def test_king_capture_with_multiple_enemy_kings_no_bonus(self):
+        """Capturing a king when others remain gives no bonus (4-player)."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+
+        # Add a second enemy king to simulate 4-player
+        second_king = _make_ai_piece(
+            PieceType.KING, 3, 0, 0, piece_id="p3_k1",
+        )
+        ai_state._enemy_pieces.append(second_king)
+
+        # Now there are 2 enemy kings
+        enemy_kings = [
+            ep for ep in ai_state.get_enemy_pieces()
+            if ep.piece.type == PieceType.KING
+        ]
+        assert len(enemy_kings) == 2
+
+        candidate = CandidateMove(
+            piece_id="p1_q1", to_row=0, to_col=4,
+            capture_type=PieceType.KING,
+        )
+        value = capture_value(candidate, ai_state)
+        # No bonus - game doesn't end
+        assert value == PIECE_VALUES[PieceType.KING]
+        assert value == 10.0
+
+    def test_non_king_capture_unaffected(self):
+        """Capturing non-king pieces is unaffected by game-ending logic."""
+        state = _make_state()
+        ai_state = StateExtractor.extract(state, 1)
+
+        candidate = CandidateMove(
+            piece_id="p1_q1", to_row=3, to_col=3,
+            capture_type=PieceType.QUEEN,
+        )
+        value = capture_value(candidate, ai_state)
+        assert value == PIECE_VALUES[PieceType.QUEEN]
+        assert value == 9.0
 
 
 class TestMoveSafety:

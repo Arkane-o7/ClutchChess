@@ -17,24 +17,44 @@ PIECE_VALUES: dict[PieceType, float] = {
     PieceType.BISHOP: 3.0,
     PieceType.ROOK: 5.0,
     PieceType.QUEEN: 9.0,
-    PieceType.KING: 100.0,
+    PieceType.KING: 10.0,  # Base value; game-ending bonus applied separately
 }
+
+# Bonus for capturing the last enemy king (wins the game)
+GAME_ENDING_KING_BONUS = 90.0  # Total effective = (10 + 90) * 10 = 1000
 
 
 def capture_value(
     candidate: CandidateMove,
+    ai_state: AIState | None = None,
 ) -> float:
     """Evaluate the raw material value of a capture.
 
     Returns the captured piece value. Post-arrival safety (recapture
     risk) is handled separately by move_safety in the eval layer.
 
+    For king captures, adds GAME_ENDING_KING_BONUS if this is the last
+    enemy king (capturing it wins the game).
+
     Non-capture moves return 0.0.
     """
     if candidate.capture_type is None:
         return 0.0
 
-    return PIECE_VALUES.get(candidate.capture_type, 0) if candidate.capture_type else 0
+    base_value = PIECE_VALUES.get(candidate.capture_type, 0)
+
+    # Check for game-ending king capture
+    if candidate.capture_type == PieceType.KING and ai_state is not None:
+        # Count enemy kings that are not captured
+        enemy_kings = sum(
+            1 for ep in ai_state.get_enemy_pieces()
+            if ep.piece.type == PieceType.KING and not ep.piece.captured
+        )
+        # If only 1 enemy king left, capturing it wins
+        if enemy_kings == 1:
+            base_value += GAME_ENDING_KING_BONUS
+
+    return base_value
 
 
 def dodge_probability(
@@ -357,10 +377,6 @@ def threaten_score(
             continue  # Enemy can capture us back
 
         value = PIECE_VALUES.get(ep.piece.type, 0)
-        # Cap king threat value at queen level — threatening the king is
-        # important but shouldn't dominate all other scoring terms.
-        if ep.piece.type == PieceType.KING:
-            value = PIECE_VALUES[PieceType.QUEEN]
         if value > best_threat:
             best_threat = value
 

@@ -69,15 +69,6 @@
   font-size: 1rem;
 }
 
-/* Belt Title */
-.campaign-belt-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin: 0 0 1.5rem 0;
-  text-align: center;
-}
-
 /* Responsive */
 @media (max-width: 600px) {
   .campaign {
@@ -86,9 +77,5 @@
 
   .campaign-title {
     font-size: 1.5rem;
-  }
-
-  .campaign-belt-title {
-    font-size: 1.25rem;
   }
 }

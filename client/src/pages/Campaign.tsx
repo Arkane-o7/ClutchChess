@@ -7,11 +7,7 @@
 import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
-import {
-  useCampaignStore,
-  getLevelsForBelt,
-  BELT_NAMES,
-} from '../stores/campaign';
+import { useCampaignStore, getLevelsForBelt } from '../stores/campaign';
 import { BeltSelector, LevelGrid } from '../components/campaign';
 import './Campaign.css';
 
@@ -107,8 +103,6 @@ function Campaign() {
             beltsCompleted={progress?.beltsCompleted ?? {}}
             onSelectBelt={handleSelectBelt}
           />
-
-          <h2 className="campaign-belt-title">{BELT_NAMES[selectedBelt]} Belt</h2>
 
           {isLoading ? (
             <div className="campaign-loading">Loading levels...</div>

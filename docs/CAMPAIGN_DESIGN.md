@@ -18,10 +18,10 @@ The campaign mode provides a single-player progression system with puzzle-like c
 
 | Question | Decision |
 |----------|----------|
-| Campaign AI behavior | New AI level "campaign" (internal level -1) that matches intermediate (level 2) configuration; can be tuned later |
+| Campaign AI behavior | Uses difficulty level 3 (advanced) via "bot:campaign" player ID; can be tuned per level later |
 | 4-player win condition | Last survivor — player wins when all opponent kings are captured (AI can eliminate each other) |
 | Progress reset | Not needed — users can replay any completed level |
-| Replay integration | Yes — campaign games are saved as replays and function as normal games |
+| Replay integration | Yes — campaign games saved with `campaign_level_id` and `initial_board_str` for custom board reconstruction |
 | Offline progress | No — campaign page requires login |
 
 ---
@@ -86,30 +86,36 @@ server/src/kfchess/
 ├── campaign/
 │   ├── __init__.py
 │   ├── levels.py           # Level definitions (all 32 legacy levels)
-│   ├── models.py           # CampaignLevel dataclass, progress model
+│   ├── models.py           # CampaignLevel dataclass
 │   ├── board_parser.py     # Parse board strings → Board objects
-│   └── service.py          # Campaign business logic
+│   └── service.py          # Campaign business logic (CampaignService, CampaignProgressData)
 ├── api/
-│   └── campaigns.py        # REST endpoints
+│   └── campaign.py         # REST endpoints (/campaign/*)
 ├── ws/
-│   └── game.py             # (existing, add campaign game support)
+│   └── handler.py          # WebSocket handler (campaign completion)
+├── services/
+│   └── game_service.py     # GameService (create_campaign_game)
 └── db/
-    ├── models.py           # Add CampaignProgress model
+    ├── models.py           # CampaignProgress model, GameReplay.campaign_level_id
     └── repositories/
-        └── campaign.py     # Campaign progress repository
+        └── campaign.py     # Campaign progress repository (JSONB upsert)
 
 client/src/
 ├── pages/
-│   └── Campaign.tsx        # Campaign page component
+│   ├── Campaign.tsx        # Campaign page component
+│   └── Campaign.css        # Page styles
 ├── stores/
-│   └── campaign.ts         # Zustand store for campaign state
+│   └── campaign.ts         # Zustand store (progress, levels, belt selection)
 ├── components/
 │   └── campaign/
-│       ├── LevelSelect.tsx # Level selection UI
-│       ├── BeltProgress.tsx# Belt progress display
-│       └── LevelCard.tsx   # Individual level card
-└── data/
-    └── campaignLevels.ts   # Level metadata (titles, descriptions)
+│       ├── index.ts        # Barrel exports
+│       ├── BeltSelector.tsx    # Belt selection with color indicators
+│       ├── BeltSelector.css
+│       ├── LevelGrid.tsx       # Grid of level cards
+│       └── LevelGrid.css
+└── api/
+    ├── client.ts           # API calls (getCampaignProgress, startCampaignLevel)
+    └── types.ts            # CampaignProgress, CampaignLevel, StartCampaignGameResponse
 ```
 
 ### Data Flow
@@ -123,9 +129,10 @@ client/src/
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    REST API                                  │
-│  GET /api/campaigns/progress                                │
-│  POST /api/campaigns/levels/{level}/start                   │
-│  (progress updated automatically on game win)               │
+│  GET /campaign/progress                                     │
+│  GET /campaign/levels                                       │
+│  POST /campaign/levels/{level_id}/start                     │
+│  (progress updated automatically on game win via WebSocket) │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
@@ -898,30 +905,18 @@ def get_belt_levels(belt: int) -> list[CampaignLevel]:
 
 ### 4. Campaign AI
 
-**Add to `server/src/kfchess/ai/kungfu_ai.py` or `services/game_service.py`:**
+Campaign games use the existing AI system with difficulty level 3 (advanced). The AI opponent is identified by `"bot:campaign"` in the players dict, which `GameService` recognizes when creating the AI player.
 
 ```python
-# Campaign AI is a distinct difficulty level that currently matches intermediate (level 2)
-# but can be tuned independently in the future.
-
-_DIFFICULTY_MAP: dict[str, int] = {
-    "novice": 1,
-    "intermediate": 2,
-    "advanced": 3,
-    "campaign": -1,  # Special campaign level
+# In GameService.create_campaign_game():
+# AI opponent uses difficulty level 3 (advanced)
+players = {
+    1: f"user:{user_id}",      # Human player
+    2: "bot:campaign",          # Campaign AI (difficulty 3)
 }
-
-def _create_ai(difficulty: str, speed: Speed) -> AIPlayer:
-    """Create an AI player with the given difficulty."""
-    level = _DIFFICULTY_MAP.get(difficulty, 2)
-
-    if level == -1:
-        # Campaign AI: uses intermediate (level 2) configuration
-        # This is separate so we can tune it independently later
-        return KungFuAI(level=2, speed=speed)
-    else:
-        return KungFuAI(level=level, speed=speed)
 ```
+
+Future enhancement: Per-level AI difficulty could be added to `CampaignLevel` to vary challenge across belts.
 
 ### 5. Campaign Service
 
@@ -1060,181 +1055,164 @@ class CampaignService:
 
 ### 6. API Endpoints
 
-**`server/src/kfchess/api/campaigns.py`:**
+**`server/src/kfchess/api/campaign.py`:**
 
 ```python
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from kfchess.auth.deps import current_active_user
-from kfchess.campaign.levels import BELT_NAMES, MAX_BELT, get_level
+from kfchess.auth.deps import current_active_user, optional_current_user
+from kfchess.campaign.levels import BELT_NAMES, MAX_BELT, get_level, LEVELS
 from kfchess.campaign.service import CampaignService
 from kfchess.db.models import User
+from kfchess.services.game_service import GameService
 
-router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
-
-
-class ProgressResponse(BaseModel):
-    levels_completed: dict[str, bool]
-    belts_completed: dict[str, bool]
-    current_belt: int
-    max_belt: int
+router = APIRouter(prefix="/campaign", tags=["campaign"])
 
 
-class LevelInfo(BaseModel):
-    level_id: int
+class CampaignProgressResponse(BaseModel):
+    levelsCompleted: dict[str, bool]
+    beltsCompleted: dict[str, bool]
+    currentBelt: int
+    maxBelt: int
+
+
+class CampaignLevelResponse(BaseModel):
+    levelId: int
     belt: int
+    beltName: str
     title: str
     description: str
     speed: str
-    is_4player: bool
-    is_unlocked: bool
-    is_completed: bool
+    playerCount: int
+    isUnlocked: bool
+    isCompleted: bool
 
 
-class StartLevelResponse(BaseModel):
-    game_id: str
-    player_key: str
+class StartCampaignGameResponse(BaseModel):
+    gameId: str
+    playerKey: str
+    playerNumber: int
 
 
-@router.get("/progress", response_model=ProgressResponse)
-async def get_progress(
-    user: User = Depends(current_active_user),
-    campaign_service: CampaignService = Depends(),
-):
-    """Get user's campaign progress."""
-    progress = await campaign_service.get_progress(user.id)
-    return ProgressResponse(
-        levels_completed=progress.levels_completed,
-        belts_completed=progress.belts_completed,
-        current_belt=progress.current_belt,
-        max_belt=MAX_BELT,
-    )
+@router.get("/progress")
+async def get_progress(user: User = Depends(current_active_user)):
+    """Get authenticated user's campaign progress."""
+    ...
 
+@router.get("/progress/{user_id}")
+async def get_user_progress(user_id: int):
+    """Get any user's campaign progress (public, for profiles)."""
+    ...
 
-@router.get("/belts/{belt}/levels", response_model=list[LevelInfo])
-async def get_belt_levels(
-    belt: int,
-    user: User = Depends(current_active_user),
-    campaign_service: CampaignService = Depends(),
-):
-    """Get all levels for a belt."""
-    if belt < 1 or belt > MAX_BELT:
-        raise HTTPException(status_code=404, detail="Belt not found")
+@router.get("/levels")
+async def get_levels(user: User | None = Depends(optional_current_user)):
+    """Get all campaign levels with unlock/completion status."""
+    ...
 
-    progress = await campaign_service.get_progress(user.id)
-    levels = []
+@router.get("/levels/{level_id}")
+async def get_level_detail(level_id: int, user: User | None = Depends(optional_current_user)):
+    """Get single level details."""
+    ...
 
-    for level_idx in range((belt - 1) * 8, belt * 8):
-        level = get_level(level_idx)
-        if level is None:
-            continue
-
-        levels.append(
-            LevelInfo(
-                level_id=level.level_id,
-                belt=level.belt,
-                title=level.title,
-                description=level.description,
-                speed=level.speed,
-                is_4player=level.player_count > 2,
-                is_unlocked=progress.is_level_unlocked(level.level_id),
-                is_completed=progress.is_level_completed(level.level_id),
-            )
-        )
-
-    return levels
-
-
-@router.post("/levels/{level_id}/start", response_model=StartLevelResponse)
+@router.post("/levels/{level_id}/start")
 async def start_level(
     level_id: int,
     user: User = Depends(current_active_user),
-    campaign_service: CampaignService = Depends(),
-    game_service=Depends(),  # GameService dependency
+    game_service: GameService = Depends(),
 ):
-    """Start a campaign level."""
-    state = await campaign_service.start_level(user.id, level_id)
-
-    if state is None:
-        raise HTTPException(status_code=403, detail="Level is locked")
-
-    # Register game with game service (treated as normal game with replay)
-    game_id, player_key = await game_service.register_campaign_game(
-        state=state,
+    """Start a campaign level. Creates game and returns credentials."""
+    # Validates level is unlocked, creates game with custom board
+    game_id, player_key, player_number = await game_service.create_campaign_game(
         user_id=user.id,
         level_id=level_id,
     )
-
-    return StartLevelResponse(game_id=game_id, player_key=player_key)
+    return StartCampaignGameResponse(
+        gameId=game_id,
+        playerKey=player_key,
+        playerNumber=player_number,
+    )
 ```
 
 ### 7. Game Service Integration
 
-**Additions to `server/src/kfchess/services/game_service.py`:**
+**`server/src/kfchess/services/game_service.py`:**
+
+Campaign games are tracked via `ManagedGame` which stores:
+- `campaign_level_id` - Level being played
+- `campaign_user_id` - User who started the campaign game
+- `initial_board_str` - Board string for replay reconstruction
 
 ```python
-# Track campaign games for progress updates
-campaign_games: dict[str, int] = {}  # game_id → level_id
-
-
-async def register_campaign_game(
+async def create_campaign_game(
     self,
-    state: GameState,
     user_id: int,
     level_id: int,
-) -> tuple[str, str]:
-    """Register a campaign game and return game_id + player_key.
+) -> tuple[str, str, int]:
+    """Create a campaign game with custom board and AI opponent.
 
-    Campaign games are treated as normal games:
-    - Replays are saved on completion
-    - Game events are broadcast via WebSocket
-    - Progress is updated when player 1 wins (or is last survivor in 4P)
+    Returns:
+        (game_id, player_key, player_number)
     """
-    game_id = state.game_id
-    player_key = str(uuid.uuid4())
-
-    # Store campaign level association
-    self.campaign_games[game_id] = level_id
-
-    # Create AI opponents
     level = get_level(level_id)
-    if level:
-        for player_num, player_id in state.players.items():
-            if player_id.startswith("c:"):
-                # Campaign AI (uses "campaign" difficulty)
-                ai = self._create_ai("campaign", state.speed)
-                self._ai_players[game_id, player_num] = ai
+    if not level:
+        raise ValueError(f"Level {level_id} not found")
 
-    # Register game normally (enables replay saving)
-    await self._register_game(game_id, state, {1: player_key})
+    # Check if level is unlocked
+    progress = await self.campaign_service.get_progress(user_id)
+    if not progress.is_level_unlocked(level_id):
+        raise PermissionError("Level is locked")
 
-    return game_id, player_key
+    # Parse custom board from level definition
+    board = parse_board_string(level.board_str, level.board_type)
 
+    # Create game with human vs AI
+    players = {1: f"user:{user_id}", 2: "bot:campaign"}
+    speed = Speed.STANDARD if level.speed == "standard" else Speed.LIGHTNING
 
-async def on_game_over(self, game_id: str, winner: int):
-    """Handle game completion (called for all games including campaign)."""
-    # Save replay (works for both multiplayer and campaign games)
-    await self._save_replay(game_id)
+    state = GameEngine.create_game_from_board(speed, players, board)
 
-    # Handle campaign progress if this is a campaign game
-    if game_id in self.campaign_games:
-        level_id = self.campaign_games[game_id]
+    # Track campaign metadata in ManagedGame
+    managed_game = ManagedGame(
+        state=state,
+        campaign_level_id=level_id,
+        campaign_user_id=user_id,
+        initial_board_str=level.board_str,
+    )
 
-        # Player 1 wins if:
-        # - 2P mode: winner == 1
-        # - 4P mode: winner == 1 (last survivor)
-        if winner == 1:
-            state = self._games.get(game_id)
-            if state:
-                user_id = int(state.players[1].split(":")[1])
-                new_belt = await self.campaign_service.complete_level(user_id, level_id)
+    # Auto-start (all players ready)
+    # ... game registration and AI setup ...
 
-                # Optionally notify client of belt completion
-                if new_belt:
-                    await self._broadcast_belt_completed(game_id, level_id // 8 + 1)
+    return game_id, player_key, 1
+```
 
-        del self.campaign_games[game_id]
+**Campaign Completion** (`server/src/kfchess/ws/handler.py`):
+
+When a campaign game ends with player 1 winning:
+
+```python
+async def _handle_campaign_completion(self, game: ManagedGame, winner: int):
+    """Update campaign progress when player wins."""
+    if winner == 1 and game.campaign_level_id is not None:
+        new_belt = await self.campaign_service.complete_level(
+            game.campaign_user_id,
+            game.campaign_level_id,
+        )
+        if new_belt:
+            logger.info(f"User {game.campaign_user_id} completed belt {game.campaign_level_id // 8 + 1}")
+```
+
+**Replay Integration:**
+
+Campaign replays include:
+- `campaign_level_id` in `GameReplay` model (for filtering campaign replays)
+- `initial_board_str` for reconstructing custom board during playback
+
+```python
+# ReplayEngine uses initial_board_str to reconstruct board
+if replay.initial_board_str:
+    board = parse_board_string(replay.initial_board_str, replay.board_type)
+    state = GameEngine.create_game_from_board(speed, players, board)
 ```
 
 ### 8. Frontend Components
@@ -1243,166 +1221,192 @@ async def on_game_over(self, game_id: str, winner: int):
 
 ```typescript
 import { create } from "zustand";
-import { api } from "../api/client";
+import { getCampaignProgress, getCampaignLevels, startCampaignLevel } from "../api/client";
+import type { CampaignProgress, CampaignLevel } from "../api/types";
 
-interface CampaignProgress {
+// Belt configuration (client-side constants)
+export const BELT_NAMES: Record<number, string> = {
+  1: "White", 2: "Yellow", 3: "Green", 4: "Purple",
+  5: "Orange", 6: "Blue", 7: "Brown", 8: "Red", 9: "Black",
+};
+
+export const BELT_COLORS: Record<number, string> = {
+  1: "#ffffff", 2: "#ffd700", 3: "#22c55e", 4: "#a855f7",
+  5: "#f97316", 6: "#3b82f6", 7: "#92400e", 8: "#ef4444", 9: "#1f2937",
+};
+
+interface CampaignState {
+  progress: CampaignProgress | null;
+  levels: CampaignLevel[];
+  selectedBelt: number;
+  isLoading: boolean;
+  isStartingLevel: boolean;
+  error: string | null;
+
+  init: () => Promise<void>;
+  selectBelt: (belt: number) => void;
+  startLevel: (levelId: number) => Promise<{ gameId: string; playerKey: string }>;
+  clearError: () => void;
+  reset: () => void;
+}
+
+export const useCampaignStore = create<CampaignState>((set, get) => ({
+  progress: null,
+  levels: [],
+  selectedBelt: 1,
+  isLoading: false,
+  isStartingLevel: false,
+  error: null,
+
+  init: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      // Fetch progress and levels in parallel
+      const [progress, levels] = await Promise.all([
+        getCampaignProgress(),
+        getCampaignLevels(),
+      ]);
+      set({
+        progress,
+        levels,
+        selectedBelt: progress.currentBelt,
+        isLoading: false,
+      });
+    } catch {
+      set({ error: "Failed to load campaign", isLoading: false });
+    }
+  },
+
+  selectBelt: (belt: number) => set({ selectedBelt: belt }),
+
+  startLevel: async (levelId: number) => {
+    set({ isStartingLevel: true });
+    try {
+      const response = await startCampaignLevel(levelId);
+      set({ isStartingLevel: false });
+      return response;
+    } catch {
+      set({ error: "Failed to start level", isStartingLevel: false });
+      throw new Error("Failed to start level");
+    }
+  },
+
+  clearError: () => set({ error: null }),
+  reset: () => set({ progress: null, levels: [], selectedBelt: 1, error: null }),
+}));
+
+// Selectors
+export const getLevelsForBelt = (levels: CampaignLevel[], belt: number) =>
+  levels.filter((l) => l.belt === belt);
+
+export const getBeltCompletionCount = (levels: CampaignLevel[], belt: number) =>
+  getLevelsForBelt(levels, belt).filter((l) => l.isCompleted).length;
+```
+
+**`client/src/pages/Campaign.tsx`:**
+
+```tsx
+import { useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/auth";
+import { useCampaignStore, getLevelsForBelt } from "../stores/campaign";
+import { BeltSelector, LevelGrid } from "../components/campaign";
+import "./Campaign.css";
+
+function Campaign() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const { progress, levels, selectedBelt, isLoading, isStartingLevel, error,
+          init, selectBelt, startLevel, clearError } = useCampaignStore();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate("/login?next=/campaign");
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (isAuthenticated) init();
+  }, [isAuthenticated, init]);
+
+  const handleStartLevel = useCallback(async (levelId: number) => {
+    try {
+      const { gameId, playerKey } = await startLevel(levelId);
+      navigate(`/game/${gameId}?playerKey=${playerKey}`);
+    } catch { /* Error set in store */ }
+  }, [startLevel, navigate]);
+
+  if (authLoading) return <div className="campaign-loading">Loading...</div>;
+  if (!isAuthenticated) return null;
+
+  const beltLevels = getLevelsForBelt(levels, selectedBelt);
+
+  return (
+    <div className="campaign">
+      <div className="campaign-header">
+        <h1>Campaign Mode</h1>
+        <p>Complete missions to earn your belts!</p>
+      </div>
+
+      {error && (
+        <div className="campaign-error" role="alert">
+          {error}
+          <button onClick={clearError}>Dismiss</button>
+        </div>
+      )}
+
+      {isLoading && !progress ? (
+        <div className="campaign-loading">Loading campaign...</div>
+      ) : (
+        <>
+          <BeltSelector
+            currentBelt={progress?.currentBelt ?? 1}
+            maxBelt={progress?.maxBelt ?? 4}
+            selectedBelt={selectedBelt}
+            beltsCompleted={progress?.beltsCompleted ?? {}}
+            onSelectBelt={selectBelt}
+          />
+          <LevelGrid
+            levels={beltLevels}
+            onStartLevel={handleStartLevel}
+            isStarting={isStartingLevel}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+export default Campaign;
+```
+
+**`client/src/api/types.ts`:**
+
+```typescript
+export interface CampaignProgress {
   levelsCompleted: Record<string, boolean>;
   beltsCompleted: Record<string, boolean>;
   currentBelt: number;
   maxBelt: number;
 }
 
-interface LevelInfo {
+export interface CampaignLevel {
   levelId: number;
   belt: number;
+  beltName: string;
   title: string;
   description: string;
-  speed: string;
-  is4Player: boolean;
+  speed: "standard" | "lightning";
+  playerCount: number;
   isUnlocked: boolean;
   isCompleted: boolean;
 }
 
-interface CampaignState {
-  progress: CampaignProgress | null;
-  currentBeltLevels: LevelInfo[];
-  selectedBelt: number;
-  loading: boolean;
-  error: string | null;
-
-  fetchProgress: () => Promise<void>;
-  fetchBeltLevels: (belt: number) => Promise<void>;
-  selectBelt: (belt: number) => void;
-  startLevel: (levelId: number) => Promise<{ gameId: string; playerKey: string }>;
+export interface StartCampaignGameResponse {
+  gameId: string;
+  playerKey: string;
+  playerNumber: number;
 }
-
-export const useCampaignStore = create<CampaignState>((set, get) => ({
-  progress: null,
-  currentBeltLevels: [],
-  selectedBelt: 1,
-  loading: false,
-  error: null,
-
-  fetchProgress: async () => {
-    set({ loading: true, error: null });
-    try {
-      const response = await api.get("/api/campaigns/progress");
-      set({
-        progress: response.data,
-        selectedBelt: response.data.currentBelt,
-        loading: false,
-      });
-    } catch (error) {
-      set({ error: "Failed to load progress", loading: false });
-    }
-  },
-
-  fetchBeltLevels: async (belt: number) => {
-    set({ loading: true });
-    try {
-      const response = await api.get(`/api/campaigns/belts/${belt}/levels`);
-      set({ currentBeltLevels: response.data, loading: false });
-    } catch (error) {
-      set({ error: "Failed to load levels", loading: false });
-    }
-  },
-
-  selectBelt: (belt: number) => {
-    set({ selectedBelt: belt });
-    get().fetchBeltLevels(belt);
-  },
-
-  startLevel: async (levelId: number) => {
-    const response = await api.post(`/api/campaigns/levels/${levelId}/start`);
-    return response.data;
-  },
-}));
-```
-
-**`client/src/pages/Campaign.tsx`:**
-
-```tsx
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useCampaignStore } from "../stores/campaign";
-import { useAuthStore } from "../stores/auth";
-import { BeltSelector } from "../components/campaign/BeltSelector";
-import { LevelGrid } from "../components/campaign/LevelGrid";
-
-export function Campaign() {
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const {
-    progress,
-    currentBeltLevels,
-    selectedBelt,
-    loading,
-    fetchProgress,
-    fetchBeltLevels,
-    selectBelt,
-    startLevel,
-  } = useCampaignStore();
-
-  useEffect(() => {
-    if (!user) {
-      navigate("/login?next=/campaign");
-      return;
-    }
-    fetchProgress();
-  }, [user]);
-
-  useEffect(() => {
-    if (progress) {
-      fetchBeltLevels(selectedBelt);
-    }
-  }, [progress, selectedBelt]);
-
-  const handleStartLevel = async (levelId: number) => {
-    const { gameId, playerKey } = await startLevel(levelId);
-    navigate(`/game/${gameId}?key=${playerKey}`);
-  };
-
-  if (!user) return null;
-  if (loading && !progress) return <div>Loading...</div>;
-
-  return (
-    <div className="campaign-page">
-      <h1>Campaign Mode</h1>
-
-      <BeltSelector
-        currentBelt={progress?.currentBelt ?? 1}
-        maxBelt={progress?.maxBelt ?? 1}
-        selectedBelt={selectedBelt}
-        beltsCompleted={progress?.beltsCompleted ?? {}}
-        onSelectBelt={selectBelt}
-      />
-
-      <LevelGrid levels={currentBeltLevels} onStartLevel={handleStartLevel} />
-    </div>
-  );
-}
-```
-
-**`client/src/data/campaignLevels.ts`:**
-
-```typescript
-export const BELT_NAMES = [
-  "", // 0 unused
-  "White",
-  "Yellow",
-  "Green",
-  "Purple",
-  "Orange",
-  "Blue",
-  "Brown",
-  "Red",
-  "Black",
-];
-
-export const MAX_BELT = 4;
-
-// Level metadata is fetched from the server API
-// This file contains only constants needed client-side
 ```
 
 ---
@@ -1442,23 +1446,22 @@ R3P300000000000000000000P1R1
 
 ## Testing Strategy
 
-### Unit Tests
+### Backend Unit Tests (`server/tests/unit/campaign/`)
 
-1. **Board parser**: Test all piece types, empty squares, both board sizes
-2. **Progress logic**: Test unlock conditions, belt completion
-3. **Level definitions**: Validate all 32 levels parse correctly
+1. **`test_board_parser.py`**: All piece types, empty squares, both board sizes, validation errors
+2. **`test_service.py`**: CampaignProgressData unlock logic, belt completion detection
+3. **`test_levels.py`**: Validate all 32 levels parse correctly, belt mapping
 
-### Integration Tests
+### Backend Integration Tests (`server/tests/integration/`)
 
-1. **Start level flow**: User → API → GameService → WebSocket
-2. **Win detection**: Campaign game over triggers progress update
-3. **Replay saving**: Campaign games are saved as replays
-4. **Progress persistence**: Progress survives restart
+1. **`test_campaign_flow.py`**: End-to-end game creation, start level, win detection
+2. **`test_campaign_repository.py`**: JSONB upsert, progress persistence
+3. **`test_campaign_replay.py`**: Replay saving with custom boards, `initial_board_str` reconstruction
 
-### E2E Tests
+### Frontend Tests
 
-1. **Complete belt**: Play through 8 levels, verify belt unlocks
-2. **Replay a level**: Complete level, replay from history
+1. **`tests/stores/campaign.test.ts`**: Store actions, selectors, API integration
+2. **`tests/components/Campaign.test.tsx`**: Page rendering, auth redirect, level grid
 
 ---
 
@@ -1473,20 +1476,21 @@ R3P300000000000000000000P1R1
 - [x] Integration tests for repository (11 tests)
 
 ### Phase 2: API & Game Integration
-- [ ] Add campaign API endpoints
-- [ ] Integrate with `GameService` for campaign games
-- [ ] Add campaign AI handling (level -1 → intermediate config)
-- [ ] Ensure replays are saved for campaign games
-- [ ] Test campaign game flow end-to-end
+- [x] Add campaign API endpoints (`/campaign/progress`, `/campaign/levels`, `/campaign/levels/{id}/start`)
+- [x] Integrate with `GameService` for campaign games (`create_campaign_game()`)
+- [x] Add campaign AI handling (uses difficulty level 3 / advanced)
+- [x] Ensure replays are saved for campaign games (with `campaign_level_id` and `initial_board_str`)
+- [x] Test campaign game flow end-to-end
 
 ### Phase 3: Frontend
-- [x] Implement campaign Zustand store (`client/src/stores/campaign.ts`)
-- [x] Create Campaign page component (`client/src/pages/Campaign.tsx`)
-- [x] Create BeltSelector and LevelGrid components (`client/src/components/campaign/`)
+- [x] Implement campaign Zustand store with selectors (`client/src/stores/campaign.ts`)
+- [x] Create Campaign page with auth check (`client/src/pages/Campaign.tsx`)
+- [x] Create BeltSelector with color indicators (`client/src/components/campaign/BeltSelector.tsx`)
+- [x] Create LevelGrid with level cards (`client/src/components/campaign/LevelGrid.tsx`)
 - [x] Add navigation from Home to Campaign (route in `App.tsx`, button in `Home.tsx`)
-- [x] Style campaign UI (`Campaign.css`, `BeltSelector.css`, `LevelGrid.css`)
-- [x] Add API types and functions (`api/types.ts`, `api/client.ts`)
-- [x] Frontend tests (25 tests: 20 store + 5 component)
+- [x] Style campaign UI with responsive design
+- [x] Add API types (`CampaignProgress`, `CampaignLevel`, `StartCampaignGameResponse`)
+- [x] Frontend tests (store and component tests)
 
 ### Phase 4: 4-Player Content (Future)
 - [ ] Design 4-player levels (brainstorm session)
@@ -1495,6 +1499,6 @@ R3P300000000000000000000P1R1
 - [ ] Test 4-player campaign games
 
 ### Phase 5: Polish
-- [ ] Add belt completion celebration UI
-- [ ] Test replay viewing for campaign games
+- [ ] Add belt completion celebration UI (animation/toast on belt complete)
+- [x] Replay viewing for campaign games (uses `initial_board_str` for custom board reconstruction)
 - [ ] Performance testing with many levels

@@ -134,6 +134,19 @@ export function GameOverModal() {
     }
   };
 
+  const handleRestartLevel = async () => {
+    if (!campaignLevel || isStartingNext) return;
+
+    setIsStartingNext(true);
+    try {
+      const { gameId: newGameId, playerKey } = await startLevel(campaignLevel.level_id);
+      reset();
+      navigate(`/game/${newGameId}?playerKey=${playerKey}`);
+    } catch {
+      setIsStartingNext(false);
+    }
+  };
+
   const handleBackToCampaign = () => {
     reset();
     navigate('/campaign');
@@ -142,8 +155,9 @@ export function GameOverModal() {
   // Check if we came from a lobby
   const hasLobby = lobbyCode || (gameId && sessionStorage.getItem(`lobbyCode_${gameId}`));
 
-  // Check if this is a campaign game and player won
+  // Check if this is a campaign game and player won/lost
   const isCampaignWin = campaignLevel && winner === playerNumber && playerNumber > 0;
+  const isCampaignLoss = campaignLevel && winner !== playerNumber && playerNumber > 0;
   const hasNextLevel = campaignLevel && campaignLevel.level_id + 1 < TOTAL_CAMPAIGN_LEVELS;
 
   return (
@@ -191,6 +205,15 @@ export function GameOverModal() {
               disabled={isStartingNext}
             >
               {isStartingNext ? 'Starting...' : 'Next Level'}
+            </button>
+          )}
+          {isCampaignLoss && (
+            <button
+              className="game-over-button primary"
+              onClick={handleRestartLevel}
+              disabled={isStartingNext}
+            >
+              {isStartingNext ? 'Starting...' : 'Restart Level'}
             </button>
           )}
           {campaignLevel && (

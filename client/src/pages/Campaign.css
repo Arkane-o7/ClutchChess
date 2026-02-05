@@ -1,0 +1,94 @@
+/* Campaign Page Styles */
+.campaign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+/* Header */
+.campaign-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.campaign-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+}
+
+.campaign-subtitle {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Error Banner */
+.campaign-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: 8px;
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.campaign-error-dismiss {
+  background: none;
+  border: none;
+  color: var(--color-error);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.campaign-error-dismiss:hover {
+  opacity: 0.8;
+}
+
+/* Loading State */
+.campaign-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+/* Belt Title */
+.campaign-belt-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 1.5rem 0;
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .campaign {
+    padding: 1rem;
+  }
+
+  .campaign-title {
+    font-size: 1.5rem;
+  }
+
+  .campaign-belt-title {
+    font-size: 1.25rem;
+  }
+}

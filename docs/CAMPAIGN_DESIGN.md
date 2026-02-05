@@ -1480,11 +1480,13 @@ R3P300000000000000000000P1R1
 - [ ] Test campaign game flow end-to-end
 
 ### Phase 3: Frontend
-- [ ] Implement campaign Zustand store
-- [ ] Create Campaign page component
-- [ ] Create BeltSelector and LevelGrid components
-- [ ] Add navigation from Home to Campaign
-- [ ] Style campaign UI
+- [x] Implement campaign Zustand store (`client/src/stores/campaign.ts`)
+- [x] Create Campaign page component (`client/src/pages/Campaign.tsx`)
+- [x] Create BeltSelector and LevelGrid components (`client/src/components/campaign/`)
+- [x] Add navigation from Home to Campaign (route in `App.tsx`, button in `Home.tsx`)
+- [x] Style campaign UI (`Campaign.css`, `BeltSelector.css`, `LevelGrid.css`)
+- [x] Add API types and functions (`api/types.ts`, `api/client.ts`)
+- [x] Frontend tests (25 tests: 20 store + 5 component)
 
 ### Phase 4: 4-Player Content (Future)
 - [ ] Design 4-player levels (brainstorm session)

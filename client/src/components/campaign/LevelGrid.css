@@ -1,0 +1,114 @@
+/* Level Grid Styles */
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 900px;
+}
+
+.level-grid-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 2rem;
+}
+
+/* Level Card */
+.level-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  background-color: var(--color-bg-secondary);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  font-family: var(--font-family);
+  min-height: 160px;
+}
+
+.level-card:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.level-card:disabled {
+  cursor: not-allowed;
+}
+
+.level-card.locked {
+  opacity: 0.6;
+}
+
+.level-card.completed {
+  border-color: var(--color-success);
+}
+
+.level-card.completed:hover:not(:disabled) {
+  border-color: var(--color-success);
+}
+
+/* Card Header */
+.level-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.level-card-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: var(--color-primary);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.level-card.locked .level-card-number {
+  background-color: var(--color-text-muted);
+}
+
+.level-card-check {
+  color: var(--color-success);
+  font-size: 1.2rem;
+}
+
+.level-card-lock {
+  font-size: 1rem;
+}
+
+/* Card Title */
+.level-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+/* Card Description */
+.level-card-description {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  flex-grow: 1;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .level-grid {
+    grid-template-columns: 1fr;
+  }
+}

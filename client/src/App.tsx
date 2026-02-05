@@ -16,6 +16,7 @@ import { Lobby } from './pages/Lobby';
 import { Lobbies } from './pages/Lobbies';
 import About from './pages/About';
 import Privacy from './pages/Privacy';
+import Campaign from './pages/Campaign';
 
 function App() {
   return (
@@ -39,8 +40,7 @@ function App() {
           <Route path="lobbies" element={<Lobbies />} />
           <Route path="about" element={<About />} />
           <Route path="privacy" element={<Privacy />} />
-          {/* TODO: Add routes */}
-          {/* <Route path="campaign" element={<Campaign />} /> */}
+          <Route path="campaign" element={<Campaign />} />
         </Route>
       </Routes>
     </AuthProvider>

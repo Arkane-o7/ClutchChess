@@ -27,6 +27,10 @@ import type {
   LobbyListResponse,
   GetLobbyResponse,
   LeaderboardResponse,
+  CampaignProgress,
+  CampaignLevelsResponse,
+  CampaignLevel,
+  StartCampaignGameResponse,
 } from './types';
 
 const API_BASE = '/api';
@@ -607,6 +611,51 @@ export async function uploadProfilePicture(file: File): Promise<ApiUser> {
   }
 
   return response.json();
+}
+
+// ============================================
+// Campaign API Functions
+// ============================================
+
+/**
+ * Get user's campaign progress
+ * Requires authentication
+ */
+export async function getCampaignProgress(): Promise<CampaignProgress> {
+  return request<CampaignProgress>('/campaign/progress', {
+    credentials: 'include',
+  });
+}
+
+/**
+ * Get all campaign levels
+ * Returns unlock status if authenticated
+ */
+export async function getCampaignLevels(): Promise<CampaignLevelsResponse> {
+  return request<CampaignLevelsResponse>('/campaign/levels', {
+    credentials: 'include',
+  });
+}
+
+/**
+ * Get a single campaign level
+ */
+export async function getCampaignLevel(levelId: number): Promise<CampaignLevel> {
+  return request<CampaignLevel>(`/campaign/levels/${levelId}`, {
+    credentials: 'include',
+  });
+}
+
+/**
+ * Start a campaign level
+ * Creates a game with the campaign board and AI opponent
+ * Requires authentication
+ */
+export async function startCampaignLevel(levelId: number): Promise<StartCampaignGameResponse> {
+  return request<StartCampaignGameResponse>(`/campaign/levels/${levelId}/start`, {
+    method: 'POST',
+    credentials: 'include',
+  });
 }
 
 export {

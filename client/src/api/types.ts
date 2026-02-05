@@ -357,3 +357,40 @@ export interface LeaderboardResponse {
   mode: string;
   entries: LeaderboardEntry[];
 }
+
+// ============================================
+// Campaign Types
+// ============================================
+
+// Campaign progress for a user
+export interface CampaignProgress {
+  levelsCompleted: Record<string, boolean>;
+  beltsCompleted: Record<string, boolean>;
+  currentBelt: number;
+  maxBelt: number;
+}
+
+// Campaign level metadata
+export interface CampaignLevel {
+  levelId: number;
+  belt: number;
+  beltName: string;
+  title: string;
+  description: string;
+  speed: 'standard' | 'lightning';
+  playerCount: number;
+  isUnlocked: boolean;
+  isCompleted: boolean;
+}
+
+// Response for listing campaign levels
+export interface CampaignLevelsResponse {
+  levels: CampaignLevel[];
+}
+
+// Response for starting a campaign game
+export interface StartCampaignGameResponse {
+  gameId: string;
+  playerKey: string;
+  playerNumber: number;
+}

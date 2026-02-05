@@ -1,0 +1,85 @@
+/* Belt Selector Styles */
+.belt-selector {
+  width: 100%;
+  max-width: 900px;
+  margin-bottom: 2rem;
+}
+
+.belt-selector-list {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.belt-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--color-bg-secondary);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.belt-selector-item:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+}
+
+.belt-selector-item.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-bg-hover);
+}
+
+.belt-selector-item.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.belt-selector-item.completed .belt-selector-name {
+  color: var(--color-success);
+}
+
+.belt-selector-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.belt-selector-name {
+  font-weight: 500;
+}
+
+.belt-selector-check {
+  color: var(--color-success);
+  font-size: 1rem;
+}
+
+.belt-selector-lock {
+  font-size: 0.75rem;
+  line-height: 1;
+  transform: translateY(1px);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .belt-selector-list {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .belt-selector-item {
+    padding: 0.5rem;
+  }
+
+  .belt-selector-name {
+    display: none;
+  }
+}

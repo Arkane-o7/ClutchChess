@@ -43,9 +43,23 @@ export class GameWebSocketClient {
     this.setConnectionState('connecting');
 
     // Build WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    let url = `${protocol}//${host}/ws/game/${this.options.gameId}`;
+    // In production or Cloudflare tunnel: use VITE_WS_URL
+    // In local dev: use current host with ws/wss protocol
+    const envWsUrl = import.meta.env.VITE_WS_URL;
+    const isProduction = import.meta.env.PROD;
+    const isCloudflare = window.location.hostname.includes('trycloudflare.com');
+    
+    let url: string;
+    
+    if ((isProduction || isCloudflare) && envWsUrl) {
+      // Use the configured WebSocket URL in production
+      url = `${envWsUrl}/ws/game/${this.options.gameId}`;
+    } else {
+      // Local dev mode - use current host
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      url = `${protocol}//${host}/ws/game/${this.options.gameId}`;
+    }
 
     if (this.options.playerKey) {
       url += `?player_key=${encodeURIComponent(this.options.playerKey)}`;

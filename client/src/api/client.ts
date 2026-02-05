@@ -1,7 +1,8 @@
 /**
  * API Client - HTTP client for REST endpoints
  *
- * Uses relative paths because Vite proxy routes /api to the backend.
+ * Uses relative paths in dev mode (Vite proxy routes /api to the backend).
+ * Uses absolute backend URL in production or when accessed via Cloudflare tunnel.
  */
 
 import type {
@@ -34,7 +35,28 @@ import type {
   StartCampaignGameResponse,
 } from './types';
 
-const API_BASE = '/api';
+// Determine API base URL:
+// - In production: use VITE_API_URL environment variable
+// - In dev mode with Cloudflare tunnel: use tunnel URL
+// - In local dev mode: use relative /api (Vite proxy handles it)
+const getApiBase = () => {
+  const envApiUrl = import.meta.env.VITE_API_URL;
+  
+  // If VITE_API_URL is set and we're in production, use it
+  if (envApiUrl && import.meta.env.PROD) {
+    return `${envApiUrl}/api`;
+  }
+  
+  // Cloudflare tunnel detection for dev
+  if (window.location.hostname.includes('trycloudflare.com')) {
+    return envApiUrl ? `${envApiUrl}/api` : '/api';
+  }
+  
+  // Local dev mode - use relative path (Vite proxy)
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 /**
  * Base API error with status code

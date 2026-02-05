@@ -199,9 +199,21 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     });
 
     // Build WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const url = `${protocol}//${host}/ws/lobby/${code}?player_key=${encodeURIComponent(playerKey)}`;
+    // In production or Cloudflare tunnel: use VITE_WS_URL
+    // In local dev: use current host with ws/wss protocol
+    const envWsUrl = import.meta.env.VITE_WS_URL;
+    const isProduction = import.meta.env.PROD;
+    const isCloudflare = window.location.hostname.includes('trycloudflare.com');
+    
+    let url: string;
+    
+    if ((isProduction || isCloudflare) && envWsUrl) {
+      url = `${envWsUrl}/ws/lobby/${code}?player_key=${encodeURIComponent(playerKey)}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      url = `${protocol}//${host}/ws/lobby/${code}?player_key=${encodeURIComponent(playerKey)}`;
+    }
 
     try {
       const ws = new WebSocket(url);

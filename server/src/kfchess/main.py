@@ -96,7 +96,7 @@ app = FastAPI(
 )
 
 # CORS middleware
-# In dev mode, allow localhost. In production, allow the configured frontend URL.
+# In dev mode, allow localhost and Cloudflare tunnels. In production, allow the configured frontend URL.
 settings = get_settings()
 cors_origins = (
     ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -106,6 +106,8 @@ cors_origins = (
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    # Allow Cloudflare tunnels and Render domains
+    allow_origin_regex=r"https://(.*\.trycloudflare\.com|.*\.onrender\.com)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

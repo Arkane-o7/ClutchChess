@@ -70,9 +70,22 @@ interface GameState {
 
   // Game state (from server)
   status: GameStatus;
+  /**
+   * The tick value from the last server StateUpdateMessage.
+   *
+   * IMPORTANT: This value can be "stale" between server updates! The server only sends
+   * updates when state changes (new moves, captures, cooldowns, etc.), so currentTick
+   * may be seconds behind the actual game time.
+   *
+   * For time-sensitive calculations (piece positions, legal moves, forward path blocking),
+   * use an interpolated "visualTick" instead:
+   *   visualTick = currentTick + (performance.now() - lastTickTime + timeSinceTick) / tickPeriodMs
+   *
+   * See GameBoard.tsx for the full calculation and documentation.
+   */
   currentTick: number;
-  lastTickTime: number; // timestamp when currentTick was last updated
-  timeSinceTick: number; // milliseconds since tick started, from server (0-100)
+  lastTickTime: number; // performance.now() timestamp when currentTick was last updated
+  timeSinceTick: number; // milliseconds since tick started, from server (for sync adjustment)
   winner: number | null;
   winReason: string | null;
   pieces: Piece[];

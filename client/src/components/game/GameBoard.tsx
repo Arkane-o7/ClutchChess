@@ -3,9 +3,32 @@
  *
  * React wrapper around the PixiJS game renderer.
  * Handles initialization, cleanup, and connecting the renderer to the game store.
+ *
+ * ## Tick Timing: currentTick vs visualTick
+ *
+ * The game uses two different tick values for different purposes:
+ *
+ * **currentTick** (from game store):
+ * - The tick value from the last server update
+ * - Only updates when the server sends a StateUpdateMessage
+ * - Server optimizes bandwidth by only sending updates when state changes
+ *   (new moves, cooldown changes, captures, etc.)
+ * - Can be "stale" between server updates (potentially seconds behind)
+ * - Should NOT be used for time-sensitive client-side calculations
+ *
+ * **visualTick** (calculated in render loop):
+ * - Interpolated tick based on elapsed time since last server update
+ * - Formula: currentTick + (elapsedTime / tickPeriod)
+ * - Updates every frame (60fps) for smooth animation
+ * - Used for: piece position interpolation, cooldown display, legal move calculation
+ * - Provides accurate "what tick is it right now?" estimation
+ *
+ * Legal move calculation uses visualTick (floored to integer) to ensure that
+ * forward path blocking is calculated based on where pieces actually are visually,
+ * not where they were at the last server update.
  */
 
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameStore, selectIsPlayerEliminated } from '../../stores/game';
 import { GameRenderer, type BoardType, TIMING, getLegalMovesForPiece } from '../../game';
 
@@ -52,7 +75,11 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
     selectedPieceId,
     speed,
     tickRateHz,
+    boardType,
+    // Legal move calculation state (computed in render loop using visualTick)
     legalMoveTargets: [] as [number, number][],
+    lastLegalMoveTick: -1, // Track last tick used to compute legal moves (for optimization)
+    lastLegalMoveSelectedId: null as string | null, // Track selected piece for cache invalidation
   });
   // Update ref on every render (this doesn't cause re-renders)
   gameStateRef.current = {
@@ -65,35 +92,19 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
     selectedPieceId,
     speed,
     tickRateHz,
-    legalMoveTargets: gameStateRef.current.legalMoveTargets, // Will be updated below
+    boardType,
+    // Preserve computed values from render loop
+    legalMoveTargets: gameStateRef.current.legalMoveTargets,
+    lastLegalMoveTick: gameStateRef.current.lastLegalMoveTick,
+    lastLegalMoveSelectedId: gameStateRef.current.lastLegalMoveSelectedId,
   };
 
-  // Compute legal moves dynamically based on current game state
-  // This updates as pieces move and paths open/close
-  const ticksPerSquare = speed === 'lightning'
-    ? TIMING.LIGHTNING_TICKS_PER_SQUARE
-    : TIMING.STANDARD_TICKS_PER_SQUARE;
-
-  const legalMoveTargets = useMemo(() => {
-    if (!selectedPieceId) return [];
-
-    const selectedPiece = pieces.find((p) => p.id === selectedPieceId);
-    if (!selectedPiece || selectedPiece.captured || selectedPiece.moving || selectedPiece.onCooldown) {
-      return [];
-    }
-
-    return getLegalMovesForPiece(
-      pieces,
-      activeMoves,
-      currentTick,
-      ticksPerSquare,
-      selectedPiece,
-      boardType
-    );
-  }, [selectedPieceId, pieces, activeMoves, currentTick, ticksPerSquare, boardType]);
-
-  // Update ref with legal moves
-  gameStateRef.current.legalMoveTargets = legalMoveTargets;
+  // Legal moves are computed in the render loop using visualTick (not currentTick)
+  // This ensures forward path blocking uses the actual interpolated piece positions
+  // See render loop below for the calculation
+  //
+  // NOTE: Callbacks must read from gameStateRef.current.legalMoveTargets directly
+  // (not a captured variable) to get the latest values from the render loop.
 
   // Handle piece click
   const handlePieceClick = useCallback(
@@ -119,7 +130,8 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       if (selectedPieceId && piece.player !== playerNumber) {
         const pieceRow = Math.round(piece.row);
         const pieceCol = Math.round(piece.col);
-        const isLegalTarget = legalMoveTargets.some(
+        // Read from ref to get latest legal moves computed by render loop
+        const isLegalTarget = gameStateRef.current.legalMoveTargets.some(
           ([targetRow, targetCol]) => targetRow === pieceRow && targetCol === pieceCol
         );
         if (isLegalTarget) {
@@ -128,7 +140,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
         }
       }
     },
-    [status, playerNumber, isEliminated, pieces, selectedPieceId, selectPiece, legalMoveTargets, makeMove]
+    [status, playerNumber, isEliminated, pieces, selectedPieceId, selectPiece, makeMove]
   );
 
   // Handle square click
@@ -148,7 +160,8 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       }
 
       // Check if this is a legal move target (using dynamically computed moves)
-      const isLegalTarget = legalMoveTargets.some(
+      // Read from ref to get latest legal moves computed by render loop
+      const isLegalTarget = gameStateRef.current.legalMoveTargets.some(
         ([targetRow, targetCol]) => targetRow === row && targetCol === col
       );
 
@@ -169,7 +182,7 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       // Deselect
       selectPiece(null);
     },
-    [status, playerNumber, isEliminated, selectedPieceId, pieces, legalMoveTargets, makeMove, selectPiece]
+    [status, playerNumber, isEliminated, selectedPieceId, pieces, makeMove, selectPiece]
   );
 
   // Keep refs updated with latest callbacks
@@ -256,6 +269,37 @@ export function GameBoard({ boardType, squareSize = 64 }: GameBoardProps) {
       const maxInterpolationTicks = 10 * state.tickRateHz;
       const tickFraction = Math.min(totalElapsed / tickPeriodMs, maxInterpolationTicks);
       const visualTick = state.currentTick + tickFraction;
+
+      // Compute legal moves using visualTick (floored to integer)
+      // This ensures forward path blocking reflects actual piece positions, not stale server state
+      // Optimization: only recalculate when tick changes or selection changes
+      const flooredTick = Math.floor(visualTick);
+      const needsLegalMoveRecalc =
+        state.selectedPieceId !== state.lastLegalMoveSelectedId ||
+        flooredTick !== state.lastLegalMoveTick;
+
+      if (needsLegalMoveRecalc) {
+        state.lastLegalMoveTick = flooredTick;
+        state.lastLegalMoveSelectedId = state.selectedPieceId;
+
+        if (!state.selectedPieceId) {
+          state.legalMoveTargets = [];
+        } else {
+          const selectedPiece = state.pieces.find((p) => p.id === state.selectedPieceId);
+          if (!selectedPiece || selectedPiece.captured || selectedPiece.moving || selectedPiece.onCooldown) {
+            state.legalMoveTargets = [];
+          } else {
+            state.legalMoveTargets = getLegalMovesForPiece(
+              state.pieces,
+              state.activeMoves,
+              flooredTick, // Use visualTick (floored) instead of stale currentTick
+              ticksPerSquare,
+              selectedPiece,
+              state.boardType
+            );
+          }
+        }
+      }
 
       // Convert pieces to renderer format
       const rendererPieces = state.pieces.map((p) => ({

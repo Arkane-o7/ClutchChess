@@ -1,5 +1,6 @@
 """Application configuration."""
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,6 +48,22 @@ class Settings(BaseSettings):
 
     # Rate limiting (disable for tests)
     rate_limiting_enabled: bool = True
+
+    @property
+    def effective_server_id(self) -> str:
+        """Get server ID for active game tracking.
+
+        Resolution order:
+          1. KFCHESS_SERVER_ID env var (set per-process, not in .env)
+          2. Fallback: hostname-pid (unique but won't survive restarts)
+
+        For multiple processes sharing the same .env, launch each with a
+        stable ID: ``KFCHESS_SERVER_ID=worker1 uvicorn ...``
+        """
+        from_env = os.environ.get("KFCHESS_SERVER_ID")
+        if from_env:
+            return from_env
+        return f"{os.uname().nodename}-{os.getpid()}"
 
     @property
     def google_oauth_enabled(self) -> bool:

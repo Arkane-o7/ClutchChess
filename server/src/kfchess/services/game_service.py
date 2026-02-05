@@ -734,6 +734,14 @@ class GameService:
                 stale_games.append(game_id)
 
         for game_id in stale_games:
+            # Deregister from active games DB registry (requires running event loop)
+            try:
+                import asyncio
+                asyncio.get_running_loop()
+                from kfchess.services.game_registry import deregister_game_fire_and_forget
+                deregister_game_fire_and_forget(game_id)
+            except RuntimeError:
+                pass  # No event loop; startup/shutdown cleanup will catch it
             del self.games[game_id]
 
         return len(stale_games)

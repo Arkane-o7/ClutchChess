@@ -657,6 +657,28 @@ async def _create_game_from_lobby(
     # Update the game-to-lobby mapping
     manager._game_to_lobby[game_id_created] = code
 
+    # Register in active games registry
+    from kfchess.services.game_registry import register_game_fire_and_forget
+
+    players_info = []
+    for slot, player in lobby.players.items():
+        players_info.append({
+            "slot": slot,
+            "username": player.username,
+            "is_ai": player.is_ai,
+            "user_id": player.user_id,
+            "picture_url": player.picture_url,
+        })
+    register_game_fire_and_forget(
+        game_id=game_id_created,
+        game_type="lobby",
+        speed=lobby.settings.speed,
+        player_count=lobby.settings.player_count,
+        board_type=board_type.value,
+        players=players_info,
+        lobby_code=code,
+    )
+
     # Send game_starting message to ALL human players
     logger.info(
         f"Sending game_starting to {len([p for p in lobby.players.values() if not p.is_ai])} "

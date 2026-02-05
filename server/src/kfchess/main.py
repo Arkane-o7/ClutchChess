@@ -52,18 +52,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
     # Startup
     settings = get_settings()
-    logger.info(f"Starting Kung Fu Chess server (dev_mode={settings.dev_mode})")
+    server_id = settings.effective_server_id
+    logger.info(f"Starting Kung Fu Chess server (dev_mode={settings.dev_mode}, server_id={server_id})")
 
-    # TODO: Initialize database connection pool
-    # TODO: Initialize Redis connection
-    # TODO: Register server with Redis for game distribution
+    # Clean up stale active game entries from previous runs
+    try:
+        from kfchess.db.repositories.active_games import ActiveGameRepository
+        from kfchess.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            repo = ActiveGameRepository(session)
+            cleaned = await repo.cleanup_by_server(server_id)
+            if cleaned:
+                logger.info(f"Cleaned up {cleaned} stale active game entries from previous run")
+            stale = await repo.cleanup_stale(max_age_hours=2)
+            if stale:
+                logger.info(f"Cleaned up {stale} globally stale active game entries")
+            await session.commit()
+    except Exception:
+        logger.exception("Failed to clean up stale active games on startup")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Kung Fu Chess server")
-    # TODO: Graceful game handoff
-    # TODO: Close connections
+    try:
+        from kfchess.db.repositories.active_games import ActiveGameRepository
+        from kfchess.db.session import async_session_factory
+
+        async with async_session_factory() as session:
+            repo = ActiveGameRepository(session)
+            await repo.cleanup_by_server(server_id)
+            await session.commit()
+    except Exception:
+        logger.exception("Failed to clean up active games on shutdown")
 
 
 app = FastAPI(

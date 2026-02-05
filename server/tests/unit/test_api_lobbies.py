@@ -526,90 +526,100 @@ class TestDeleteLobby:
 
 
 class TestLiveGames:
-    """Tests for GET /api/games/live."""
+    """Tests for GET /api/games/live (DB-backed active games registry)."""
 
     def test_list_live_games_empty(self, client: TestClient) -> None:
-        """Test listing live games when none exist."""
-        response = client.get("/api/games/live")
+        """Test listing live games when none are registered."""
+        from unittest.mock import AsyncMock, patch
+
+        mock_repo = AsyncMock()
+        mock_repo.list_active.return_value = []
+
+        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+            mock_session = AsyncMock()
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
+            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+                response = client.get("/api/games/live")
 
         assert response.status_code == 200
         data = response.json()
         assert data["games"] == []
 
-    def test_list_live_games_excludes_waiting(self, client: TestClient) -> None:
-        """Test that waiting lobbies are not in live games."""
-        # Create a lobby (waiting status)
-        client.post(
-            "/api/lobbies",
-            json={},
-        )
+    def test_list_live_games_returns_registered_games(self, client: TestClient) -> None:
+        """Test that registered active games are returned."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock, patch
 
-        response = client.get("/api/games/live")
+        mock_record = MagicMock()
+        mock_record.game_id = "test-game-123"
+        mock_record.game_type = "lobby"
+        mock_record.lobby_code = "ABC123"
+        mock_record.speed = "standard"
+        mock_record.player_count = 2
+        mock_record.board_type = "standard"
+        mock_record.players = [
+            {"slot": 1, "username": "Player1", "is_ai": False},
+            {"slot": 2, "username": "Bot", "is_ai": True},
+        ]
+        mock_record.started_at = datetime(2026, 1, 1, 12, 0, 0)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["games"] == []
+        mock_repo = AsyncMock()
+        mock_repo.list_active.return_value = [mock_record]
 
-    def test_list_live_games_excludes_private(self, client: TestClient) -> None:
-        """Test that private games in progress are not listed."""
-        from kfchess.lobby.models import LobbyStatus
-
-        # Create a private lobby
-        create_response = client.post(
-            "/api/lobbies",
-            json={
-                "settings": {"isPublic": False},
-            },
-        )
-        code = create_response.json()["code"]
-
-        # Manually set lobby status to IN_GAME
-        manager = get_lobby_manager()
-        lobby = manager.get_lobby(code)
-        lobby.status = LobbyStatus.IN_GAME
-        lobby.current_game_id = "test-game-123"
-
-        # Private games should not appear in live games
-        response = client.get("/api/games/live")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["games"] == []
-
-    def test_list_live_games_shows_public_in_game(self, client: TestClient) -> None:
-        """Test that public games in progress are listed."""
-        from kfchess.lobby.models import LobbyStatus
-        from kfchess.services.game_service import get_game_service
-
-        # Create a public lobby
-        create_response = client.post(
-            "/api/lobbies",
-            json={"username": "Host"},
-        )
-        code = create_response.json()["code"]
-
-        # Create a game via game service so it's tracked
-        game_service = get_game_service()
-        from kfchess.game.board import BoardType
-        from kfchess.game.state import Speed
-
-        game_id, _, _ = game_service.create_game(
-            speed=Speed.STANDARD,
-            board_type=BoardType.STANDARD,
-            opponent="bot:dummy",
-        )
-
-        # Set lobby status to IN_GAME with the game ID
-        manager = get_lobby_manager()
-        lobby = manager.get_lobby(code)
-        lobby.status = LobbyStatus.IN_GAME
-        lobby.current_game_id = game_id
-
-        # Public games should appear in live games
-        response = client.get("/api/games/live")
+        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+            mock_session = AsyncMock()
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
+            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+                response = client.get("/api/games/live")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data["games"]) == 1
-        assert data["games"][0]["game_id"] == game_id
-        assert data["games"][0]["lobby_code"] == code
+        assert data["games"][0]["game_id"] == "test-game-123"
+        assert data["games"][0]["game_type"] == "lobby"
+        assert data["games"][0]["lobby_code"] == "ABC123"
+        assert len(data["games"][0]["players"]) == 2
+
+    def test_list_live_games_filters_by_game_type(self, client: TestClient) -> None:
+        """Test filtering live games by game_type query param."""
+        from unittest.mock import AsyncMock, patch
+
+        mock_repo = AsyncMock()
+        mock_repo.list_active.return_value = []
+
+        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+            mock_session = AsyncMock()
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
+            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+                response = client.get("/api/games/live?game_type=campaign")
+
+        assert response.status_code == 200
+        mock_repo.list_active.assert_called_once_with(
+            speed=None,
+            player_count=None,
+            game_type="campaign",
+        )
+
+    def test_list_live_games_filters_by_speed(self, client: TestClient) -> None:
+        """Test filtering live games by speed query param."""
+        from unittest.mock import AsyncMock, patch
+
+        mock_repo = AsyncMock()
+        mock_repo.list_active.return_value = []
+
+        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+            mock_session = AsyncMock()
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
+            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+                response = client.get("/api/games/live?speed=lightning")
+
+        assert response.status_code == 200
+        mock_repo.list_active.assert_called_once_with(
+            speed="lightning",
+            player_count=None,
+            game_type=None,
+        )

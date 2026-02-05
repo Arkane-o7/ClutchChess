@@ -50,7 +50,12 @@ export function formatDuration(ticks: number): string {
  */
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'Unknown';
-  const date = new Date(dateStr);
+  // Backend stores UTC but serializes without timezone suffix.
+  // Append "Z" so JavaScript interprets the timestamp as UTC, not local time.
+  const normalized = dateStr.endsWith('Z') || dateStr.includes('+') || dateStr.includes('-', 10)
+    ? dateStr
+    : dateStr + 'Z';
+  const date = new Date(normalized);
   return (
     date.toLocaleDateString() +
     ' ' +

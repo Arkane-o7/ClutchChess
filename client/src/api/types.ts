@@ -338,6 +338,36 @@ export interface GetLobbyResponse {
 }
 
 // ============================================
+// Live Games Types
+// ============================================
+
+export interface LiveGamePlayer {
+  slot: number;
+  username: string;
+  is_ai: boolean;
+  user_id: number | null;
+  picture_url: string | null;
+}
+
+export interface LiveGameItem {
+  game_id: string;
+  game_type: 'lobby' | 'campaign' | 'quickplay';
+  lobby_code: string | null;
+  players: LiveGamePlayer[];
+  settings: {
+    speed: string;
+    playerCount: number;
+    boardType: string;
+  };
+  current_tick: number;
+  started_at: string | null;
+}
+
+export interface LiveGamesResponse {
+  games: LiveGameItem[];
+}
+
+// ============================================
 // Leaderboard Types
 // ============================================
 

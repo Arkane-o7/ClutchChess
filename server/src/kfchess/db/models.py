@@ -315,3 +315,26 @@ class CampaignProgress(Base):
         index=True,
     )
     progress: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class ActiveGame(Base):
+    """Registry of currently running games.
+
+    Transient table tracking all active games across server instances.
+    Games register on creation and deregister on completion.
+    """
+
+    __tablename__ = "active_games"
+
+    game_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    game_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    speed: Mapped[str] = mapped_column(String(20), nullable=False)
+    player_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    board_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    players: Mapped[list] = mapped_column(JSON, nullable=False)
+    lobby_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    campaign_level_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), nullable=False
+    )
+    server_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)

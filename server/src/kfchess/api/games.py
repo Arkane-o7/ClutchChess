@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from kfchess.db.repositories.active_games import ActiveGameRepository
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.session import async_session_factory
 from kfchess.game.board import BoardType
@@ -15,8 +16,7 @@ from kfchess.game.collision import (
     is_piece_on_cooldown,
 )
 from kfchess.game.state import Speed
-from kfchess.lobby.manager import get_lobby_manager
-from kfchess.lobby.models import LobbyStatus
+from kfchess.services.game_registry import register_game_fire_and_forget
 from kfchess.services.game_service import get_game_service
 from kfchess.utils.display_name import resolve_player_info
 
@@ -81,12 +81,15 @@ class LiveGamePlayer(BaseModel):
     slot: int
     username: str
     is_ai: bool = False
+    user_id: int | None = None
+    picture_url: str | None = None
 
 
 class LiveGameItem(BaseModel):
     """A live game in the list response."""
 
     game_id: str
+    game_type: str
     lobby_code: str | None = None
     players: list[LiveGamePlayer]
     settings: dict
@@ -130,6 +133,25 @@ async def create_game(request: CreateGameRequest) -> CreateGameResponse:
             opponent=request.opponent,
         )
         logger.info(f"Game created: game_id={game_id}, player_number={player_number}")
+
+        # Register in active games registry
+        managed = service.get_managed_game(game_id)
+        if managed:
+            players_info = []
+            for pnum, pid in managed.state.players.items():
+                is_ai = pnum in managed.ai_players
+                name = pid.split(":", 1)[1] if ":" in pid else pid
+                if is_ai:
+                    name = f"Bot ({name})"
+                players_info.append({"slot": pnum, "username": name, "is_ai": is_ai})
+            register_game_fire_and_forget(
+                game_id=game_id,
+                game_type="quickplay",
+                speed=request.speed,
+                player_count=len(managed.state.players),
+                board_type=request.board_type,
+                players=players_info,
+            )
     except Exception as err:
         logger.exception(f"Failed to create game: {err}")
         raise HTTPException(status_code=500, detail=f"Failed to create game: {err}") from err
@@ -149,62 +171,53 @@ async def create_game(request: CreateGameRequest) -> CreateGameResponse:
 async def list_live_games(
     speed: str | None = None,
     player_count: int | None = None,
+    game_type: str | None = None,
 ) -> LiveGamesResponse:
-    """List games currently in progress for spectating.
+    """List games currently in progress.
 
-    This endpoint returns all public games that are currently being played.
-    Users can spectate any game by connecting to its WebSocket without a player key.
+    Queries the active_games database registry, which tracks all running games
+    across all server instances and game types (lobby, campaign, quickplay).
     """
-    lobby_manager = get_lobby_manager()
     service = get_game_service()
 
+    async with async_session_factory() as session:
+        repo = ActiveGameRepository(session)
+        active_records = await repo.list_active(
+            speed=speed,
+            player_count=player_count,
+            game_type=game_type,
+        )
+
     games = []
+    for record in active_records:
+        # Get current tick from in-memory state if on this server
+        state = service.get_game(record.game_id)
+        current_tick = state.current_tick if state else 0
 
-    # Get games from IN_GAME lobbies (these have player info)
-    for code, lobby in list(lobby_manager._lobbies.items()):
-        if lobby.status != LobbyStatus.IN_GAME:
-            continue
-        if not lobby.settings.is_public:
-            continue
-        if speed and lobby.settings.speed != speed:
-            continue
-        if player_count and lobby.settings.player_count != player_count:
-            continue
-
-        game_id = lobby.current_game_id
-        if not game_id:
-            continue
-
-        # Get current game state
-        state = service.get_game(game_id)
-        if state is None:
-            continue
-
-        # Build player list
         players = [
             LiveGamePlayer(
-                slot=slot,
-                username=p.username,
-                is_ai=p.is_ai,
+                slot=p["slot"],
+                username=p["username"],
+                is_ai=p.get("is_ai", False),
+                user_id=p.get("user_id"),
+                picture_url=p.get("picture_url"),
             )
-            for slot, p in sorted(lobby.players.items())
+            for p in record.players
         ]
-
-        managed_game = service.get_managed_game(game_id)
-        started_at = managed_game.created_at.isoformat() if managed_game else None
 
         games.append(
             LiveGameItem(
-                game_id=game_id,
-                lobby_code=code,
+                game_id=record.game_id,
+                game_type=record.game_type,
+                lobby_code=record.lobby_code,
                 players=players,
                 settings={
-                    "speed": lobby.settings.speed,
-                    "playerCount": lobby.settings.player_count,
-                    "isRanked": lobby.settings.is_ranked,
+                    "speed": record.speed,
+                    "playerCount": record.player_count,
+                    "boardType": record.board_type,
                 },
-                current_tick=state.current_tick,
-                started_at=started_at,
+                current_tick=current_tick,
+                started_at=record.started_at.isoformat() if record.started_at else None,
             )
         )
 

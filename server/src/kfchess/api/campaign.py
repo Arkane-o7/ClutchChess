@@ -231,6 +231,25 @@ async def start_level(
 
     logger.info(f"User {user.id} started campaign level {level_id}, game {game_id}")
 
+    # Register in active games registry
+    from kfchess.services.game_registry import register_game_fire_and_forget
+
+    players_info = [
+        {"slot": 1, "username": user.username or f"User {user.id}", "is_ai": False,
+         "user_id": user.id, "picture_url": user.picture_url},
+    ]
+    for p in range(2, level.player_count + 1):
+        players_info.append({"slot": p, "username": "Campaign Bot", "is_ai": True})
+    register_game_fire_and_forget(
+        game_id=game_id,
+        game_type="campaign",
+        speed=level.speed,
+        player_count=level.player_count,
+        board_type=level.board_type.value,
+        players=players_info,
+        campaign_level_id=level.level_id,
+    )
+
     return StartGameResponse(
         game_id=game_id,
         player_key=player_key,

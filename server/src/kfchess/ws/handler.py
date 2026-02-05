@@ -20,6 +20,7 @@ from kfchess.game.collision import (
 )
 from kfchess.game.state import TICK_RATE_HZ, GameStatus
 from kfchess.lobby.manager import get_lobby_manager
+from kfchess.services.game_registry import deregister_game_fire_and_forget
 from kfchess.services.game_service import get_game_service
 from kfchess.services.rating_service import RatingService
 from kfchess.ws.lobby_handler import notify_game_ended
@@ -1133,4 +1134,6 @@ async def _run_game_loop(game_id: str) -> None:
         _games_in_countdown.discard(game_id)
         if game_id in _game_loop_locks:
             del _game_loop_locks[game_id]
+        # Deregister from active games DB (idempotent — no-op if already removed)
+        deregister_game_fire_and_forget(game_id)
         logger.info(f"Game loop ended for game {game_id}")

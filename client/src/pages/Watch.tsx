@@ -4,11 +4,10 @@
  * Unified page with tabs for Live Games, Recent Replays, Top Replays, and Leaderboard.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useLobbyStore } from '../stores/lobby';
-import { listReplays } from '../api/client';
-import type { LobbyListItem, ApiReplaySummary } from '../api/types';
+import { fetchLiveGames, listReplays } from '../api/client';
+import type { LiveGameItem, ApiReplaySummary } from '../api/types';
 import { Leaderboard } from '../components/Leaderboard';
 import PlayerBadge from '../components/PlayerBadge';
 import ReplayCard from '../components/ReplayCard';
@@ -20,20 +19,37 @@ type TabId = 'live' | 'recent' | 'top' | 'leaderboard';
 // Live Games Tab Content
 // ============================================
 
-function LiveGamesTab() {
-  const publicLobbies = useLobbyStore((s) => s.publicLobbies);
-  const isLoadingLobbies = useLobbyStore((s) => s.isLoadingLobbies);
-  const fetchPublicLobbies = useLobbyStore((s) => s.fetchPublicLobbies);
+interface LiveGamesTabHandle {
+  refresh: () => void;
+}
 
-  // Refresh cooldown state
+interface LiveGamesTabProps {
+  onCanRefreshChange?: (canRefresh: boolean) => void;
+}
+
+const LiveGamesTab = forwardRef<LiveGamesTabHandle, LiveGamesTabProps>(function LiveGamesTab({ onCanRefreshChange }, ref) {
+  const [games, setGames] = useState<LiveGameItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [canRefresh, setCanRefresh] = useState(false);
   const lastRefreshRef = useRef<number>(0);
 
+  const loadGames = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetchLiveGames();
+      setGames(response.games);
+    } catch (err) {
+      console.error('Failed to fetch live games:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchPublicLobbies();
+    loadGames();
     lastRefreshRef.current = Date.now();
     setCanRefresh(false);
-  }, [fetchPublicLobbies]);
+  }, [loadGames]);
 
   // Enable refresh button after 10 seconds
   useEffect(() => {
@@ -49,61 +65,33 @@ function LiveGamesTab() {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    if (!canRefresh) return;
-    fetchPublicLobbies();
+    if (!canRefresh || loading) return;
+    loadGames();
     lastRefreshRef.current = Date.now();
     setCanRefresh(false);
-  }, [canRefresh, fetchPublicLobbies]);
+  }, [canRefresh, loading, loadGames]);
 
-  // Filter to show only lobbies that are in-game (active games to watch)
-  const activeGames = publicLobbies.filter((lobby) => lobby.status === 'in_game');
-  const waitingLobbies = publicLobbies.filter((lobby) => lobby.status === 'waiting');
+  useImperativeHandle(ref, () => ({
+    refresh: handleRefresh,
+  }), [handleRefresh]);
 
-  if (isLoadingLobbies && publicLobbies.length === 0) {
+  useEffect(() => {
+    onCanRefreshChange?.(canRefresh && !loading);
+  }, [canRefresh, loading, onCanRefreshChange]);
+
+  if (loading && games.length === 0) {
     return <div className="tab-loading">Loading live games...</div>;
   }
 
   return (
     <div className="live-games-content">
-      <div className="live-games-header">
-        <button
-          className="refresh-btn"
-          onClick={handleRefresh}
-          disabled={!canRefresh || isLoadingLobbies}
-          title={canRefresh ? 'Refresh live games' : 'Wait 10 seconds to refresh'}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
-        </button>
-      </div>
-
-      {activeGames.length > 0 && (
-        <section className="games-section">
-          <h3>Active Games</h3>
-          <div className="games-list">
-            {activeGames.map((lobby) => (
-              <LiveGameCard key={lobby.id} lobby={lobby} isActive />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {waitingLobbies.length > 0 && (
-        <section className="games-section">
-          <h3>Waiting for Players</h3>
-          <div className="games-list">
-            {waitingLobbies.map((lobby) => (
-              <LiveGameCard key={lobby.id} lobby={lobby} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {publicLobbies.length === 0 && (
+      {games.length > 0 ? (
+        <div className="match-history-list">
+          {games.map((game) => (
+            <LiveGameCard key={game.game_id} game={game} />
+          ))}
+        </div>
+      ) : (
         <div className="tab-empty">
           <p>No live games right now.</p>
           <p>Create a lobby to start playing!</p>
@@ -114,44 +102,53 @@ function LiveGamesTab() {
       )}
     </div>
   );
+});
+
+function formatElapsed(startedAt: string | null): string {
+  if (!startedAt) return '';
+  const normalized = startedAt.endsWith('Z') || startedAt.includes('+') || startedAt.includes('-', 10)
+    ? startedAt
+    : startedAt + 'Z';
+  const seconds = Math.floor((Date.now() - new Date(normalized).getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
 }
 
-interface LiveGameCardProps {
-  lobby: LobbyListItem;
-  isActive?: boolean;
-}
+function LiveGameCard({ game }: { game: LiveGameItem }) {
+  const modeLabel = game.settings.playerCount > 2
+    ? `${game.settings.speed} (${game.settings.playerCount}p)`
+    : game.settings.speed;
 
-function LiveGameCard({ lobby, isActive }: LiveGameCardProps) {
   return (
-    <Link
-      to={isActive && lobby.status === 'in_game' ? `/game/${lobby.code}` : `/lobby/${lobby.code}`}
-      className={`game-card ${isActive ? 'active' : ''}`}
-    >
-      <div className="game-card-info">
-        <div className="game-card-host">
-          <PlayerBadge
-            userId={null}
-            username={lobby.hostUsername}
-            pictureUrl={lobby.hostPictureUrl}
-            size="sm"
-            linkToProfile={false}
-          />
-          's Game
-        </div>
-        <div className="game-card-details">
-          <span className="detail-badge">{lobby.settings.speed}</span>
-          <span>{lobby.settings.playerCount}P</span>
-          {lobby.settings.isRanked && <span className="ranked-badge">Ranked</span>}
-        </div>
+    <Link to={`/game/${game.game_id}`} className="match-history-item">
+      <div className="match-info">
+        <span className="match-date">{formatElapsed(game.started_at)}</span>
+        <span className="match-speed">{modeLabel}</span>
       </div>
-      <div className="game-card-status">
-        {isActive ? (
-          <span className="status-live">Live</span>
-        ) : (
-          <span className="status-waiting">
-            {lobby.currentPlayers}/{lobby.playerCount}
-          </span>
-        )}
+      <div className="match-result">
+        <div className="match-players">
+          {game.players.map((p) => (
+            <span key={p.slot} className="match-player">
+              <PlayerBadge
+                userId={p.user_id}
+                username={p.username}
+                pictureUrl={p.picture_url}
+                size="sm"
+                linkToProfile={false}
+              />
+            </span>
+          ))}
+        </div>
+        <span className="spectate-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          Spectate
+        </span>
       </div>
     </Link>
   );
@@ -280,10 +277,21 @@ export function Watch() {
   // Handle legacy 'replays' tab by redirecting to 'recent'
   const initialTab: TabId = tabParam === 'replays' ? 'recent' : (tabParam as TabId) || 'live';
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const liveGamesRef = useRef<LiveGamesTabHandle>(null);
+  const [liveCanRefresh, setLiveCanRefresh] = useState(false);
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
     setSearchParams({ tab });
+  };
+
+  const handleLiveTabClick = () => {
+    if (activeTab === 'live') {
+      // Already on live tab — trigger refresh
+      liveGamesRef.current?.refresh();
+    } else {
+      handleTabChange('live');
+    }
   };
 
   return (
@@ -291,9 +299,21 @@ export function Watch() {
       <div className="watch-tabs">
         <button
           className={`tab-button ${activeTab === 'live' ? 'active' : ''}`}
-          onClick={() => handleTabChange('live')}
+          onClick={handleLiveTabClick}
         >
           Live Games
+          {activeTab === 'live' && (
+            <svg
+              className={`tab-refresh-icon ${liveCanRefresh ? '' : 'disabled'}`}
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+              <path d="M8 16H3v5" />
+            </svg>
+          )}
         </button>
         <button
           className={`tab-button ${activeTab === 'recent' ? 'active' : ''}`}
@@ -316,7 +336,7 @@ export function Watch() {
       </div>
 
       <div className="watch-content">
-        {activeTab === 'live' && <LiveGamesTab />}
+        {activeTab === 'live' && <LiveGamesTab ref={liveGamesRef} onCanRefreshChange={setLiveCanRefresh} />}
         {activeTab === 'recent' && <ReplaysTab sort="recent" />}
         {activeTab === 'top' && <ReplaysTab sort="top" />}
         {activeTab === 'leaderboard' && <Leaderboard />}

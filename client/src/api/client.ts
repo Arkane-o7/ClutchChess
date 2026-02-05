@@ -27,6 +27,7 @@ import type {
   LobbyListResponse,
   GetLobbyResponse,
   LeaderboardResponse,
+  LiveGamesResponse,
   CampaignProgress,
   CampaignLevelsResponse,
   CampaignLevel,
@@ -237,6 +238,22 @@ export async function getLegalMoves(
  */
 export async function getReplay(gameId: string): Promise<ApiReplay> {
   return request<ApiReplay>(`/games/${gameId}/replay`, {}, { gameId });
+}
+
+/**
+ * Fetch currently running games
+ */
+export async function fetchLiveGames(
+  speed?: string,
+  playerCount?: number,
+  gameType?: string,
+): Promise<LiveGamesResponse> {
+  const params = new URLSearchParams();
+  if (speed) params.append('speed', speed);
+  if (playerCount) params.append('player_count', String(playerCount));
+  if (gameType) params.append('game_type', gameType);
+  const queryString = params.toString();
+  return request<LiveGamesResponse>(`/games/live${queryString ? `?${queryString}` : ''}`);
 }
 
 /**

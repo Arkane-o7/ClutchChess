@@ -33,6 +33,7 @@ class ReplaySummary(BaseModel):
     likes: int
     user_has_liked: bool | None
     is_ranked: bool
+    campaign_level_id: int | None = None
 
 
 class ReplayListResponse(BaseModel):
@@ -109,6 +110,7 @@ async def list_replays(
                 likes=like_counts.get(game_id, 0),
                 user_has_liked=user_likes.get(game_id) if user else None,
                 is_ranked=replay.is_ranked,
+                campaign_level_id=replay.campaign_level_id,
             )
             for (game_id, replay), resolved in zip(
                 replays_with_ids, resolved_list, strict=True

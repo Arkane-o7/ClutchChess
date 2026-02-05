@@ -31,6 +31,7 @@ interface ReplayState {
   winReason: string | null;
   tickRateHz: number; // Tick rate used when replay was recorded (for backwards compat)
   isRanked: boolean;
+  campaignLevelId: number | null; // Campaign level ID if this was a campaign game
 
   // Playback state (from server)
   currentTick: number;
@@ -85,6 +86,7 @@ const initialState: ReplayState = {
   winReason: null,
   tickRateHz: 10, // Default to 10 Hz for old replays
   isRanked: false,
+  campaignLevelId: null,
   currentTick: 0,
   lastTickTime: 0,
   timeSinceTick: 0,
@@ -189,6 +191,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
             winReason: message.win_reason,
             tickRateHz: message.tick_rate_hz ?? 10, // Default to 10 Hz for old replays
             isRanked: message.is_ranked ?? false, // Default to false for old replays
+            campaignLevelId: message.campaign_level_id ?? null,
           });
           // Don't auto-play - require user to click play
           // This ensures user interaction before audio plays (browser autoplay policy)

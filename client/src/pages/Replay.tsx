@@ -4,7 +4,7 @@
  * Main replay viewer that displays a recorded game with playback controls.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useReplayStore } from '../stores/replay';
 import { useAuthStore } from '../stores/auth';
@@ -38,6 +38,7 @@ export function Replay() {
   const pieces = useReplayStore((s) => s.pieces);
   const currentTick = useReplayStore((s) => s.currentTick);
   const totalTicks = useReplayStore((s) => s.totalTicks);
+  const campaignLevelId = useReplayStore((s) => s.campaignLevelId);
 
   const connect = useReplayStore((s) => s.connect);
   const disconnect = useReplayStore((s) => s.disconnect);
@@ -49,6 +50,9 @@ export function Replay() {
   const [likes, setLikes] = useState(0);
   const [userHasLiked, setUserHasLiked] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+
+  // Share link state
+  const [copied, setCopied] = useState(false);
 
   // Audio management
   // Use currentTick >= totalTicks for isFinished (not winner, which is set at start from metadata)
@@ -123,6 +127,15 @@ export function Replay() {
     }
   }, [replayId]);
 
+  const copyReplayLink = useCallback(() => {
+    if (!replayId) return;
+    const link = `${window.location.origin}/replay/${replayId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [replayId]);
+
   const handleLikeClick = async () => {
     if (!isAuthenticated || isLiking || !replayId) return;
 
@@ -183,10 +196,19 @@ export function Replay() {
           <div className="replay-info">
             <h2>Game Replay</h2>
             <div className="replay-info-row">
-              <span className="replay-info-label">Game ID:</span>
-              <span className="replay-info-value">{gameId}</span>
+              <span className="replay-info-label">Share:</span>
+              <button className="copy-link-button" onClick={copyReplayLink}>
+                {copied ? 'Copied!' : 'Copy Link'}
+              </button>
             </div>
-            {speed && (
+            {campaignLevelId !== null ? (
+              <div className="replay-info-row">
+                <span className="replay-info-label">Mode:</span>
+                <span className="replay-info-value">
+                  Campaign Level {campaignLevelId + 1}
+                </span>
+              </div>
+            ) : speed && (
               <div className="replay-info-row">
                 <span className="replay-info-label">Mode:</span>
                 <span className="replay-info-value">

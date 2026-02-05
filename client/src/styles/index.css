@@ -687,6 +687,36 @@ a:hover {
   gap: 0.5rem;
 }
 
+/* Campaign Progress */
+.profile-campaign-belts {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.campaign-belt-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.campaign-belt-box.empty {
+  opacity: 0.4;
+}
+
+.campaign-belt-box .belt-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 .profile-ratings {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -81,6 +81,8 @@ class ReplayRepository:
             is_public=True,
             tick_rate_hz=replay.tick_rate_hz,
             is_ranked=replay.is_ranked,
+            campaign_level_id=replay.campaign_level_id,
+            initial_board_str=replay.initial_board_str,
         )
 
         self.session.add(record)
@@ -287,6 +289,10 @@ class ReplayRepository:
             tick_rate_hz = getattr(record, "tick_rate_hz", 10) or 10
             # Get is_ranked with default of False for old replays
             is_ranked = getattr(record, "is_ranked", False) or False
+            # Get campaign_level_id (None for non-campaign games)
+            campaign_level_id = getattr(record, "campaign_level_id", None)
+            # Get initial_board_str (None for non-campaign games)
+            initial_board_str = getattr(record, "initial_board_str", None)
             return Replay(
                 version=2,
                 speed=Speed(record.speed),
@@ -299,6 +305,8 @@ class ReplayRepository:
                 created_at=record.created_at,
                 tick_rate_hz=tick_rate_hz,
                 is_ranked=is_ranked,
+                campaign_level_id=campaign_level_id,
+                initial_board_str=initial_board_str,
             )
         except ValueError as e:
             logger.error(f"Invalid enum value in replay {record.id}: {e}")

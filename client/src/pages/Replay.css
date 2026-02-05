@@ -42,6 +42,8 @@
   border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  background-color: #8ed47d;
+  line-height: 0;
 }
 
 .replay-board-container {
@@ -53,8 +55,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  min-width: 260px;
-  max-width: 320px;
+  width: 280px;
+  flex-shrink: 0;
 }
 
 /* Replay Info */
@@ -91,6 +93,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Copy Link Button */
+.replay-info .copy-link-button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  transition: all 0.15s;
+}
+
+.replay-info .copy-link-button:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .replay-winner {

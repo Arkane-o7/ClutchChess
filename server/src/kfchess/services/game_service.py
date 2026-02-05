@@ -62,6 +62,7 @@ class ManagedGame:
     draw_offers: set[int] = field(default_factory=set)
     campaign_level_id: int | None = None
     campaign_user_id: int | None = None
+    initial_board_str: str | None = None  # Initial board string for campaign games
 
 
 def _generate_player_key(player: int) -> str:
@@ -305,6 +306,7 @@ class GameService:
             ai_players=ai_instances,
             campaign_level_id=level.level_id,
             campaign_user_id=user_id,
+            initial_board_str=level.board_str,
         )
 
         self.games[game_id] = managed_game
@@ -671,7 +673,11 @@ class GameService:
         if state.status != GameStatus.FINISHED:
             return None
 
-        return Replay.from_game_state(state)
+        replay = Replay.from_game_state(state)
+        # Add campaign data if this was a campaign game
+        replay.campaign_level_id = managed_game.campaign_level_id
+        replay.initial_board_str = managed_game.initial_board_str
+        return replay
 
     def get_legal_moves(self, game_id: str, player_key: str) -> list[dict] | None:
         """Get all legal moves for a player.

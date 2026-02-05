@@ -52,10 +52,17 @@ export type WsGameEvent = WsCaptureEvent | WsPromotionEvent;
 // Server -> Client Messages
 // ============================================
 
+export interface CampaignLevelInfo {
+  level_id: number;
+  title: string;
+  description: string;
+}
+
 export interface JoinedMessage {
   type: 'joined';
   player_number: number; // 0 = spectator, 1-4 = player
   tick_rate_hz: number; // Server tick rate for client synchronization
+  campaign_level: CampaignLevelInfo | null; // Present for campaign games
 }
 
 export interface StateUpdateMessage {

@@ -19,6 +19,7 @@ import type {
   DrawOfferedMessage,
   MoveRejectedMessage,
   WsPieceState,
+  CampaignLevelInfo,
 } from '../ws/types';
 import type { RatingChangeData } from '../utils/ratings';
 
@@ -86,6 +87,9 @@ interface GameState {
   // Rating change (for ranked games)
   ratingChange: RatingChangeData | null;
 
+  // Campaign info (for campaign games)
+  campaignLevel: CampaignLevelInfo | null;
+
   // Audio events (for sound effects)
   drawOffers: number[]; // Player numbers who have offered a draw
   captureCount: number; // Increments on each capture (for triggering capture sounds)
@@ -151,6 +155,7 @@ const initialState: GameState = {
   lastError: null,
   countdown: null,
   ratingChange: null,
+  campaignLevel: null,
   drawOffers: [],
   captureCount: 0,
   wsClient: null,
@@ -487,6 +492,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       playerNumber: msg.player_number,
       tickRateHz: msg.tick_rate_hz ?? 30,
+      campaignLevel: msg.campaign_level ?? null,
     });
   },
 

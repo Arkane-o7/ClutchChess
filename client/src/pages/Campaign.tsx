@@ -55,7 +55,7 @@ function Campaign() {
     async (levelId: number) => {
       try {
         const { gameId, playerKey } = await startLevel(levelId);
-        navigate(`/game/${gameId}?key=${playerKey}`);
+        navigate(`/game/${gameId}?playerKey=${playerKey}`);
       } catch {
         // Error is set in store
       }

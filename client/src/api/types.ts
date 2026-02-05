@@ -173,6 +173,7 @@ export interface ApiReplaySummary {
   likes: number;
   user_has_liked: boolean | null; // null if not authenticated
   is_ranked: boolean;
+  campaign_level_id: number | null; // null for non-campaign games
 }
 
 // Response for like/unlike operations

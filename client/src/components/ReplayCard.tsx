@@ -9,21 +9,28 @@ interface ReplayCardProps {
 }
 
 export default function ReplayCard({ replay }: ReplayCardProps) {
-  // Build the speed label with modifiers
-  const isFourPlayer = replay.board_type === 'four_player';
-  const modifiers: string[] = [];
-  if (isFourPlayer) modifiers.push('4p');
-  if (replay.is_ranked) modifiers.push('Rated');
+  // Build the mode label
+  let modeLabel: string;
+  if (replay.campaign_level_id !== null && replay.campaign_level_id !== undefined) {
+    // Campaign games show level number (1-indexed for display)
+    modeLabel = `Campaign Level ${replay.campaign_level_id + 1}`;
+  } else {
+    // Non-campaign games show speed with modifiers
+    const isFourPlayer = replay.board_type === 'four_player';
+    const modifiers: string[] = [];
+    if (isFourPlayer) modifiers.push('4p');
+    if (replay.is_ranked) modifiers.push('Rated');
 
-  const speedLabel = modifiers.length > 0
-    ? `${replay.speed} (${modifiers.join(', ')})`
-    : replay.speed;
+    modeLabel = modifiers.length > 0
+      ? `${replay.speed} (${modifiers.join(', ')})`
+      : replay.speed;
+  }
 
   return (
     <Link to={`/replay/${replay.game_id}`} className="match-history-item">
       <div className="match-info">
         <span className="match-date">{formatDate(replay.created_at)}</span>
-        <span className="match-speed">{speedLabel}</span>
+        <span className="match-speed">{modeLabel}</span>
       </div>
       <div className="match-players">
         {Object.entries(replay.players).map(([num, player]) => (

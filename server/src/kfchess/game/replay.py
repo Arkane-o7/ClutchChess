@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from kfchess.campaign.board_parser import parse_board_string
 from kfchess.game.board import BoardType
 from kfchess.game.engine import GameEngine
 from kfchess.game.state import TICK_RATE_HZ, GameStatus, ReplayMove, Speed
@@ -51,6 +52,8 @@ class Replay:
     created_at: datetime | None
     tick_rate_hz: int = 10  # Default to 10 Hz for old replays
     is_ranked: bool = False  # Default to False for backwards compatibility
+    campaign_level_id: int | None = None  # Campaign level ID if this was a campaign game
+    initial_board_str: str | None = None  # Initial board configuration for campaign games
 
     @staticmethod
     def from_game_state(state: "GameState") -> "Replay":
@@ -229,11 +232,23 @@ class ReplayEngine:
             GameState at the specified tick
         """
         # Create initial game state
-        state = GameEngine.create_game(
-            speed=self.replay.speed,
-            players=self.replay.players,
-            board_type=self.replay.board_type,
-        )
+        if self.replay.initial_board_str:
+            # Campaign game with custom board
+            board = parse_board_string(
+                self.replay.initial_board_str, self.replay.board_type
+            )
+            state = GameEngine.create_game_from_board(
+                speed=self.replay.speed,
+                players=self.replay.players,
+                board=board,
+            )
+        else:
+            # Standard game
+            state = GameEngine.create_game(
+                speed=self.replay.speed,
+                players=self.replay.players,
+                board_type=self.replay.board_type,
+            )
         state.status = GameStatus.PLAYING
 
         # Simulate all ticks up to target

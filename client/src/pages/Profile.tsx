@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuthStore, UserRatingStats } from '../stores/auth';
+import { BELT_NAMES, BELT_COLORS } from '../stores/campaign';
 import * as api from '../api/client';
 import {
   RATING_MODES,
@@ -11,7 +12,7 @@ import {
 import BeltIcon from '../components/BeltIcon';
 import ReplayCard from '../components/ReplayCard';
 import { staticUrl } from '../config';
-import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary } from '../api/types';
+import type { ApiRatingStats, ApiPublicUser, ApiReplaySummary, CampaignProgress } from '../api/types';
 
 /**
  * User Profile page
@@ -49,6 +50,9 @@ function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Campaign progress (only for own profile)
+  const [campaignProgress, setCampaignProgress] = useState<CampaignProgress | null>(null);
 
   // Redirect to login if viewing own profile without auth (wait for auth check to finish)
   useEffect(() => {
@@ -108,6 +112,21 @@ function Profile() {
   useEffect(() => {
     fetchReplays();
   }, [fetchReplays]);
+
+  // Fetch campaign progress for any user
+  useEffect(() => {
+    if (targetUserId) {
+      const fetchProgress = isOwnProfile
+        ? api.getCampaignProgress()
+        : api.getUserCampaignProgress(targetUserId);
+
+      fetchProgress
+        .then(setCampaignProgress)
+        .catch(() => {
+          // Silently fail - campaign progress is not critical
+        });
+    }
+  }, [isOwnProfile, targetUserId]);
 
   const handlePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -368,6 +387,40 @@ function Profile() {
         )}
 
         <div className="profile-section">
+
+          {/* Campaign Progress */}
+          {campaignProgress && (
+            <div className="profile-field">
+              <label>Campaign</label>
+              <div className="profile-campaign-belts">
+                {[1, 2, 3, 4].map((belt) => {
+                  const beltStart = (belt - 1) * 8;
+                  const completedInBelt = Object.keys(campaignProgress.levelsCompleted)
+                    .filter((id) => {
+                      const levelId = parseInt(id);
+                      return levelId >= beltStart && levelId < beltStart + 8;
+                    }).length;
+                  const isEmpty = completedInBelt === 0;
+                  return (
+                    <div
+                      key={belt}
+                      className={`campaign-belt-box ${isEmpty ? 'empty' : ''}`}
+                      title={`${BELT_NAMES[belt]} Belt`}
+                    >
+                      <div
+                        className="belt-color"
+                        style={{
+                          backgroundColor: BELT_COLORS[belt],
+                          border: belt === 1 ? '1px solid #666' : 'none',
+                        }}
+                      />
+                      {completedInBelt}/8
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Ratings */}
           <div className="profile-field">

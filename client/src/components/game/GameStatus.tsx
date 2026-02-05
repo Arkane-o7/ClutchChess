@@ -4,11 +4,13 @@
  * Displays game info (ID, mode, players) and current connection state.
  */
 
+import { useState, useCallback } from 'react';
 import { useGameStore } from '../../stores/game';
 import { useLobbyStore } from '../../stores/lobby';
 import PlayerBadge from '../PlayerBadge';
 
 export function GameStatus() {
+  const [copied, setCopied] = useState(false);
   const gameId = useGameStore((s) => s.gameId);
   const speed = useGameStore((s) => s.speed);
   const players = useGameStore((s) => s.players);
@@ -16,6 +18,7 @@ export function GameStatus() {
   const connectionState = useGameStore((s) => s.connectionState);
   const playerNumber = useGameStore((s) => s.playerNumber);
   const lastError = useGameStore((s) => s.lastError);
+  const campaignLevel = useGameStore((s) => s.campaignLevel);
   const isRanked = useLobbyStore((s) => s.lobby?.settings.isRanked ?? false);
 
   const getStatusText = () => {
@@ -66,21 +69,41 @@ export function GameStatus() {
     return `Player ${playerNumber} (${colors[playerNumber] || 'Unknown'})`;
   };
 
+  const copySpectatorLink = useCallback(() => {
+    if (!gameId) return;
+    const link = `${window.location.origin}/game/${gameId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [gameId]);
+
   return (
     <>
       <div className="game-info">
+        {campaignLevel && (
+          <div className="campaign-level-info">
+            <div className="campaign-level-title">{campaignLevel.title}</div>
+            <div className="campaign-level-description">{campaignLevel.description}</div>
+          </div>
+        )}
+
         {gameId && (
           <div className="game-info-row">
-            <span className="game-info-label">Game ID:</span>
-            <span className="game-info-value">{gameId}</span>
+            <span className="game-info-label">Spectate:</span>
+            <button className="copy-link-button" onClick={copySpectatorLink}>
+              {copied ? 'Copied!' : 'Copy Link'}
+            </button>
           </div>
         )}
 
         <div className="game-info-row">
           <span className="game-info-label">Mode:</span>
           <span className="game-info-value">
-            {speed.charAt(0).toUpperCase() + speed.slice(1)}
-            {isRanked && ' (Rated)'}
+            {campaignLevel
+              ? `Campaign Level ${campaignLevel.level_id + 1}`
+              : `${speed.charAt(0).toUpperCase() + speed.slice(1)}${isRanked ? ' (Rated)' : ''}`
+            }
           </span>
         </div>
 

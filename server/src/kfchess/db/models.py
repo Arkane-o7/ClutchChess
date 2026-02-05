@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -209,6 +210,8 @@ class GameReplay(Base):
     tick_rate_hz: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_ranked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    campaign_level_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    initial_board_str: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ReplayLike(Base):

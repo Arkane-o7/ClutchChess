@@ -628,6 +628,13 @@ export async function getCampaignProgress(): Promise<CampaignProgress> {
 }
 
 /**
+ * Get any user's campaign progress by user ID
+ */
+export async function getUserCampaignProgress(userId: number): Promise<CampaignProgress> {
+  return request<CampaignProgress>(`/campaign/progress/${userId}`);
+}
+
+/**
  * Get all campaign levels
  * Returns unlock status if authenticated
  */

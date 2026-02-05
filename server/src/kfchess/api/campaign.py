@@ -99,6 +99,27 @@ async def get_progress(
         )
 
 
+@router.get("/progress/{user_id}", response_model=CampaignProgressResponse)
+async def get_user_progress(
+    user_id: int,
+) -> CampaignProgressResponse:
+    """Get any user's campaign progress by user ID.
+
+    Public endpoint for viewing other users' progress.
+    """
+    async with async_session_factory() as session:
+        repo = CampaignProgressRepository(session)
+        service = CampaignService(repo)
+        progress = await service.get_progress(user_id)
+
+        return CampaignProgressResponse(
+            levels_completed=progress.levels_completed,
+            belts_completed=progress.belts_completed,
+            current_belt=progress.current_belt,
+            max_belt=MAX_BELT,
+        )
+
+
 @router.get("/levels", response_model=LevelsListResponse)
 async def list_levels(
     user: Annotated[User | None, Depends(optional_current_user)],

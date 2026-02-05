@@ -29,6 +29,7 @@ export function Game() {
   const connectionState = useGameStore((s) => s.connectionState);
   const countdown = useGameStore((s) => s.countdown);
   const captureCount = useGameStore((s) => s.captureCount);
+  const playerNumber = useGameStore((s) => s.playerNumber);
 
   // Audio management
   const {
@@ -158,10 +159,12 @@ export function Game() {
         </div>
         <div className="game-sidebar">
           <GameStatus />
-          <div className="game-action-buttons">
-            <DrawOfferButton />
-            <ResignButton />
-          </div>
+          {playerNumber > 0 && (
+            <div className="game-action-buttons">
+              <DrawOfferButton />
+              <ResignButton />
+            </div>
+          )}
           <AudioControls
             musicVolume={musicVolume}
             soundVolume={soundVolume}

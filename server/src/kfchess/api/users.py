@@ -276,6 +276,7 @@ async def get_user_replays(
             likes=0,  # User history doesn't track likes
             user_has_liked=None,  # Not applicable for user history
             is_ranked=info.get("isRanked", False),  # May not be present in old entries
+            campaign_level_id=info.get("campaignLevelId"),  # None for non-campaign games
         )
         for (game_id, info, game_time, _), resolved in zip(entry_data, resolved_list, strict=True)
     ]

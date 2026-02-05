@@ -4,8 +4,10 @@
  * Displays when the game ends, showing winner and options.
  */
 
+import { useState } from 'react';
 import { useGameStore } from '../../stores/game';
 import { useLobbyStore } from '../../stores/lobby';
+import { useCampaignStore } from '../../stores/campaign';
 import { useNavigate } from 'react-router-dom';
 import {
   formatRatingChange,
@@ -14,8 +16,12 @@ import {
 } from '../../utils/ratings';
 import BeltIcon from '../BeltIcon';
 
+// Total number of campaign levels (4 belts * 8 levels)
+const TOTAL_CAMPAIGN_LEVELS = 32;
+
 export function GameOverModal() {
   const navigate = useNavigate();
+  const [isStartingNext, setIsStartingNext] = useState(false);
   const status = useGameStore((s) => s.status);
   const winner = useGameStore((s) => s.winner);
   const winReason = useGameStore((s) => s.winReason);
@@ -23,6 +29,10 @@ export function GameOverModal() {
   const reset = useGameStore((s) => s.reset);
   const gameId = useGameStore((s) => s.gameId);
   const ratingChange = useGameStore((s) => s.ratingChange);
+  const campaignLevel = useGameStore((s) => s.campaignLevel);
+
+  // Campaign store for starting next level
+  const startLevel = useCampaignStore((s) => s.startLevel);
 
   // Lobby state for returning to lobby
   const lobbyCode = useLobbyStore((s) => s.code);
@@ -109,8 +119,32 @@ export function GameOverModal() {
     navigate('/');
   };
 
+  const handleNextLevel = async () => {
+    if (!campaignLevel || isStartingNext) return;
+    const nextLevelId = campaignLevel.level_id + 1;
+    if (nextLevelId >= TOTAL_CAMPAIGN_LEVELS) return;
+
+    setIsStartingNext(true);
+    try {
+      const { gameId: newGameId, playerKey } = await startLevel(nextLevelId);
+      reset();
+      navigate(`/game/${newGameId}?playerKey=${playerKey}`);
+    } catch {
+      setIsStartingNext(false);
+    }
+  };
+
+  const handleBackToCampaign = () => {
+    reset();
+    navigate('/campaign');
+  };
+
   // Check if we came from a lobby
   const hasLobby = lobbyCode || (gameId && sessionStorage.getItem(`lobbyCode_${gameId}`));
+
+  // Check if this is a campaign game and player won
+  const isCampaignWin = campaignLevel && winner === playerNumber && playerNumber > 0;
+  const hasNextLevel = campaignLevel && campaignLevel.level_id + 1 < TOTAL_CAMPAIGN_LEVELS;
 
   return (
     <div className="game-over-overlay">
@@ -150,7 +184,21 @@ export function GameOverModal() {
         )}
 
         <div className="game-over-actions">
-          {hasLobby && (
+          {isCampaignWin && hasNextLevel && (
+            <button
+              className="game-over-button primary"
+              onClick={handleNextLevel}
+              disabled={isStartingNext}
+            >
+              {isStartingNext ? 'Starting...' : 'Next Level'}
+            </button>
+          )}
+          {campaignLevel && (
+            <button className="game-over-button secondary" onClick={handleBackToCampaign}>
+              Back to Campaign
+            </button>
+          )}
+          {hasLobby && !campaignLevel && (
             <button className="game-over-button primary" onClick={handleReturnToLobby}>
               Return to Lobby
             </button>
@@ -160,9 +208,11 @@ export function GameOverModal() {
               View Replay
             </button>
           )}
-          <button className="game-over-button secondary" onClick={handleBackToHome}>
-            Back to Home
-          </button>
+          {!campaignLevel && (
+            <button className="game-over-button secondary" onClick={handleBackToHome}>
+              Back to Home
+            </button>
+          )}
         </div>
       </div>
     </div>

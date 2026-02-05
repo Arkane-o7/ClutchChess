@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from kfchess.campaign.levels import get_level
 from kfchess.db.repositories.replays import ReplayRepository
 from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
 from kfchess.db.session import async_session_factory
@@ -23,6 +24,7 @@ from kfchess.services.game_service import get_game_service
 from kfchess.services.rating_service import RatingService
 from kfchess.ws.lobby_handler import notify_game_ended
 from kfchess.ws.protocol import (
+    CampaignLevelInfo,
     CountdownMessage,
     DrawOfferedMessage,
     ErrorMessage,
@@ -348,11 +350,24 @@ async def handle_websocket(
     # Connect
     await connection_manager.connect(game_id, websocket, player)
 
+    # Build campaign level info if this is a campaign game
+    campaign_level_info: CampaignLevelInfo | None = None
+    managed_game = service.games.get(game_id)
+    if managed_game and managed_game.campaign_level_id is not None:
+        level = get_level(managed_game.campaign_level_id)
+        if level:
+            campaign_level_info = CampaignLevelInfo(
+                level_id=level.level_id,
+                title=level.title,
+                description=level.description,
+            )
+
     # Send joined message with player number (0 for spectators) and tick rate
     await websocket.send_text(
         JoinedMessage(
             player_number=player if player is not None else 0,
             tick_rate_hz=TICK_RATE_HZ,
+            campaign_level=campaign_level_info,
         ).model_dump_json()
     )
 
@@ -634,6 +649,7 @@ async def _save_replay(game_id: str, service: Any) -> None:
                         "ticks": replay.total_ticks,
                         "opponents": opponents,
                         "isRanked": replay.is_ranked,
+                        "campaignLevelId": replay.campaign_level_id,
                     }
 
                     await history_repo.add(user_id, game_time, game_info)

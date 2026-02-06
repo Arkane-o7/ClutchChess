@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from kfchess.lobby.manager import get_lobby_manager
-from kfchess.main import app
+from clutchchess.lobby.manager import get_lobby_manager
+from clutchchess.main import app
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def clear_lobbies() -> None:
     """Clear lobbies and games before each test."""
-    from kfchess.services.game_service import get_game_service
+    from clutchchess.services.game_service import get_game_service
 
     manager = get_lobby_manager()
     manager._lobbies.clear()
@@ -499,7 +499,7 @@ class TestDeleteLobby:
 
     def test_delete_lobby_during_game(self, client: TestClient) -> None:
         """Test that lobbies cannot be deleted during games."""
-        from kfchess.lobby.models import LobbyStatus
+        from clutchchess.lobby.models import LobbyStatus
 
         # Create a lobby
         create_response = client.post(
@@ -535,11 +535,11 @@ class TestLiveGames:
         mock_repo = AsyncMock()
         mock_repo.list_active.return_value = []
 
-        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+        with patch("clutchchess.api.games.async_session_factory") as mock_factory:
             mock_session = AsyncMock()
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
-            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+            with patch("clutchchess.api.games.ActiveGameRepository", return_value=mock_repo):
                 response = client.get("/api/games/live")
 
         assert response.status_code == 200
@@ -567,11 +567,11 @@ class TestLiveGames:
         mock_repo = AsyncMock()
         mock_repo.list_active.return_value = [mock_record]
 
-        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+        with patch("clutchchess.api.games.async_session_factory") as mock_factory:
             mock_session = AsyncMock()
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
-            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+            with patch("clutchchess.api.games.ActiveGameRepository", return_value=mock_repo):
                 response = client.get("/api/games/live")
 
         assert response.status_code == 200
@@ -589,11 +589,11 @@ class TestLiveGames:
         mock_repo = AsyncMock()
         mock_repo.list_active.return_value = []
 
-        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+        with patch("clutchchess.api.games.async_session_factory") as mock_factory:
             mock_session = AsyncMock()
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
-            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+            with patch("clutchchess.api.games.ActiveGameRepository", return_value=mock_repo):
                 response = client.get("/api/games/live?game_type=campaign")
 
         assert response.status_code == 200
@@ -610,11 +610,11 @@ class TestLiveGames:
         mock_repo = AsyncMock()
         mock_repo.list_active.return_value = []
 
-        with patch("kfchess.api.games.async_session_factory") as mock_factory:
+        with patch("clutchchess.api.games.async_session_factory") as mock_factory:
             mock_session = AsyncMock()
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
-            with patch("kfchess.api.games.ActiveGameRepository", return_value=mock_repo):
+            with patch("clutchchess.api.games.ActiveGameRepository", return_value=mock_repo):
                 response = client.get("/api/games/live?speed=lightning")
 
         assert response.status_code == 200

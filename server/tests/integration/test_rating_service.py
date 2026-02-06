@@ -8,12 +8,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import User
-from kfchess.game.elo import DEFAULT_RATING
-from kfchess.game.engine import GameEngine
-from kfchess.game.state import GameStatus, Speed, WinReason
-from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings
-from kfchess.services.rating_service import RatingService, get_user_rating_stats
+from clutchchess.db.models import User
+from clutchchess.game.elo import DEFAULT_RATING
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.state import GameStatus, Speed, WinReason
+from clutchchess.lobby.models import Lobby, LobbyPlayer, LobbySettings
+from clutchchess.services.rating_service import RatingService, get_user_rating_stats
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 """Tests for move validation and path computation."""
 
 
-from kfchess.game.board import Board
-from kfchess.game.moves import (
+from clutchchess.game.board import Board
+from clutchchess.game.moves import (
     Cooldown,
     Move,
     _compute_bishop_path,
@@ -14,7 +14,7 @@ from kfchess.game.moves import (
     check_castling,
     compute_move_path,
 )
-from kfchess.game.pieces import Piece, PieceType
+from clutchchess.game.pieces import Piece, PieceType
 
 
 class TestMove:

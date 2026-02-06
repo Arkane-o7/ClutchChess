@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from kfchess.main import app
+from clutchchess.main import app
 
 
 def generate_test_email() -> str:
@@ -56,8 +56,8 @@ class TestGoogleOAuthLegacyUserMigration:
     async def test_legacy_user_lookup_by_google_id(self):
         """Test that legacy users are found by their google_id during OAuth."""
 
-        from kfchess.db.models import User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.db.models import User
+        from clutchchess.db.session import async_session_factory
 
         # Create a legacy user (has google_id, no password)
         legacy_email = generate_test_email()
@@ -78,7 +78,7 @@ class TestGoogleOAuthLegacyUserMigration:
             legacy_user_id = legacy_user.id
 
         # Verify we can find the legacy user by google_id
-        from kfchess.db.repositories.users import UserRepository
+        from clutchchess.db.repositories.users import UserRepository
 
         async with async_session_factory() as session:
             repo = UserRepository(session)
@@ -94,9 +94,9 @@ class TestGoogleOAuthLegacyUserMigration:
         """Test UserManager.oauth_callback finds legacy users."""
         from fastapi_users.db import SQLAlchemyUserDatabase
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import User
+        from clutchchess.db.session import async_session_factory
 
         # Create a legacy user
         legacy_email = generate_test_email()
@@ -117,7 +117,7 @@ class TestGoogleOAuthLegacyUserMigration:
             legacy_user_id = legacy_user.id
 
             # Create UserManager with real session
-            from kfchess.db.models import OAuthAccount
+            from clutchchess.db.models import OAuthAccount
 
             user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
             user_manager = UserManager(user_db)
@@ -140,7 +140,7 @@ class TestGoogleOAuthLegacyUserMigration:
             # Should have created OAuth account for legacy user
             from sqlalchemy import select
 
-            from kfchess.db.models import OAuthAccount
+            from clutchchess.db.models import OAuthAccount
 
             oauth_result = await session.execute(
                 select(OAuthAccount).where(OAuthAccount.user_id == legacy_user_id)
@@ -158,9 +158,9 @@ class TestGoogleOAuthLegacyUserMigration:
         from fastapi_users.db import SQLAlchemyUserDatabase
         from sqlalchemy import select
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import OAuthAccount, User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import OAuthAccount, User
+        from clutchchess.db.session import async_session_factory
 
         new_email = generate_test_email()
 
@@ -201,8 +201,8 @@ class TestGoogleOAuthLegacyUserRegistrationBlock:
     @pytest.mark.asyncio
     async def test_registration_blocked_for_legacy_google_email(self):
         """Test that registering with a legacy Google user's email is blocked."""
-        from kfchess.db.models import User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.db.models import User
+        from clutchchess.db.session import async_session_factory
 
         # Create a legacy Google-only user
         legacy_email = generate_test_email()
@@ -246,9 +246,9 @@ class TestGoogleOAuthEdgeCases:
         from fastapi_users.db import SQLAlchemyUserDatabase
         from fastapi_users.exceptions import UserAlreadyExists
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import OAuthAccount, User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import OAuthAccount, User
+        from clutchchess.db.session import async_session_factory
 
         # Create a password-based user (not legacy - has password, no google_id)
         password_user_email = generate_test_email()
@@ -287,9 +287,9 @@ class TestGoogleOAuthEdgeCases:
         from fastapi_users.db import SQLAlchemyUserDatabase
         from sqlalchemy import select
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import OAuthAccount, User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import OAuthAccount, User
+        from clutchchess.db.session import async_session_factory
 
         # Create a user with an OAuth account
         test_email = generate_test_email()
@@ -358,9 +358,9 @@ class TestGoogleOAuthEdgeCases:
 
         from fastapi_users.db import SQLAlchemyUserDatabase
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import OAuthAccount, User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import OAuthAccount, User
+        from clutchchess.db.session import async_session_factory
 
         new_email = generate_test_email()
 
@@ -369,7 +369,7 @@ class TestGoogleOAuthEdgeCases:
             user_manager = UserManager(user_db)
 
             # Set logging level to capture warnings
-            with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+            with caplog.at_level(logging.WARNING, logger="clutchchess.auth.users"):
                 # Call oauth_callback with an expired token (timestamp in the past)
                 result = await user_manager.oauth_callback(
                     oauth_name="google",
@@ -397,9 +397,9 @@ class TestGoogleOAuthEdgeCases:
 
         from fastapi_users.db import SQLAlchemyUserDatabase
 
-        from kfchess.auth.users import UserManager
-        from kfchess.db.models import OAuthAccount, User
-        from kfchess.db.session import async_session_factory
+        from clutchchess.auth.users import UserManager
+        from clutchchess.db.models import OAuthAccount, User
+        from clutchchess.db.session import async_session_factory
 
         new_email = generate_test_email()
 
@@ -407,7 +407,7 @@ class TestGoogleOAuthEdgeCases:
             user_db = SQLAlchemyUserDatabase(session, User, OAuthAccount)
             user_manager = UserManager(user_db)
 
-            with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+            with caplog.at_level(logging.WARNING, logger="clutchchess.auth.users"):
                 # Call oauth_callback with empty access token
                 result = await user_manager.oauth_callback(
                     oauth_name="google",

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from kfchess.auth.dependencies import (
+from clutchchess.auth.dependencies import (
     get_current_user_with_dev_bypass,
     get_required_user_with_dev_bypass,
 )
@@ -30,7 +30,7 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = False
         mock_settings.dev_user_id = None
 
-        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
+        with patch("clutchchess.auth.dependencies.get_settings", return_value=mock_settings):
             result = await get_current_user_with_dev_bypass(request, None)
 
         assert result is None
@@ -42,7 +42,7 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = True
         mock_settings.dev_user_id = None
 
-        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
+        with patch("clutchchess.auth.dependencies.get_settings", return_value=mock_settings):
             result = await get_current_user_with_dev_bypass(request, None)
 
         assert result is None
@@ -57,13 +57,13 @@ class TestGetCurrentUserWithDevBypass:
         mock_user.id = 999
         mock_user.username = "DevUser"
 
-        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
-            with patch("kfchess.db.session.async_session_factory") as mock_factory:
+        with patch("clutchchess.auth.dependencies.get_settings", return_value=mock_settings):
+            with patch("clutchchess.db.session.async_session_factory") as mock_factory:
                 mock_session = AsyncMock()
                 mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch("kfchess.auth.dependencies.UserRepository") as MockUserRepo:
+                with patch("clutchchess.auth.dependencies.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=mock_user)
                     MockUserRepo.return_value = mock_repo
@@ -80,13 +80,13 @@ class TestGetCurrentUserWithDevBypass:
         mock_settings.dev_mode = True
         mock_settings.dev_user_id = 999
 
-        with patch("kfchess.auth.dependencies.get_settings", return_value=mock_settings):
-            with patch("kfchess.db.session.async_session_factory") as mock_factory:
+        with patch("clutchchess.auth.dependencies.get_settings", return_value=mock_settings):
+            with patch("clutchchess.db.session.async_session_factory") as mock_factory:
                 mock_session = AsyncMock()
                 mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_factory.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch("kfchess.auth.dependencies.UserRepository") as MockUserRepo:
+                with patch("clutchchess.auth.dependencies.UserRepository") as MockUserRepo:
                     mock_repo = MagicMock()
                     mock_repo.get_by_id = AsyncMock(return_value=None)
                     MockUserRepo.return_value = mock_repo
@@ -122,7 +122,7 @@ class TestGetRequiredUserWithDevBypass:
         request = MagicMock()
 
         with patch(
-            "kfchess.auth.dependencies.get_current_user_with_dev_bypass",
+            "clutchchess.auth.dependencies.get_current_user_with_dev_bypass",
             new_callable=AsyncMock,
             return_value=mock_user,
         ):
@@ -136,7 +136,7 @@ class TestGetRequiredUserWithDevBypass:
         request = MagicMock()
 
         with patch(
-            "kfchess.auth.dependencies.get_current_user_with_dev_bypass",
+            "clutchchess.auth.dependencies.get_current_user_with_dev_bypass",
             new_callable=AsyncMock,
             return_value=mock_user,
         ):
@@ -152,7 +152,7 @@ class TestGetRequiredUserWithDevBypass:
         request = MagicMock()
 
         with patch(
-            "kfchess.auth.dependencies.get_current_user_with_dev_bypass",
+            "clutchchess.auth.dependencies.get_current_user_with_dev_bypass",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -171,7 +171,7 @@ class TestGetRequiredUserWithDevBypass:
         mock_settings.dev_mode = False
 
         with patch(
-            "kfchess.auth.dependencies.get_current_user_with_dev_bypass",
+            "clutchchess.auth.dependencies.get_current_user_with_dev_bypass",
             new_callable=AsyncMock,
             return_value=None,
         ):

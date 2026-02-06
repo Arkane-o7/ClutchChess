@@ -16,8 +16,8 @@ import pytest
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import ActiveGame
-from kfchess.db.repositories.active_games import ActiveGameRepository
+from clutchchess.db.models import ActiveGame
+from clutchchess.db.repositories.active_games import ActiveGameRepository
 
 from .conftest import generate_test_id
 

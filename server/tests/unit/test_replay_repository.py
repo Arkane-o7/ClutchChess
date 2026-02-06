@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kfchess.db.models import GameReplay
-from kfchess.db.repositories.replays import ReplayRepository
-from kfchess.game.board import BoardType
-from kfchess.game.replay import Replay
-from kfchess.game.state import ReplayMove, Speed
+from clutchchess.db.models import GameReplay
+from clutchchess.db.repositories.replays import ReplayRepository
+from clutchchess.game.board import BoardType
+from clutchchess.game.replay import Replay
+from clutchchess.game.state import ReplayMove, Speed
 
 
 class TestReplayRepositoryRecordConversion:

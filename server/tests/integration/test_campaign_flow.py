@@ -9,12 +9,12 @@ Run with: uv run pytest tests/integration/test_campaign_flow.py -v
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.campaign.levels import get_level
-from kfchess.campaign.service import CampaignService
-from kfchess.db.models import CampaignProgress, User
-from kfchess.db.repositories.campaign import CampaignProgressRepository
-from kfchess.game.state import GameStatus
-from kfchess.services.game_service import GameService
+from clutchchess.campaign.levels import get_level
+from clutchchess.campaign.service import CampaignService
+from clutchchess.db.models import CampaignProgress, User
+from clutchchess.db.repositories.campaign import CampaignProgressRepository
+from clutchchess.game.state import GameStatus
+from clutchchess.services.game_service import GameService
 
 
 @pytest.fixture

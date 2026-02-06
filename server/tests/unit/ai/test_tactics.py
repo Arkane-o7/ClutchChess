@@ -1,9 +1,9 @@
 """Tests for tactical filters."""
 
-from kfchess.ai.arrival_field import ArrivalData, ArrivalField
-from kfchess.ai.move_gen import CandidateMove
-from kfchess.ai.state_extractor import AIPiece, PieceStatus, StateExtractor
-from kfchess.ai.tactics import (
+from clutchchess.ai.arrival_field import ArrivalData, ArrivalField
+from clutchchess.ai.move_gen import CandidateMove
+from clutchchess.ai.state_extractor import AIPiece, PieceStatus, StateExtractor
+from clutchchess.ai.tactics import (
     GAME_ENDING_KING_BONUS,
     PIECE_VALUES,
     capture_value,
@@ -12,10 +12,10 @@ from kfchess.ai.tactics import (
     recapture_bonus,
     threaten_score,
 )
-from kfchess.game.board import BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameStatus, Speed
+from clutchchess.game.board import BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.state import GameStatus, Speed
 
 
 def _make_state(speed=Speed.STANDARD):

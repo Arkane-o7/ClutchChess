@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from kfchess.utils.display_name import (
+from clutchchess.utils.display_name import (
     PlayerDisplay,
     _resolve_from_info,
     _UserInfo,
@@ -158,7 +158,7 @@ class TestResolvePlayerInfo:
         """Should fetch user info and resolve players."""
         mock_session = AsyncMock()
         with patch(
-            "kfchess.utils.display_name._fetch_user_info",
+            "clutchchess.utils.display_name._fetch_user_info",
             return_value={5: _UserInfo("bob", "https://pic.com/b.jpg")},
         ):
             result = await resolve_player_info(mock_session, {1: "u:5", 2: "bot:dummy"})
@@ -175,7 +175,7 @@ class TestResolvePlayerInfoBatch:
         """Should make one DB call for all player dicts."""
         mock_session = AsyncMock()
         with patch(
-            "kfchess.utils.display_name._fetch_user_info",
+            "clutchchess.utils.display_name._fetch_user_info",
             return_value={
                 1: _UserInfo("alice", None),
                 2: _UserInfo("bob", "https://pic.com/b.jpg"),
@@ -204,6 +204,6 @@ class TestResolvePlayerInfoBatch:
     async def test_empty_list(self) -> None:
         """Should handle empty list."""
         mock_session = AsyncMock()
-        with patch("kfchess.utils.display_name._fetch_user_info", return_value={}):
+        with patch("clutchchess.utils.display_name._fetch_user_info", return_value={}):
             result = await resolve_player_info_batch(mock_session, [])
         assert result == []

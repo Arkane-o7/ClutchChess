@@ -1,10 +1,10 @@
-# Kung Fu Chess
+# Clutch Chess
 
 A real-time, turn-free chess game where players move pieces simultaneously.
 
 ## Overview
 
-Kung Fu Chess removes the turn-based nature of traditional chess. Both players can move any of their pieces at any time, subject to cooldown periods after each move. This creates a fast-paced, action-oriented chess experience.
+Clutch Chess removes the turn-based nature of traditional chess. Both players can move any of their pieces at any time, subject to cooldown periods after each move. This creates a fast-paced, action-oriented chess experience.
 
 ### Game Mechanics
 
@@ -21,7 +21,7 @@ Kung Fu Chess removes the turn-based nature of traditional chess. Both players c
 
 ## Current Status
 
-This is a rebuild of the original Kung Fu Chess. Core features are functional:
+This is a rebuild of the original Clutch Chess. Core features are functional:
 
 - [x] Core game engine with tick-based movement and collision detection
 - [x] 2-player and 4-player board support
@@ -57,8 +57,8 @@ The easiest way to get started:
 
 ```bash
 # Clone and enter the directory
-git clone <repo-url> kfchess-cc
-cd kfchess-cc
+git clone <repo-url> clutchchess
+cd clutchchess
 
 # Copy environment files
 cp server/.env.example server/.env
@@ -80,7 +80,7 @@ Or step by step:
    cd server
    uv sync
    uv run alembic upgrade head
-   uv run uvicorn kfchess.main:app --reload --port 8000
+   uv run uvicorn clutchchess.main:app --reload --port 8000
    ```
 
 3. **Frontend setup** (in another terminal)
@@ -127,9 +127,9 @@ Key environment variables (see `server/.env.example` for full list):
 ## Project Structure
 
 ```
-kfchess-cc/
+clutchchess/
 ├── server/              # Python FastAPI backend
-│   ├── src/kfchess/
+│   ├── src/clutchchess/
 │   │   ├── game/        # Core game engine
 │   │   ├── api/         # REST API routes
 │   │   ├── ws/          # WebSocket handlers

@@ -1,12 +1,12 @@
 """Unit tests for campaign API models and endpoints."""
 
-from kfchess.api.campaign import (
+from clutchchess.api.campaign import (
     CampaignProgressResponse,
     LevelResponse,
     LevelsListResponse,
     StartGameResponse,
 )
-from kfchess.campaign.levels import BELT_NAMES, LEVELS, MAX_BELT, get_level
+from clutchchess.campaign.levels import BELT_NAMES, LEVELS, MAX_BELT, get_level
 
 
 class TestCampaignProgressResponse:
@@ -64,7 +64,7 @@ class TestLevelResponse:
             level_id=0,
             belt=1,
             belt_name="White",
-            title="Welcome to Kung Fu Chess",
+            title="Welcome to Clutch Chess",
             description="Test description",
             speed="standard",
             player_count=2,

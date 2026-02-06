@@ -1,13 +1,13 @@
 """Tests for Eval scoring function."""
 
 
-from kfchess.ai.eval import Eval
-from kfchess.ai.move_gen import CandidateMove
-from kfchess.ai.state_extractor import StateExtractor
-from kfchess.game.board import Board, BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameStatus, Speed
+from clutchchess.ai.eval import Eval
+from clutchchess.ai.move_gen import CandidateMove
+from clutchchess.ai.state_extractor import StateExtractor
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.state import GameStatus, Speed
 
 
 def _make_simple_board() -> tuple:

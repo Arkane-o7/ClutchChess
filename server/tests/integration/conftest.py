@@ -19,7 +19,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from kfchess.settings import get_settings
+from clutchchess.settings import get_settings
 
 
 def pytest_configure(config):

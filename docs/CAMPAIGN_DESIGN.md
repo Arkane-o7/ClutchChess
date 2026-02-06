@@ -1,8 +1,8 @@
-# Kung Fu Chess Campaign Mode — Design Document
+# Clutch Chess Campaign Mode — Design Document
 
 ## Overview
 
-The campaign mode provides a single-player progression system with puzzle-like chess challenges. Players progress through themed "belts" (inspired by martial arts ranks), completing 8 levels per belt to advance. The system preserves compatibility with the legacy kfchess campaign implementation while extending support to 4-player boards.
+The campaign mode provides a single-player progression system with puzzle-like chess challenges. Players progress through themed "belts" (inspired by martial arts ranks), completing 8 levels per belt to advance. The system preserves compatibility with the legacy Clutch Chess campaign implementation while extending support to 4-player boards.
 
 ---
 
@@ -82,7 +82,7 @@ Levels use a string-based board representation:
 ### New Components
 
 ```
-server/src/kfchess/
+server/src/clutchchess/
 ├── campaign/
 │   ├── __init__.py
 │   ├── levels.py           # Level definitions (all 32 legacy levels)
@@ -160,13 +160,13 @@ client/src/
 
 ### 1. Database Model
 
-**Add to `server/src/kfchess/db/models.py`:**
+**Add to `server/src/clutchchess/db/models.py`:**
 
 ```python
 class CampaignProgress(Base):
     """User's campaign progress.
 
-    Schema matches legacy kfchess for backward compatibility.
+    Schema matches legacy Clutch Chess for backward compatibility.
     Progress is stored as JSONB with:
       - levelsCompleted: dict[str, bool] - level index → completed
       - beltsCompleted: dict[str, bool] - belt number → completed
@@ -197,12 +197,12 @@ CREATE INDEX IF NOT EXISTS ix_campaign_progress_user_id ON campaign_progress(use
 
 ### 2. Level Definition System
 
-**`server/src/kfchess/campaign/models.py`:**
+**`server/src/clutchchess/campaign/models.py`:**
 
 ```python
 from dataclasses import dataclass
 
-from kfchess.game.board import BoardType  # Reuse existing enum
+from clutchchess.game.board import BoardType  # Reuse existing enum
 
 
 @dataclass
@@ -234,11 +234,11 @@ class CampaignLevel:
         return self.level_id % 8
 ```
 
-**`server/src/kfchess/campaign/board_parser.py`:**
+**`server/src/clutchchess/campaign/board_parser.py`:**
 
 ```python
-from kfchess.game.board import Board, BoardType
-from kfchess.game.pieces import Piece, PieceType
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.pieces import Piece, PieceType
 
 PIECE_TYPE_MAP = {
     "P": PieceType.PAWN,
@@ -303,12 +303,12 @@ def parse_board_string(board_str: str, board_type: BoardType) -> Board:
 
 ### 3. Level Definitions (All 32 Legacy Levels)
 
-**`server/src/kfchess/campaign/levels.py`:**
+**`server/src/clutchchess/campaign/levels.py`:**
 
 ```python
 """Campaign level definitions.
 
-Levels 0-31: Legacy 2-player levels (preserved from original kfchess)
+Levels 0-31: Legacy 2-player levels (preserved from original Clutch Chess)
 Levels 32+: Future 4-player levels (to be designed)
 """
 
@@ -347,7 +347,7 @@ LEVELS: list[CampaignLevel] = [
             P1P1P1P1P1P1P1P1
             R1N1B1Q1K1B1N1R1
         """,
-        title="Welcome to Kung Fu Chess",
+        title="Welcome to Clutch Chess",
         description="It's like chess, but there are no turns. Win by capturing the enemy king!",
     ),
     CampaignLevel(
@@ -920,16 +920,16 @@ Future enhancement: Per-level AI difficulty could be added to `CampaignLevel` to
 
 ### 5. Campaign Service
 
-**`server/src/kfchess/campaign/service.py`:**
+**`server/src/clutchchess/campaign/service.py`:**
 
 ```python
 from dataclasses import dataclass
 
-from kfchess.campaign.board_parser import parse_board_string
-from kfchess.campaign.levels import MAX_BELT, get_level
-from kfchess.db.repositories.campaign import CampaignProgressRepository
-from kfchess.game.engine import GameEngine
-from kfchess.game.state import GameState, Speed
+from clutchchess.campaign.board_parser import parse_board_string
+from clutchchess.campaign.levels import MAX_BELT, get_level
+from clutchchess.db.repositories.campaign import CampaignProgressRepository
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.state import GameState, Speed
 
 
 @dataclass
@@ -1055,17 +1055,17 @@ class CampaignService:
 
 ### 6. API Endpoints
 
-**`server/src/kfchess/api/campaign.py`:**
+**`server/src/clutchchess/api/campaign.py`:**
 
 ```python
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from kfchess.auth.deps import current_active_user, optional_current_user
-from kfchess.campaign.levels import BELT_NAMES, MAX_BELT, get_level, LEVELS
-from kfchess.campaign.service import CampaignService
-from kfchess.db.models import User
-from kfchess.services.game_service import GameService
+from clutchchess.auth.deps import current_active_user, optional_current_user
+from clutchchess.campaign.levels import BELT_NAMES, MAX_BELT, get_level, LEVELS
+from clutchchess.campaign.service import CampaignService
+from clutchchess.db.models import User
+from clutchchess.services.game_service import GameService
 
 router = APIRouter(prefix="/campaign", tags=["campaign"])
 
@@ -1136,7 +1136,7 @@ async def start_level(
 
 ### 7. Game Service Integration
 
-**`server/src/kfchess/services/game_service.py`:**
+**`server/src/clutchchess/services/game_service.py`:**
 
 Campaign games are tracked via `ManagedGame` which stores:
 - `campaign_level_id` - Level being played
@@ -1186,7 +1186,7 @@ async def create_campaign_game(
     return game_id, player_key, 1
 ```
 
-**Campaign Completion** (`server/src/kfchess/ws/handler.py`):
+**Campaign Completion** (`server/src/clutchchess/ws/handler.py`):
 
 When a campaign game ends with player 1 winning:
 

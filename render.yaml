@@ -1,14 +1,14 @@
 services:
   # Backend API Service
   - type: web
-    name: kfchess-api
+    name: clutchchess-api
     runtime: python
     region: oregon
     plan: free
     buildCommand: |
       cd server && pip install uv && uv sync --no-dev
     startCommand: |
-      cd server && uv run uvicorn kfchess.main:app --host 0.0.0.0 --port $PORT
+      cd server && uv run uvicorn clutchchess.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         sync: false  # Set manually from Neon
@@ -24,7 +24,7 @@ services:
 
   # Frontend Static Site
   - type: web
-    name: kfchess-frontend
+    name: clutchchess-frontend
     runtime: static
     buildCommand: |
       cd client && npm install && npm run build

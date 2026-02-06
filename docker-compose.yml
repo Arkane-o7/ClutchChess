@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: kfchess
-      POSTGRES_PASSWORD: kfchess
-      POSTGRES_DB: kfchess
+      POSTGRES_USER: clutchchess
+      POSTGRES_PASSWORD: clutchchess
+      POSTGRES_DB: clutchchess
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kfchess"]
+      test: ["CMD-SHELL", "pg_isready -U clutchchess"]
       interval: 5s
       timeout: 5s
       retries: 5

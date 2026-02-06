@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kfchess.campaign.service import CampaignProgressData, CampaignService
+from clutchchess.campaign.service import CampaignProgressData, CampaignService
 
 
 class TestCampaignProgressData:

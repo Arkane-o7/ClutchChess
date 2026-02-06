@@ -1,6 +1,6 @@
 # Replay System Design
 
-This document describes the design for replay recording, storage, and playback in Kung Fu Chess.
+This document describes the design for replay recording, storage, and playback in Clutch Chess.
 
 ---
 
@@ -35,7 +35,7 @@ The replay system allows players to:
 1. **No client-side game logic**: Client only renders; server simulates
 2. **Reuse existing infrastructure**: Same WebSocket protocol and rendering as live games
 3. **Simple client implementation**: Replay viewer is nearly identical to spectator mode
-4. **Backwards compatible**: Support loading replays from the original Kung Fu Chess format
+4. **Backwards compatible**: Support loading replays from the original Clutch Chess format
 5. **Efficient storage**: Store only moves, not full state at each tick
 
 ---
@@ -86,7 +86,7 @@ The replay system allows players to:
 ### Replay Storage (Database)
 
 ```python
-# server/src/kfchess/db/models.py
+# server/src/clutchchess/db/models.py
 
 class GameReplay(Base):
     __tablename__ = "game_replays"
@@ -105,7 +105,7 @@ class GameReplay(Base):
 ### Replay Data Structure
 
 ```python
-# server/src/kfchess/game/replay.py
+# server/src/clutchchess/game/replay.py
 
 @dataclass
 class ReplayMove:
@@ -227,7 +227,7 @@ Uses the **same message types as live games**:
 Manages playback state for a single replay viewer:
 
 ```python
-# server/src/kfchess/replay/session.py
+# server/src/clutchchess/replay/session.py
 
 class ReplaySession:
     """Manages replay playback for a single client."""
@@ -347,7 +347,7 @@ class ReplaySession:
 The existing `ReplayEngine` computes state at any tick:
 
 ```python
-# server/src/kfchess/game/replay.py
+# server/src/clutchchess/game/replay.py
 
 class ReplayEngine:
     """Engine for replaying games tick-by-tick."""
@@ -374,7 +374,7 @@ class ReplayEngine:
 ### WebSocket Handler
 
 ```python
-# server/src/kfchess/ws/replay_handler.py
+# server/src/clutchchess/ws/replay_handler.py
 
 @router.websocket("/ws/replay/{game_id}")
 async def replay_websocket(websocket: WebSocket, game_id: str):
@@ -643,8 +643,8 @@ function formatTicksAsTime(ticks: number): string {
 5. ~~Write tests for replay session~~
 
 **Files created:**
-- `server/src/kfchess/replay/session.py`
-- `server/src/kfchess/ws/replay_handler.py`
+- `server/src/clutchchess/replay/session.py`
+- `server/src/clutchchess/ws/replay_handler.py`
 - `server/tests/unit/replay/test_session.py`
 
 ### Phase 3: Frontend Replay Store (COMPLETED)
@@ -770,8 +770,8 @@ class ReplaySession:
 ```
 
 **Key files:**
-- `server/src/kfchess/replay/session.py` - ReplaySession with caching
-- `server/src/kfchess/game/replay.py` - ReplayEngine.advance_one_tick()
+- `server/src/clutchchess/replay/session.py` - ReplaySession with caching
+- `server/src/clutchchess/game/replay.py` - ReplayEngine.advance_one_tick()
 
 ### Multi-Server Architecture
 

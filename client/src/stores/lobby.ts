@@ -614,7 +614,7 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
 // Helpers
 // ============================================
 
-const LOBBY_CREDENTIALS_KEY = 'kfchess_lobby_credentials';
+const LOBBY_CREDENTIALS_KEY = 'clutchchess_lobby_credentials';
 
 interface LobbyCredentials {
   code: string;
@@ -654,7 +654,7 @@ function clearLobbyCredentials(): void {
  * Get or create a persistent guest ID for anonymous players
  */
 function getOrCreateGuestId(): string {
-  const storageKey = 'kfchess_guest_id';
+  const storageKey = 'clutchchess_guest_id';
   let guestId = localStorage.getItem(storageKey);
   if (!guestId) {
     guestId = crypto.randomUUID();

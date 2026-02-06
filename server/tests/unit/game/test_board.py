@@ -1,8 +1,8 @@
 """Tests for board representation."""
 
 
-from kfchess.game.board import Board, BoardType
-from kfchess.game.pieces import Piece, PieceType
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.pieces import Piece, PieceType
 
 
 class TestBoard:

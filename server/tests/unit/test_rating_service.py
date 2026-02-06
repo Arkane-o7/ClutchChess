@@ -2,10 +2,10 @@
 
 from unittest.mock import MagicMock
 
-from kfchess.game.elo import DEFAULT_RATING
-from kfchess.game.state import WinReason
-from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings
-from kfchess.services.rating_service import (
+from clutchchess.game.elo import DEFAULT_RATING
+from clutchchess.game.state import WinReason
+from clutchchess.lobby.models import Lobby, LobbyPlayer, LobbySettings
+from clutchchess.services.rating_service import (
     RatingService,
     get_user_rating,
     get_user_rating_stats,

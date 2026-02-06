@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kfchess.game.board import BoardType
-from kfchess.game.replay import Replay
-from kfchess.game.state import ReplayMove, Speed
-from kfchess.replay.session import ReplaySession
+from clutchchess.game.board import BoardType
+from clutchchess.game.replay import Replay
+from clutchchess.game.state import ReplayMove, Speed
+from clutchchess.replay.session import ReplaySession
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ class TestReplaySessionStart:
     @pytest.mark.asyncio
     async def test_start_sends_resolved_player_info(self, sample_replay: Replay, mock_websocket: AsyncMock):
         """Test that start() sends PlayerDisplay objects when resolved_players provided."""
-        from kfchess.utils.display_name import PlayerDisplay
+        from clutchchess.utils.display_name import PlayerDisplay
 
         resolved = {
             1: PlayerDisplay(name="Alice", picture_url="https://pic.com/a.jpg", user_id=10),

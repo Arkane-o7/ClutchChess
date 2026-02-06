@@ -14,14 +14,14 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.campaign.board_parser import parse_board_string
-from kfchess.campaign.levels import get_level
-from kfchess.db.models import CampaignProgress, User
-from kfchess.db.repositories.replays import ReplayRepository
-from kfchess.game.board import BoardType
-from kfchess.game.replay import Replay, ReplayEngine
-from kfchess.game.state import ReplayMove, Speed
-from kfchess.services.game_service import GameService
+from clutchchess.campaign.board_parser import parse_board_string
+from clutchchess.campaign.levels import get_level
+from clutchchess.db.models import CampaignProgress, User
+from clutchchess.db.repositories.replays import ReplayRepository
+from clutchchess.game.board import BoardType
+from clutchchess.game.replay import Replay, ReplayEngine
+from clutchchess.game.state import ReplayMove, Speed
+from clutchchess.services.game_service import GameService
 
 from .conftest import generate_test_id
 
@@ -363,7 +363,7 @@ class TestCampaignGameReplay:
         managed = game_service.get_managed_game(game_id)
         assert managed is not None
 
-        from kfchess.game.state import GameStatus, WinReason
+        from clutchchess.game.state import GameStatus, WinReason
 
         managed.state.status = GameStatus.FINISHED
         managed.state.winner = 1
@@ -401,7 +401,7 @@ class TestCampaignReplayRoundTrip:
         managed = game_service.get_managed_game(game_id)
         assert managed is not None
 
-        from kfchess.game.state import GameStatus, WinReason
+        from clutchchess.game.state import GameStatus, WinReason
 
         managed.state.status = GameStatus.FINISHED
         managed.state.winner = 1

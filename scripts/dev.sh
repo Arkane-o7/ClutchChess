@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "Starting Kung Fu Chess development environment..."
+echo "Starting Clutch Chess development environment..."
 
 # Check for required tools
 command -v docker >/dev/null 2>&1 || { echo "docker is required but not installed."; exit 1; }
@@ -51,7 +51,7 @@ echo "Development environment is ready!"
 echo ""
 echo "Start the servers in separate terminals:"
 echo ""
-echo "  Backend:  cd server && uv run uvicorn kfchess.main:app --reload --port 8000"
+echo "  Backend:  cd server && uv run uvicorn clutchchess.main:app --reload --port 8000"
 echo "  Frontend: cd client && npm run dev"
 echo ""
 echo "Or run them together with:"

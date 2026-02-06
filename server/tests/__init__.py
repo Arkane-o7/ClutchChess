@@ -1,1 +1,1 @@
-"""Test suite for Kung Fu Chess."""
+"""Test suite for Clutch Chess."""

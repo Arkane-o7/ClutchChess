@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from kfchess.main import app
+from clutchchess.main import app
 
 
 def generate_test_email() -> str:
@@ -58,7 +58,7 @@ class TestLoginFlow:
             )
 
             assert response.status_code == 204
-            assert "kfchess_auth" in client.cookies
+            assert "clutchchess_auth" in client.cookies
 
     @pytest.mark.asyncio
     async def test_login_wrong_password_fails(self):

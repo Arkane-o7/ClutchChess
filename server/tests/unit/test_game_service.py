@@ -1,10 +1,10 @@
 """Tests for the game service."""
 
 
-from kfchess.ai.dummy import DummyAI
-from kfchess.game.board import BoardType
-from kfchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
-from kfchess.services.game_service import GameService
+from clutchchess.ai.dummy import DummyAI
+from clutchchess.game.board import BoardType
+from clutchchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
+from clutchchess.services.game_service import GameService
 
 
 class TestGameService:
@@ -441,8 +441,8 @@ class TestDummyAI:
         """Test that dummy AI makes moves probabilistically."""
         import random
 
-        from kfchess.game.engine import GameEngine
-        from kfchess.game.state import GameStatus
+        from clutchchess.game.engine import GameEngine
+        from clutchchess.game.state import GameStatus
 
         # Set seed for deterministic testing
         random.seed(42)

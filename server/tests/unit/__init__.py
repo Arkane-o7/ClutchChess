@@ -1,1 +1,1 @@
-"""Unit tests for kfchess."""
+"""Unit tests for clutchchess."""

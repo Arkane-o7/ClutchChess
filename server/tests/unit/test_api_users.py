@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from kfchess.main import app
+from clutchchess.main import app
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ class TestGetPublicUserProfile:
         mock_user.last_online = datetime.now(UTC)
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository:
             mock_repo = MockUserRepository.return_value
             mock_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -49,7 +49,7 @@ class TestGetPublicUserProfile:
     def test_get_public_profile_not_found(self, client: TestClient) -> None:
         """Test getting a non-existent user."""
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository:
             mock_repo = MockUserRepository.return_value
             mock_repo.get_by_id = AsyncMock(return_value=None)
@@ -70,7 +70,7 @@ class TestGetPublicUserProfile:
         mock_user.last_online = datetime.now(UTC)
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository:
             mock_repo = MockUserRepository.return_value
             mock_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -91,9 +91,9 @@ class TestGetUserReplays:
         mock_user.id = 123
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.api.users.UserGameHistoryRepository"
+            "clutchchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -128,11 +128,11 @@ class TestGetUserReplays:
         }
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.api.users.UserGameHistoryRepository"
+            "clutchchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
-            "kfchess.api.users.resolve_player_info_batch"
+            "clutchchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -141,7 +141,7 @@ class TestGetUserReplays:
             mock_history_repo.list_by_user = AsyncMock(return_value=[mock_entry])
             mock_history_repo.count_by_user = AsyncMock(return_value=1)
 
-            from kfchess.utils.display_name import PlayerDisplay
+            from clutchchess.utils.display_name import PlayerDisplay
 
             mock_resolve.return_value = [{
                 1: PlayerDisplay(name="player1", picture_url=None, user_id=123),
@@ -178,11 +178,11 @@ class TestGetUserReplays:
         }
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.api.users.UserGameHistoryRepository"
+            "clutchchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository, patch(
-            "kfchess.api.users.resolve_player_info_batch"
+            "clutchchess.api.users.resolve_player_info_batch"
         ) as mock_resolve:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -191,7 +191,7 @@ class TestGetUserReplays:
             mock_history_repo.list_by_user = AsyncMock(return_value=[mock_entry])
             mock_history_repo.count_by_user = AsyncMock(return_value=1)
 
-            from kfchess.utils.display_name import PlayerDisplay
+            from clutchchess.utils.display_name import PlayerDisplay
 
             # Mock resolve_player_info_batch to verify correct slot assignment
             # Should be called with: [{3: "u:123", 1: "u:100", 2: "u:200", 4: "u:300"}]
@@ -222,7 +222,7 @@ class TestGetUserReplays:
     def test_get_user_replays_user_not_found(self, client: TestClient) -> None:
         """Test getting replays for non-existent user."""
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=None)
@@ -238,9 +238,9 @@ class TestGetUserReplays:
         mock_user.id = 123
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository, patch(
-            "kfchess.api.users.UserGameHistoryRepository"
+            "clutchchess.api.users.UserGameHistoryRepository"
         ) as MockHistoryRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)
@@ -264,7 +264,7 @@ class TestGetUserReplays:
         mock_user.id = 123
 
         with patch(
-            "kfchess.api.users.UserRepository"
+            "clutchchess.api.users.UserRepository"
         ) as MockUserRepository:
             mock_user_repo = MockUserRepository.return_value
             mock_user_repo.get_by_id = AsyncMock(return_value=mock_user)

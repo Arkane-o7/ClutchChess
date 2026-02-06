@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from kfchess.auth.dependencies import get_required_user_with_dev_bypass, get_user_manager_dep
-from kfchess.main import app
-from kfchess.services.s3 import MAX_FILE_SIZE, S3UploadError
+from clutchchess.auth.dependencies import get_required_user_with_dev_bypass, get_user_manager_dep
+from clutchchess.main import app
+from clutchchess.services.s3 import MAX_FILE_SIZE, S3UploadError
 
 
 def _make_user(**overrides):
@@ -60,7 +60,7 @@ class TestUploadPicture:
         mock_um.update = AsyncMock(return_value=updated_user)
 
         with patch(
-            "kfchess.api.users.upload_profile_picture",
+            "clutchchess.api.users.upload_profile_picture",
             return_value="https://s3-us-west-2.amazonaws.com/bucket/profile-pics/abc",
         ):
             response = client.post(
@@ -102,7 +102,7 @@ class TestUploadPicture:
 
     def test_upload_s3_error_returns_generic_message(self, client: TestClient) -> None:
         with patch(
-            "kfchess.api.users.upload_profile_picture",
+            "clutchchess.api.users.upload_profile_picture",
             side_effect=S3UploadError("boto3 internal: bucket=secret-bucket key=xyz"),
         ):
             response = client.post(
@@ -119,7 +119,7 @@ class TestUploadPicture:
 
     def test_upload_magic_byte_mismatch_returns_400(self, client: TestClient) -> None:
         with patch(
-            "kfchess.api.users.upload_profile_picture",
+            "clutchchess.api.users.upload_profile_picture",
             side_effect=ValueError("File content does not match declared content type"),
         ):
             response = client.post(
@@ -137,7 +137,7 @@ class TestUploadPicture:
         mock_um.update = AsyncMock(return_value=updated_user)
 
         with patch(
-            "kfchess.api.users.upload_profile_picture",
+            "clutchchess.api.users.upload_profile_picture",
             return_value="https://example.com/pic.jpg",
         ):
             response = client.post(

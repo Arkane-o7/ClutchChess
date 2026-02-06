@@ -2,16 +2,16 @@
 
 import pytest
 
-from kfchess.game.board import Board, BoardType
-from kfchess.game.engine import GameEngine, GameEventType
-from kfchess.game.moves import (
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.engine import GameEngine, GameEventType
+from clutchchess.game.moves import (
     FOUR_PLAYER_ORIENTATIONS,
     check_castling,
     compute_move_path,
     should_promote_pawn,
 )
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
 
 
 class TestBoard4Player:

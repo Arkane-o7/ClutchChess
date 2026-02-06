@@ -1,6 +1,6 @@
 # User Authentication Design
 
-This document describes the design and implementation of user authentication in Kung Fu Chess, with full backwards compatibility for legacy users.
+This document describes the design and implementation of user authentication in Clutch Chess, with full backwards compatibility for legacy users.
 
 > **Status: IMPLEMENTED** - All phases complete. See [Implementation Status](#implementation-status) for details.
 
@@ -42,7 +42,7 @@ All authentication features have been implemented and tested.
 ### File Structure (Implemented)
 
 ```
-server/src/kfchess/auth/
+server/src/clutchchess/auth/
 ├── __init__.py          # Module exports
 ├── schemas.py           # UserRead, UserCreate, UserUpdate
 ├── users.py             # UserManager with OAuth + legacy support
@@ -90,7 +90,7 @@ client/src/
 
 ## Legacy System Analysis
 
-### Existing Users Table (from ../kfchess)
+### Existing Users Table (from original project)
 
 ```sql
 CREATE TABLE users (
@@ -194,7 +194,7 @@ CREATE INDEX ix_oauth_accounts_provider ON oauth_accounts(oauth_name, account_id
 ### Module Structure
 
 ```
-server/src/kfchess/auth/
+server/src/clutchchess/auth/
     __init__.py          # Module exports
     schemas.py           # Pydantic schemas (UserRead, UserCreate, UserUpdate)
     users.py             # UserManager with custom logic
@@ -206,7 +206,7 @@ server/src/kfchess/auth/
 ### User Model (SQLAlchemy)
 
 ```python
-# server/src/kfchess/db/models.py
+# server/src/clutchchess/db/models.py
 
 class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[int], Base):
     """OAuth account linked to a user."""
@@ -245,7 +245,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
 ### Pydantic Schemas
 
 ```python
-# server/src/kfchess/auth/schemas.py
+# server/src/clutchchess/auth/schemas.py
 
 class UserRead(schemas.BaseUser[int]):
     """Schema for reading user data (API responses)."""
@@ -271,7 +271,7 @@ class UserUpdate(schemas.BaseUserUpdate):
 ### UserManager (Custom Logic)
 
 ```python
-# server/src/kfchess/auth/users.py
+# server/src/clutchchess/auth/users.py
 
 ANIMALS = ["Tiger", "Leopard", "Crane", "Snake", "Dragon"]
 CHESS_PIECES = ["Pawn", "Knight", "Bishop", "Rook", "Queen", "King"]
@@ -319,10 +319,10 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 ### Authentication Backend
 
 ```python
-# server/src/kfchess/auth/backend.py
+# server/src/clutchchess/auth/backend.py
 
 cookie_transport = CookieTransport(
-    cookie_name="kfchess_auth",
+    cookie_name="clutchchess_auth",
     cookie_max_age=3600 * 24 * 30,  # 30 days
     cookie_secure=True,              # HTTPS only in production
     cookie_httponly=True,            # Not accessible via JavaScript
@@ -345,7 +345,7 @@ auth_backend = AuthenticationBackend(
 ### DEV_MODE Bypass
 
 ```python
-# server/src/kfchess/auth/dependencies.py
+# server/src/clutchchess/auth/dependencies.py
 
 async def get_current_user_with_dev_bypass(
     request: Request,
@@ -413,7 +413,7 @@ username=player@example.com&password=securepassword123
 **Get Current User:**
 ```http
 GET /api/users/me
-Cookie: kfchess_auth=<jwt_token>
+Cookie: clutchchess_auth=<jwt_token>
 
 Response:
 {
@@ -641,7 +641,7 @@ GOOGLE_CLIENT_SECRET=...
 
 # Email via Resend (optional - logs tokens if not set)
 RESEND_API_KEY=...
-EMAIL_FROM=noreply@kfchess.com
+EMAIL_FROM=noreply@clutchchess.com
 SEND_EMAILS=true  # Must be explicitly enabled
 
 # Frontend URL (for email links and OAuth redirects)
@@ -660,10 +660,10 @@ For Google OAuth:
 1. Create OAuth 2.0 Client ID (Web application)
 2. Add authorized JavaScript origins:
    - `http://localhost:5173` (dev)
-   - `https://www.kfchess.com` (prod)
+   - `https://www.clutchchess.com` (prod)
 3. Add authorized redirect URIs:
    - `http://localhost:5173/auth/google/callback` (dev)
-   - `https://www.kfchess.com/auth/google/callback` (prod)
+   - `https://www.clutchchess.com/auth/google/callback` (prod)
 4. Enable People API in Google Cloud Console
 
 ---

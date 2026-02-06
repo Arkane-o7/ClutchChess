@@ -8,12 +8,12 @@ import logging
 
 import pytest
 
-from kfchess.ai.dummy import DummyAI
-from kfchess.ai.kungfu_ai import KungFuAI
-from kfchess.ai.tactics import PIECE_VALUES
-from kfchess.game.board import BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.state import GameState, GameStatus, Speed
+from clutchchess.ai.dummy import DummyAI
+from clutchchess.ai.kungfu_ai import KungFuAI
+from clutchchess.ai.tactics import PIECE_VALUES
+from clutchchess.game.board import BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.state import GameState, GameStatus, Speed
 
 logger = logging.getLogger(__name__)
 

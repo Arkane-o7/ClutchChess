@@ -1,6 +1,6 @@
 """Tests for WebSocket handler utilities."""
 
-from kfchess.ws.handler import _has_state_changed
+from clutchchess.ws.handler import _has_state_changed
 
 
 class TestHasStateChanged:

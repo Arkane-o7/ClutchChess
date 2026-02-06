@@ -1,12 +1,12 @@
 """Tests for arrival time field computation."""
 
-from kfchess.ai.arrival_field import ArrivalField
-from kfchess.ai.state_extractor import PieceStatus, StateExtractor
-from kfchess.game.board import BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.moves import Cooldown, Move
-from kfchess.game.pieces import PieceType
-from kfchess.game.state import GameStatus, Speed
+from clutchchess.ai.arrival_field import ArrivalField
+from clutchchess.ai.state_extractor import PieceStatus, StateExtractor
+from clutchchess.game.board import BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.moves import Cooldown, Move
+from clutchchess.game.pieces import PieceType
+from clutchchess.game.state import GameStatus, Speed
 
 
 def _make_state(speed=Speed.STANDARD):
@@ -272,7 +272,7 @@ class TestSelfBlockingFix:
         # Clear the board except for specific pieces
         state.board.pieces = []
 
-        from kfchess.game.pieces import Piece
+        from clutchchess.game.pieces import Piece
 
         # Enemy rook at (0, 3)
         enemy_rook = Piece(
@@ -326,7 +326,7 @@ class TestSelfBlockingFix:
         state = _make_state()
         state.board.pieces = []
 
-        from kfchess.game.pieces import Piece
+        from clutchchess.game.pieces import Piece
 
         enemy_rook = Piece(
             id="er", type=PieceType.ROOK, player=2,
@@ -370,7 +370,7 @@ class TestSelfBlockingFix:
         state = _make_state()
         state.board.pieces = []
 
-        from kfchess.game.pieces import Piece
+        from clutchchess.game.pieces import Piece
 
         # Enemy bishop at (0, 0)
         enemy_bishop = Piece(
@@ -413,7 +413,7 @@ class TestSelfBlockingFix:
         state = _make_state()
         state.board.pieces = []
 
-        from kfchess.game.pieces import Piece
+        from clutchchess.game.pieces import Piece
 
         enemy_rook = Piece(
             id="er", type=PieceType.ROOK, player=2,

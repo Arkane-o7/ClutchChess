@@ -22,7 +22,7 @@ echo "Starting development servers..."
 
 # Start backend
 cd "$PROJECT_DIR/server"
-uv run uvicorn kfchess.main:app --reload --port 8000 &
+uv run uvicorn clutchchess.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
 # Start frontend

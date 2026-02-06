@@ -1,7 +1,7 @@
 """Tests for piece definitions."""
 
 
-from kfchess.game.pieces import Piece, PieceType
+from clutchchess.game.pieces import Piece, PieceType
 
 
 class TestPieceType:

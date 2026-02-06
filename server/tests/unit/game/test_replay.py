@@ -2,11 +2,11 @@
 
 from datetime import UTC, datetime
 
-from kfchess.game.board import Board, BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.replay import Replay, ReplayEngine, _convert_v1_to_v2
-from kfchess.game.state import SPEED_CONFIGS, GameStatus, ReplayMove, Speed, WinReason
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.replay import Replay, ReplayEngine, _convert_v1_to_v2
+from clutchchess.game.state import SPEED_CONFIGS, GameStatus, ReplayMove, Speed, WinReason
 
 
 class TestReplayDataclass:

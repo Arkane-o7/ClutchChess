@@ -1,9 +1,9 @@
 """Unit tests for campaign game creation in GameService."""
 
-from kfchess.campaign.levels import get_level
-from kfchess.game.board import BoardType
-from kfchess.game.state import GameStatus, Speed
-from kfchess.services.game_service import GameService
+from clutchchess.campaign.levels import get_level
+from clutchchess.game.board import BoardType
+from clutchchess.game.state import GameStatus, Speed
+from clutchchess.services.game_service import GameService
 
 
 class TestCreateCampaignGame:

@@ -1,6 +1,6 @@
 # ELO Rating System Design
 
-This document describes the design for implementing an ELO-based rating system for Kung Fu Chess.
+This document describes the design for implementing an ELO-based rating system for Clutch Chess.
 
 ---
 
@@ -234,7 +234,7 @@ This structure allows efficient leaderboard queries without JOIN operations whil
 ### User Model Update
 
 ```python
-# server/src/kfchess/db/models.py
+# server/src/clutchchess/db/models.py
 
 class User(SQLAlchemyBaseUserTable[int], Base):
     # ... existing fields ...
@@ -364,7 +364,7 @@ WIN_REASONS_NOT_RATED = {"abandoned", "cancelled", "error"}
 ### Backend Implementation
 
 ```python
-# server/src/kfchess/services/rating_service.py
+# server/src/clutchchess/services/rating_service.py
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -570,7 +570,7 @@ CREATE INDEX idx_users_ratings_gin ON users USING gin(ratings);
 ### Backend Implementation
 
 ```python
-# server/src/kfchess/api/leaderboard.py
+# server/src/clutchchess/api/leaderboard.py
 # Simplified: top 100 only, no pagination, no /me endpoint
 
 @router.get("/leaderboard")
@@ -721,7 +721,7 @@ This section documents exactly where to integrate rating updates in the existing
 
 ### Game Handler Integration
 
-The rating update should occur in `server/src/kfchess/ws/handler.py` after the game ends and replay is saved:
+The rating update should occur in `server/src/clutchchess/ws/handler.py` after the game ends and replay is saved:
 
 ```python
 # In _run_game_loop(), after game finishes (around line 706-710):
@@ -749,8 +749,8 @@ async def _update_ratings(
     lobby_code: str,
 ) -> dict[int, RatingChange] | None:
     """Update ratings after a ranked game completes."""
-    from kfchess.services.rating_service import RatingService
-    from kfchess.lobby.manager import lobby_manager
+    from clutchchess.services.rating_service import RatingService
+    from clutchchess.lobby.manager import lobby_manager
 
     lobby = await lobby_manager.get_lobby(lobby_code)
     if lobby is None:
@@ -791,7 +791,7 @@ async def _broadcast_rating_update(
 
 ### Protocol Updates
 
-Add to `server/src/kfchess/ws/protocol.py`:
+Add to `server/src/clutchchess/ws/protocol.py`:
 
 ```python
 @dataclass
@@ -816,7 +816,7 @@ case 'rating_update':
 
 ### Lobby Manager Updates
 
-The `LobbyManager` in `server/src/kfchess/lobby/manager.py` may need a method to retrieve lobby by game_id if not already available:
+The `LobbyManager` in `server/src/clutchchess/lobby/manager.py` may need a method to retrieve lobby by game_id if not already available:
 
 ```python
 async def get_lobby_by_game_id(self, game_id: str) -> Lobby | None:
@@ -833,11 +833,11 @@ async def get_lobby_by_game_id(self, game_id: str) -> Lobby | None:
 1. [x] Create Alembic migration for:
    - New `ratings` JSONB schema with nested stats
    - Functional indexes for leaderboard queries
-2. [x] Create `server/src/kfchess/game/elo.py` with:
+2. [x] Create `server/src/clutchchess/game/elo.py` with:
    - ELO calculation functions
    - Belt thresholds and `get_belt()` function
    - `RatingChange` and `UserRatingStats` dataclasses
-3. [x] Create `server/src/kfchess/services/rating_service.py` with:
+3. [x] Create `server/src/clutchchess/services/rating_service.py` with:
    - `RatingService` class with transaction handling
    - Race condition protection via `SELECT FOR UPDATE`
 4. [ ] Upload belt icons to S3

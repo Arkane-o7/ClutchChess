@@ -1,6 +1,6 @@
 # 4-Player Mode - Design Document
 
-This document outlines the implementation plan for extending the Kung Fu Chess game engine to support 4-player mode.
+This document outlines the implementation plan for extending the Clutch Chess game engine to support 4-player mode.
 
 ## Current State Summary
 
@@ -93,7 +93,7 @@ Already implemented correctly - last king standing wins. If simultaneous king ca
 
 ### Phase 1: Board Factory
 
-**File**: `server/src/kfchess/game/board.py`
+**File**: `server/src/clutchchess/game/board.py`
 
 Add `create_4player()` class method:
 
@@ -120,7 +120,7 @@ def create_4player(cls) -> "Board":
 
 ### Phase 2: Pawn Logic Refactor
 
-**File**: `server/src/kfchess/game/moves.py`
+**File**: `server/src/clutchchess/game/moves.py`
 
 Current code (lines 157-158):
 ```python
@@ -150,7 +150,7 @@ def _get_pawn_config(piece: Piece, board: Board) -> tuple[tuple[int, int], int, 
 
 ### Phase 3: Castling Updates
 
-**File**: `server/src/kfchess/game/moves.py`
+**File**: `server/src/clutchchess/game/moves.py`
 
 Castling logic needs to be rotation-aware:
 - King always moves 2 squares toward the rook
@@ -168,7 +168,7 @@ def _get_castling_moves(piece: Piece, board: Board) -> list[tuple[int, int, Move
 
 ### Phase 4: Engine Integration
 
-**File**: `server/src/kfchess/game/engine.py`
+**File**: `server/src/clutchchess/game/engine.py`
 
 Update `create_game()` (line ~94, where TODO exists):
 

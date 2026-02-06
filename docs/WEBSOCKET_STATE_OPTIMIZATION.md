@@ -2,16 +2,16 @@
 
 ## Problem
 
-The server broadcasts full game state every tick (100ms) to all connected clients, even when nothing has changed. This is wasteful of bandwidth and CPU. The reference implementation (`../kfchess/ui/util/GameState.js`) only sends updates when state actually changes.
+The server broadcasts full game state every tick (100ms) to all connected clients, even when nothing has changed. This is wasteful of bandwidth and CPU. The reference implementation (`the original implementation`) only sends updates when state actually changes.
 
 ## Current Behavior
 
-### Server (`server/src/kfchess/ws/handler.py:506-609`)
+### Server (`server/src/clutchchess/ws/handler.py:506-609`)
 - `_run_game_loop()` runs at 10 ticks/second
 - Every tick: builds full state message and broadcasts to all clients
 - No change detection - always sends
 
-### Replay (`server/src/kfchess/replay/session.py:217-259`)
+### Replay (`server/src/clutchchess/replay/session.py:217-259`)
 - `_playback_loop()` sends state every tick during playback
 - Same issue as live games
 
@@ -30,7 +30,7 @@ The server broadcasts full game state every tick (100ms) to all connected client
 
 ### Phase 1: Protocol Changes
 
-**File: `server/src/kfchess/ws/protocol.py`**
+**File: `server/src/clutchchess/ws/protocol.py`**
 - Add `time_since_tick: float` to `StateUpdateMessage` (milliseconds since tick started, 0-100)
 
 **File: `client/src/ws/types.ts`**
@@ -38,7 +38,7 @@ The server broadcasts full game state every tick (100ms) to all connected client
 
 ### Phase 2: Server Change Detection
 
-**File: `server/src/kfchess/ws/handler.py`**
+**File: `server/src/clutchchess/ws/handler.py`**
 
 Add helper function to detect if state changed:
 ```python
@@ -77,7 +77,7 @@ Modify `_run_game_loop()`:
 
 ### Phase 3: Replay Session Changes
 
-**File: `server/src/kfchess/replay/session.py`**
+**File: `server/src/clutchchess/replay/session.py`**
 
 Apply same optimization to `_playback_loop()`:
 - Track previous state's active_moves and cooldowns
@@ -129,9 +129,9 @@ const tickFraction = Math.min(timeSinceLastTick / TIMING.TICK_PERIOD_MS, 10.0);
 
 | File | Changes |
 |------|---------|
-| `server/src/kfchess/ws/protocol.py` | Add `time_since_tick` field |
-| `server/src/kfchess/ws/handler.py` | Add change detection, conditional broadcast |
-| `server/src/kfchess/replay/session.py` | Same optimization for replays |
+| `server/src/clutchchess/ws/protocol.py` | Add `time_since_tick` field |
+| `server/src/clutchchess/ws/handler.py` | Add change detection, conditional broadcast |
+| `server/src/clutchchess/replay/session.py` | Same optimization for replays |
 | `client/src/ws/types.ts` | Add `time_since_tick` to type |
 | `client/src/stores/game.ts` | Add `timeSinceTick` state field |
 | `client/src/stores/replay.ts` | Add `timeSinceTick`, `lastTickTime` fields |

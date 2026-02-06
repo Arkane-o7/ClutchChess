@@ -1,6 +1,6 @@
-# Kung Fu Chess - Architecture
+# Clutch Chess - Architecture
 
-This document describes the system architecture for Kung Fu Chess.
+This document describes the system architecture for Clutch Chess.
 
 ---
 
@@ -30,9 +30,9 @@ This document describes the system architecture for Kung Fu Chess.
 ## Project Structure
 
 ```
-kfchess-cc/
+clutchchess/
 ├── server/                    # Python backend
-│   ├── src/kfchess/
+│   ├── src/clutchchess/
 │   │   ├── main.py            # FastAPI entry point
 │   │   ├── auth/              # Authentication (FastAPI-Users)
 │   │   ├── api/               # REST endpoints (games, lobbies, replays, users)

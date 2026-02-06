@@ -1,12 +1,12 @@
 """Tests for StateExtractor."""
 
 
-from kfchess.ai.state_extractor import AIState, PieceStatus, StateExtractor
-from kfchess.game.board import BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.moves import Cooldown
-from kfchess.game.pieces import PieceType
-from kfchess.game.state import GameState, GameStatus, Speed
+from clutchchess.ai.state_extractor import AIState, PieceStatus, StateExtractor
+from clutchchess.game.board import BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.moves import Cooldown
+from clutchchess.game.pieces import PieceType
+from clutchchess.game.state import GameState, GameStatus, Speed
 
 
 def _make_game(speed: Speed = Speed.STANDARD) -> GameState:

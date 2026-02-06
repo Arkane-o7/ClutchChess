@@ -8,8 +8,8 @@ Run with: uv run pytest tests/integration/test_campaign_repository.py -v
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import CampaignProgress, User
-from kfchess.db.repositories.campaign import CampaignProgressRepository
+from clutchchess.db.models import CampaignProgress, User
+from clutchchess.db.repositories.campaign import CampaignProgressRepository
 
 
 @pytest.fixture

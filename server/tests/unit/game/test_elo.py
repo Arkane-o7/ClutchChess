@@ -2,7 +2,7 @@
 
 import pytest
 
-from kfchess.game.elo import (
+from clutchchess.game.elo import (
     DEFAULT_RATING,
     HIGH_RATING_THRESHOLD,
     K_FACTOR,

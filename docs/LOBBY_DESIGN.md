@@ -1,6 +1,6 @@
 # Lobby System Design
 
-This document describes the design for the lobby system in Kung Fu Chess.
+This document describes the design for the lobby system in Clutch Chess.
 
 ---
 
@@ -250,7 +250,7 @@ Game Over Modal
 ### Lobby (Server-Side)
 
 ```python
-# server/src/kfchess/lobby/models.py
+# server/src/clutchchess/lobby/models.py
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -333,7 +333,7 @@ class Lobby:
 The database schema is already defined in ARCHITECTURE.md. Here's the mapping:
 
 ```python
-# server/src/kfchess/db/models.py
+# server/src/clutchchess/db/models.py
 
 class Lobby(Base):
     """Database model for lobbies."""
@@ -690,7 +690,7 @@ Authorization: Bearer <token>  (optional)
 ### LobbyManager
 
 ```python
-# server/src/kfchess/lobby/manager.py
+# server/src/clutchchess/lobby/manager.py
 
 class LobbyManager:
     """Manages all active lobbies in memory."""
@@ -795,7 +795,7 @@ def get_lobby_manager() -> LobbyManager:
 ### WebSocket Handler
 
 ```python
-# server/src/kfchess/ws/lobby_handler.py
+# server/src/clutchchess/ws/lobby_handler.py
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -1444,7 +1444,7 @@ export function Home() {
 
   return (
     <div className="home-page">
-      <h1>Kung Fu Chess</h1>
+      <h1>Clutch Chess</h1>
 
       <div className="play-options">
         <button onClick={handlePlayVsAI}>Play vs AI</button>
@@ -1528,10 +1528,10 @@ export function getPlayerId(): string {
   }
 
   // Anonymous user - use persistent guest ID
-  let guestId = localStorage.getItem('kfchess_guest_id');
+  let guestId = localStorage.getItem('clutchchess_guest_id');
   if (!guestId) {
     guestId = crypto.randomUUID();
-    localStorage.setItem('kfchess_guest_id', guestId);
+    localStorage.setItem('clutchchess_guest_id', guestId);
   }
   return `guest:${guestId}`;
 }
@@ -1989,41 +1989,41 @@ The game WebSocket now sends countdown updates:
 
 ### Phase 1: Data Models & Manager ✅
 
-1. ✅ Create lobby models (`server/src/kfchess/lobby/models.py`)
+1. ✅ Create lobby models (`server/src/clutchchess/lobby/models.py`)
 2. ⏳ Create database models and migration (deferred - using in-memory for MVP)
-3. ✅ Implement LobbyManager class (`server/src/kfchess/lobby/manager.py`)
+3. ✅ Implement LobbyManager class (`server/src/clutchchess/lobby/manager.py`)
 4. ✅ Write unit tests for LobbyManager
 
 **Files:**
-- `server/src/kfchess/lobby/models.py` ✅
-- `server/src/kfchess/lobby/manager.py` ✅
+- `server/src/clutchchess/lobby/models.py` ✅
+- `server/src/clutchchess/lobby/manager.py` ✅
 - `server/alembic/versions/003_add_lobbies.py` (deferred)
 - `server/tests/unit/lobby/test_manager.py` ✅
 
 ### Phase 2: REST API ✅
 
-1. ✅ Create lobby API routes (`server/src/kfchess/api/lobbies.py`)
+1. ✅ Create lobby API routes (`server/src/clutchchess/api/lobbies.py`)
 2. ✅ Implement create, join, list (WAITING only), delete endpoints
 3. ⏳ Add live games endpoint to games API (deferred to Phase 5)
 4. ✅ Write API tests
 
 **Files:**
-- `server/src/kfchess/api/lobbies.py` ✅
-- `server/src/kfchess/api/games.py` (live games endpoint deferred)
+- `server/src/clutchchess/api/lobbies.py` ✅
+- `server/src/clutchchess/api/games.py` (live games endpoint deferred)
 - `server/tests/unit/test_api_lobbies.py` ✅
 
 ### Phase 3: WebSocket Handler ✅
 
-1. ✅ Create lobby WebSocket handler (`server/src/kfchess/ws/lobby_handler.py`)
+1. ✅ Create lobby WebSocket handler (`server/src/clutchchess/ws/lobby_handler.py`)
 2. ✅ Implement all message handlers
 3. ✅ Integrate with GameService for game creation
 4. ✅ Write WebSocket tests
 5. ✅ Wire up game end notification from game handler
 
 **Files:**
-- `server/src/kfchess/ws/lobby_handler.py` ✅
-- `server/src/kfchess/ws/handler.py` (added `_notify_lobby_game_ended`) ✅
-- `server/src/kfchess/lobby/manager.py` (added `find_lobby_by_game`) ✅
+- `server/src/clutchchess/ws/lobby_handler.py` ✅
+- `server/src/clutchchess/ws/handler.py` (added `_notify_lobby_game_ended`) ✅
+- `server/src/clutchchess/lobby/manager.py` (added `find_lobby_by_game`) ✅
 - `server/tests/unit/test_lobby_websocket.py` ✅
 
 ### Phase 4: Frontend Store

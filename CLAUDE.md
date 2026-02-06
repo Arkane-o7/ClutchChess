@@ -1,4 +1,4 @@
-# Kung Fu Chess - Claude Code Instructions
+# Clutch Chess - Claude Code Instructions
 
 ## Git Workflow
 - Do NOT commit or push changes unless explicitly asked

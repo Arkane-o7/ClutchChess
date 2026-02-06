@@ -10,11 +10,11 @@ os.environ["RATE_LIMITING_ENABLED"] = "false"
 os.environ["SEND_EMAILS"] = "false"
 
 # Clear the settings cache to pick up the new environment variables
-from kfchess.settings import get_settings  # noqa: E402
+from clutchchess.settings import get_settings  # noqa: E402
 
 get_settings.cache_clear()
 
-from kfchess.main import app  # noqa: E402
+from clutchchess.main import app  # noqa: E402
 
 
 @pytest.fixture

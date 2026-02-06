@@ -2,15 +2,15 @@
 
 import pytest
 
-from kfchess.campaign.board_parser import parse_board_string
-from kfchess.campaign.levels import (
+from clutchchess.campaign.board_parser import parse_board_string
+from clutchchess.campaign.levels import (
     BELT_NAMES,
     LEVELS,
     MAX_BELT,
     get_belt_levels,
     get_level,
 )
-from kfchess.game.pieces import PieceType
+from clutchchess.game.pieces import PieceType
 
 
 class TestLevelDefinitions:

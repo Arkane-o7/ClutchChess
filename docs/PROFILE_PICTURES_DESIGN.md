@@ -15,7 +15,7 @@ Add profile picture upload to the profile page, display pictures on profiles, an
 
 ### Phase 1: Backend — S3 Upload Service & Endpoint
 
-**1a. S3 service** — New file: `server/src/kfchess/services/s3.py`
+**1a. S3 service** — New file: `server/src/clutchchess/services/s3.py`
 - `upload_profile_picture(file_bytes: bytes, content_type: str) -> str`
 - Generates UUID key, uploads to `com-kfchess-public` with `public-read` ACL
 - Returns full S3 URL
@@ -23,7 +23,7 @@ Add profile picture upload to the profile page, display pictures on profiles, an
 - Uses `boto3` (already a dependency in pyproject.toml)
 - Settings from `get_settings()` (aws_access_key_id, aws_secret_access_key, aws_bucket, aws_region)
 
-**1b. Upload endpoint** — Modify: `server/src/kfchess/api/users.py`
+**1b. Upload endpoint** — Modify: `server/src/clutchchess/api/users.py`
 ```python
 @router.post("/me/picture", response_model=UserRead)
 async def upload_profile_picture(
@@ -39,34 +39,34 @@ async def upload_profile_picture(
 
 ### Phase 2: Backend — Extend Player Info Resolution ✅
 
-**2a. Extend display_name.py** — `server/src/kfchess/utils/display_name.py`
+**2a. Extend display_name.py** — `server/src/clutchchess/utils/display_name.py`
 - `PlayerDisplay` is a Pydantic `BaseModel` (serves both internal use and API serialization)
 - `resolve_player_info(session, players)` — single dict resolution
 - `resolve_player_info_batch(session, players_list)` — batch resolution with single DB query (avoids N+1)
 - `resolve_player_names()` and `fetch_usernames()` removed (fully replaced)
 
-**2b. Update ReplaySummary** — `server/src/kfchess/api/replays.py`
+**2b. Update ReplaySummary** — `server/src/clutchchess/api/replays.py`
 - `PlayerDisplay` imported from `display_name.py` (no separate `PlayerDisplayModel`)
 - `ReplaySummary.players` changed from `dict[str, str]` to `dict[str, PlayerDisplay]`
 - `list_replays` uses `resolve_player_info_batch()` for single DB query
 
-**2c. Update LeaderboardEntry** — `server/src/kfchess/api/leaderboard.py`
+**2c. Update LeaderboardEntry** — `server/src/clutchchess/api/leaderboard.py`
 - Added `picture_url: str | None` to `LeaderboardEntry`
 - Added `picture_url` to SQL query
 
-**2d. Update LobbyPlayer** — `server/src/kfchess/lobby/models.py`
+**2d. Update LobbyPlayer** — `server/src/clutchchess/lobby/models.py`
 - Added `picture_url: str | None = None` to `LobbyPlayer` dataclass
 - Added `"pictureUrl": p.picture_url` to `Lobby.to_dict()`
 
-**2e. Update LobbyListItem** — `server/src/kfchess/api/lobbies.py`
+**2e. Update LobbyListItem** — `server/src/clutchchess/api/lobbies.py`
 - Added `host_picture_url: str | None` to `LobbyListItem`
 - Populated from `host.picture_url`
 
-**2f. Update lobby manager** — `server/src/kfchess/lobby/manager.py`
+**2f. Update lobby manager** — `server/src/clutchchess/lobby/manager.py`
 - `create_lobby()` and `join_lobby()` accept `picture_url` parameter
 - API endpoints pass `user.picture_url` through
 
-**2g. Update replay WebSocket** — `server/src/kfchess/ws/replay_handler.py`
+**2g. Update replay WebSocket** — `server/src/clutchchess/ws/replay_handler.py`
 - Migrated from `resolve_player_names()` to `resolve_player_info()`
 - `ReplaySession` serializes `PlayerDisplay` objects via `model_dump()`
 
@@ -138,16 +138,16 @@ Add to `client/src/api/client.ts`:
 
 | File | Changes |
 |------|---------|
-| `server/src/kfchess/services/s3.py` | **New** — S3 upload service |
-| `server/src/kfchess/api/users.py` | Add `POST /me/picture` upload endpoint |
-| `server/src/kfchess/utils/display_name.py` | `PlayerDisplay` (Pydantic), `resolve_player_info`, `resolve_player_info_batch` |
-| `server/src/kfchess/api/replays.py` | `ReplaySummary.players` uses `PlayerDisplay`, batch resolution |
-| `server/src/kfchess/ws/replay_handler.py` | Migrated to `resolve_player_info` |
-| `server/src/kfchess/replay/session.py` | Serializes `PlayerDisplay` via `model_dump()` |
-| `server/src/kfchess/api/leaderboard.py` | Add `picture_url` to `LeaderboardEntry` + SQL query |
-| `server/src/kfchess/lobby/models.py` | Add `picture_url` to `LobbyPlayer` + `to_dict()` |
-| `server/src/kfchess/api/lobbies.py` | Add `host_picture_url` to `LobbyListItem` |
-| `server/src/kfchess/lobby/manager.py` | Pass `picture_url` when creating `LobbyPlayer` |
+| `server/src/clutchchess/services/s3.py` | **New** — S3 upload service |
+| `server/src/clutchchess/api/users.py` | Add `POST /me/picture` upload endpoint |
+| `server/src/clutchchess/utils/display_name.py` | `PlayerDisplay` (Pydantic), `resolve_player_info`, `resolve_player_info_batch` |
+| `server/src/clutchchess/api/replays.py` | `ReplaySummary.players` uses `PlayerDisplay`, batch resolution |
+| `server/src/clutchchess/ws/replay_handler.py` | Migrated to `resolve_player_info` |
+| `server/src/clutchchess/replay/session.py` | Serializes `PlayerDisplay` via `model_dump()` |
+| `server/src/clutchchess/api/leaderboard.py` | Add `picture_url` to `LeaderboardEntry` + SQL query |
+| `server/src/clutchchess/lobby/models.py` | Add `picture_url` to `LobbyPlayer` + `to_dict()` |
+| `server/src/clutchchess/api/lobbies.py` | Add `host_picture_url` to `LobbyListItem` |
+| `server/src/clutchchess/lobby/manager.py` | Pass `picture_url` when creating `LobbyPlayer` |
 | `client/src/components/PlayerBadge.tsx` | **New** — Reusable avatar + name + link component |
 | `client/src/api/types.ts` | Add `PlayerDisplay`, update types with picture_url |
 | `client/src/api/client.ts` | Add `uploadProfilePicture()` |

@@ -1,7 +1,7 @@
 """Add legacy replay tables for backwards compatibility.
 
 Adds game_history and user_game_history tables from the original
-kfchess implementation to support:
+clutchchess implementation to support:
 1. Loading legacy replays
 2. O(1) user match history lookups via indexed user_game_history table
 
@@ -28,7 +28,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create legacy replay tables."""
     # game_history - stores complete replay data (legacy format)
-    # This matches the original kfchess schema exactly
+    # This matches the original clutchchess schema exactly
     op.create_table(
         "game_history",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),

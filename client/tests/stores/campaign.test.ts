@@ -42,7 +42,7 @@ const mockLevels: CampaignLevel[] = [
     levelId: 0,
     belt: 1,
     beltName: 'White',
-    title: 'Welcome to Kung Fu Chess',
+    title: 'Welcome to Clutch Chess',
     description: 'First level',
     speed: 'standard',
     playerCount: 2,

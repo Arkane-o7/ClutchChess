@@ -14,8 +14,8 @@ import pytest
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import UserGameHistory
-from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
+from clutchchess.db.models import UserGameHistory
+from clutchchess.db.repositories.user_game_history import UserGameHistoryRepository
 
 from .conftest import generate_test_id
 

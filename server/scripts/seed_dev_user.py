@@ -15,18 +15,18 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add the src directory to the path so we can import kfchess
+# Add the src directory to the path so we can import clutchchess
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import User
-from kfchess.db.session import async_session_factory, engine
+from clutchchess.db.models import User
+from clutchchess.db.session import async_session_factory, engine
 
 
 DEV_USER_ID = 1
-DEV_USER_EMAIL = "dev@kfchess.local"
+DEV_USER_EMAIL = "dev@clutchchess.local"
 DEV_USER_USERNAME = "DevUser"
 DEV_USER_PASSWORD_HASH = (
     # Hash of "devpassword123" - for local testing only

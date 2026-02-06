@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kfchess.db.repositories.user_game_history import UserGameHistoryRepository
+from clutchchess.db.repositories.user_game_history import UserGameHistoryRepository
 
 
 class TestUserGameHistoryRepository:

@@ -100,7 +100,7 @@ function Header() {
         <div className="header-content">
           <Link to="/" className="logo">
             <span className="logo-img"><img src={staticUrl('logo.png')} alt="" /></span>
-            <span className="logo-text">Kung Fu Chess</span>
+            <span className="logo-text">Clutch Chess</span>
           </Link>
           <div className="header-right">
             <nav className="nav">
@@ -108,7 +108,7 @@ function Header() {
               <NavLink to="/lobbies" className={({ isActive }) => isActive ? 'nav-link-active' : ''}>Lobbies</NavLink>
               <NavLink to="/campaign" className={({ isActive }) => isActive ? 'nav-link-active' : ''}>Campaign</NavLink>
               <NavLink to="/watch" className={({ isActive }) => isActive ? 'nav-link-active' : ''}>Watch</NavLink>
-              <a href="https://www.reddit.com/r/kfchess/" target="_blank" rel="noopener noreferrer" className="nav-secondary">Reddit</a>
+              <a href="https://www.reddit.com/r/clutchchess/" target="_blank" rel="noopener noreferrer" className="nav-secondary">Reddit</a>
               <NavLink to="/about" className={({ isActive }) => `nav-secondary ${isActive ? 'nav-link-active' : ''}`}>About</NavLink>
               <NavLink to="/privacy" className={({ isActive }) => `nav-secondary ${isActive ? 'nav-link-active' : ''}`}>Privacy</NavLink>
             </nav>
@@ -138,7 +138,7 @@ function Header() {
                     <div className="header-dropdown-secondary">
                       <div className="header-dropdown-divider"></div>
                       <div className="header-dropdown-option">
-                        <a href="https://www.reddit.com/r/kfchess/" target="_blank" rel="noopener noreferrer" onClick={() => setShowDropdown(false)}>Reddit</a>
+                        <a href="https://www.reddit.com/r/clutchchess/" target="_blank" rel="noopener noreferrer" onClick={() => setShowDropdown(false)}>Reddit</a>
                       </div>
                       <div className="header-dropdown-option">
                         <Link to="/about" onClick={() => setShowDropdown(false)}>About</Link>
@@ -174,7 +174,7 @@ function Header() {
                       </div>
                       <div className="header-dropdown-divider"></div>
                       <div className="header-dropdown-option">
-                        <a href="https://www.reddit.com/r/kfchess/" target="_blank" rel="noopener noreferrer" onClick={() => setShowDropdown(false)}>Reddit</a>
+                        <a href="https://www.reddit.com/r/clutchchess/" target="_blank" rel="noopener noreferrer" onClick={() => setShowDropdown(false)}>Reddit</a>
                       </div>
                       <div className="header-dropdown-option">
                         <Link to="/about" onClick={() => setShowDropdown(false)}>About</Link>

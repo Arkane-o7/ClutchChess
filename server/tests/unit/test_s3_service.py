@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kfchess.services.s3 import (
+from clutchchess.services.s3 import (
     ALLOWED_CONTENT_TYPES,
     MAX_FILE_SIZE,
     S3UploadError,
@@ -94,8 +94,8 @@ class TestUploadProfilePicture:
     @pytest.mark.parametrize("content_type", sorted(ALLOWED_CONTENT_TYPES))
     def test_accepts_valid_content_types(self, content_type):
         file_bytes = VALID_FILES[content_type]
-        with patch("kfchess.services.s3.get_settings", return_value=_mock_s3_settings()):
-            with patch("kfchess.services.s3._get_s3_client") as mock_get_client:
+        with patch("clutchchess.services.s3.get_settings", return_value=_mock_s3_settings()):
+            with patch("clutchchess.services.s3._get_s3_client") as mock_get_client:
                 mock_client = MagicMock()
                 mock_get_client.return_value = mock_client
 
@@ -106,7 +106,7 @@ class TestUploadProfilePicture:
                 assert "profile-pics/" in url
 
     def test_raises_when_s3_not_configured(self):
-        with patch("kfchess.services.s3.get_settings") as mock_settings:
+        with patch("clutchchess.services.s3.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(s3_enabled=False)
             with pytest.raises(S3UploadError, match="not configured"):
                 upload_profile_picture(VALID_PNG, "image/png")
@@ -116,8 +116,8 @@ class TestUploadProfilePicture:
         settings.aws_region = "us-west-2"
         settings.aws_bucket = "my-bucket"
 
-        with patch("kfchess.services.s3.get_settings", return_value=settings):
-            with patch("kfchess.services.s3._get_s3_client") as mock_get_client:
+        with patch("clutchchess.services.s3.get_settings", return_value=settings):
+            with patch("clutchchess.services.s3._get_s3_client") as mock_get_client:
                 mock_get_client.return_value = MagicMock()
 
                 url = upload_profile_picture(VALID_JPEG, "image/jpeg")
@@ -125,8 +125,8 @@ class TestUploadProfilePicture:
                 assert url.startswith("https://s3-us-west-2.amazonaws.com/my-bucket/profile-pics/")
 
     def test_wraps_boto3_errors(self):
-        with patch("kfchess.services.s3.get_settings", return_value=_mock_s3_settings()):
-            with patch("kfchess.services.s3._get_s3_client") as mock_get_client:
+        with patch("clutchchess.services.s3.get_settings", return_value=_mock_s3_settings()):
+            with patch("clutchchess.services.s3._get_s3_client") as mock_get_client:
                 mock_client = MagicMock()
                 mock_client.put_object.side_effect = Exception("network error")
                 mock_get_client.return_value = mock_client
@@ -135,8 +135,8 @@ class TestUploadProfilePicture:
                     upload_profile_picture(VALID_PNG, "image/png")
 
     def test_uploads_with_public_read_acl(self):
-        with patch("kfchess.services.s3.get_settings", return_value=_mock_s3_settings()):
-            with patch("kfchess.services.s3._get_s3_client") as mock_get_client:
+        with patch("clutchchess.services.s3.get_settings", return_value=_mock_s3_settings()):
+            with patch("clutchchess.services.s3._get_s3_client") as mock_get_client:
                 mock_client = MagicMock()
                 mock_get_client.return_value = mock_client
 
@@ -152,8 +152,8 @@ class TestUploadProfilePicture:
         file_bytes = VALID_PNG[:8] + b"\x00" * (MAX_FILE_SIZE - 8)
         assert len(file_bytes) == MAX_FILE_SIZE
 
-        with patch("kfchess.services.s3.get_settings", return_value=_mock_s3_settings()):
-            with patch("kfchess.services.s3._get_s3_client") as mock_get_client:
+        with patch("clutchchess.services.s3.get_settings", return_value=_mock_s3_settings()):
+            with patch("clutchchess.services.s3._get_s3_client") as mock_get_client:
                 mock_get_client.return_value = MagicMock()
 
                 url = upload_profile_picture(file_bytes, "image/png")

@@ -8,10 +8,10 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from kfchess.settings import get_settings
+from clutchchess.settings import get_settings
 
 # Import models so Alembic can detect them
-from kfchess.db.models import Base
+from clutchchess.db.models import Base
 
 config = context.config
 

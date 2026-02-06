@@ -1,6 +1,6 @@
 """Unit tests for WebSocket protocol messages."""
 
-from kfchess.ws.protocol import (
+from clutchchess.ws.protocol import (
     ClientMessageType,
     RatingChangeData,
     RatingUpdateMessage,

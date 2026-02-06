@@ -10,12 +10,12 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.models import User
-from kfchess.db.repositories.replay_likes import ReplayLikesRepository
-from kfchess.db.repositories.replays import ReplayRepository
-from kfchess.game.board import BoardType
-from kfchess.game.replay import Replay
-from kfchess.game.state import Speed
+from clutchchess.db.models import User
+from clutchchess.db.repositories.replay_likes import ReplayLikesRepository
+from clutchchess.db.repositories.replays import ReplayRepository
+from clutchchess.game.board import BoardType
+from clutchchess.game.replay import Replay
+from clutchchess.game.state import Speed
 
 from .conftest import generate_test_id
 

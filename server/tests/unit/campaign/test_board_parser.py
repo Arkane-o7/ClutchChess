@@ -2,9 +2,9 @@
 
 import pytest
 
-from kfchess.campaign.board_parser import PIECE_TYPE_MAP, parse_board_string
-from kfchess.game.board import BoardType
-from kfchess.game.pieces import PieceType
+from clutchchess.campaign.board_parser import PIECE_TYPE_MAP, parse_board_string
+from clutchchess.game.board import BoardType
+from clutchchess.game.pieces import PieceType
 
 
 class TestParseBoardString:

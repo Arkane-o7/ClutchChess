@@ -12,8 +12,8 @@ Run with: uv run pytest tests/integration/test_lobby_repository.py -v
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kfchess.db.repositories.lobbies import LobbyRepository
-from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
+from clutchchess.db.repositories.lobbies import LobbyRepository
+from clutchchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
 
 from .conftest import generate_test_id
 

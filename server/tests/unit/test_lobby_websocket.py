@@ -6,10 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from kfchess.lobby.manager import reset_lobby_manager
-from kfchess.main import app
-from kfchess.services.game_service import get_game_service
-from kfchess.ws.lobby_handler import (
+from clutchchess.lobby.manager import reset_lobby_manager
+from clutchchess.main import app
+from clutchchess.services.game_service import get_game_service
+from clutchchess.ws.lobby_handler import (
     LobbyConnectionManager,
     serialize_lobby,
     serialize_player,
@@ -36,7 +36,7 @@ class TestSerialization:
 
     def test_serialize_player(self) -> None:
         """Test serializing a LobbyPlayer."""
-        from kfchess.lobby.models import LobbyPlayer
+        from clutchchess.lobby.models import LobbyPlayer
 
         player = LobbyPlayer(
             slot=1,
@@ -58,7 +58,7 @@ class TestSerialization:
 
     def test_serialize_ai_player(self) -> None:
         """Test serializing an AI player."""
-        from kfchess.lobby.models import LobbyPlayer
+        from clutchchess.lobby.models import LobbyPlayer
 
         player = LobbyPlayer(
             slot=2,
@@ -78,7 +78,7 @@ class TestSerialization:
 
     def test_serialize_settings(self) -> None:
         """Test serializing LobbySettings."""
-        from kfchess.lobby.models import LobbySettings
+        from clutchchess.lobby.models import LobbySettings
 
         settings = LobbySettings(
             is_public=False,
@@ -96,7 +96,7 @@ class TestSerialization:
 
     def test_serialize_lobby(self) -> None:
         """Test serializing a Lobby."""
-        from kfchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
+        from clutchchess.lobby.models import Lobby, LobbyPlayer, LobbySettings, LobbyStatus
 
         lobby = Lobby(
             id=1,
@@ -637,8 +637,8 @@ class TestLobbyReturnToLobby:
 
     def test_return_to_lobby(self, client: TestClient) -> None:
         """Test returning to lobby after game finished."""
-        from kfchess.lobby.manager import get_lobby_manager
-        from kfchess.lobby.models import LobbyStatus
+        from clutchchess.lobby.manager import get_lobby_manager
+        from clutchchess.lobby.models import LobbyStatus
 
         # Create a lobby with AI and start a game
         response = client.post(
@@ -746,7 +746,7 @@ class TestFindLobbyByGame:
 
     def test_find_lobby_by_game_after_start(self, client: TestClient) -> None:
         """Test finding lobby code by game ID after game starts."""
-        from kfchess.lobby.manager import get_lobby_manager
+        from clutchchess.lobby.manager import get_lobby_manager
 
         # Create a lobby with AI
         response = client.post(
@@ -780,7 +780,7 @@ class TestFindLobbyByGame:
 
     def test_find_lobby_by_game_not_found(self, client: TestClient) -> None:
         """Test finding lobby returns None for unknown game ID."""
-        from kfchess.lobby.manager import get_lobby_manager
+        from clutchchess.lobby.manager import get_lobby_manager
 
         manager = get_lobby_manager()
         result = manager.find_lobby_by_game("UNKNOWN_GAME")

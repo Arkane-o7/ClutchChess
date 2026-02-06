@@ -7,19 +7,19 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Kill existing servers
 echo "Stopping existing servers..."
-pkill -f "uvicorn kfchess.main:app" 2>/dev/null || true
-pkill -f "vite.*kfchess" 2>/dev/null || true
+pkill -f "uvicorn clutchchess.main:app" 2>/dev/null || true
+pkill -f "vite.*clutchchess" 2>/dev/null || true
 sleep 1
 
 # Start backend
 echo "Starting backend..."
 cd "$PROJECT_DIR/server"
-uv run uvicorn kfchess.main:app --reload --port 8000 > /tmp/kfchess-backend.log 2>&1 &
+uv run uvicorn clutchchess.main:app --reload --port 8000 > /tmp/clutchchess-backend.log 2>&1 &
 
 # Start frontend
 echo "Starting frontend..."
 cd "$PROJECT_DIR/client"
-npm run dev > /tmp/kfchess-frontend.log 2>&1 &
+npm run dev > /tmp/clutchchess-frontend.log 2>&1 &
 
 # Wait for servers to be ready
 sleep 3
@@ -28,11 +28,11 @@ sleep 3
 if curl -s http://localhost:8000/docs > /dev/null 2>&1; then
     echo "Backend ready: http://localhost:8000"
 else
-    echo "Backend may still be starting (check /tmp/kfchess-backend.log)"
+    echo "Backend may still be starting (check /tmp/clutchchess-backend.log)"
 fi
 
 if curl -s http://localhost:5173 > /dev/null 2>&1; then
     echo "Frontend ready: http://localhost:5173"
 else
-    echo "Frontend may still be starting (check /tmp/kfchess-frontend.log)"
+    echo "Frontend may still be starting (check /tmp/clutchchess-frontend.log)"
 fi

@@ -5,7 +5,7 @@ Revises: 010_add_replay_top_index
 Create Date: 2026-02-03
 
 Creates the campaign_progress table for storing user campaign progress.
-Schema matches legacy kfchess for backward compatibility.
+Schema matches legacy clutchchess for backward compatibility.
 """
 
 from collections.abc import Sequence

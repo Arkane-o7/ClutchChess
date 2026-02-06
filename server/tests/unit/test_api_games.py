@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from kfchess.main import app
-from kfchess.services.game_service import get_game_service
+from clutchchess.main import app
+from clutchchess.services.game_service import get_game_service
 
 
 @pytest.fixture

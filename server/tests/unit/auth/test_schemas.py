@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kfchess.auth.schemas import UserCreate, UserRead, UserUpdate
+from clutchchess.auth.schemas import UserCreate, UserRead, UserUpdate
 
 
 class TestUserCreateSchema:

@@ -1,6 +1,6 @@
 """Unit tests for leaderboard API endpoints."""
 
-from kfchess.api.leaderboard import (
+from clutchchess.api.leaderboard import (
     VALID_MODES,
     LeaderboardEntry,
     LeaderboardResponse,

@@ -1,6 +1,6 @@
 # MVP Implementation Plan
 
-This document defines the implementation plan for a minimum viable Kung Fu Chess game where a player can play against a dummy AI in the browser.
+This document defines the implementation plan for a minimum viable Clutch Chess game where a player can play against a dummy AI in the browser.
 
 ## MVP Scope
 
@@ -298,7 +298,7 @@ The `player_key` is optional for spectators.
 ### GameService Class
 
 ```python
-# server/src/kfchess/services/game_service.py
+# server/src/clutchchess/services/game_service.py
 
 class GameService:
     """Manages active games and their tick loops."""
@@ -380,7 +380,7 @@ async def game_loop(self, game_id: str):
 ### AI Interface
 
 ```python
-# server/src/kfchess/ai/base.py
+# server/src/clutchchess/ai/base.py
 
 from abc import ABC, abstractmethod
 
@@ -399,7 +399,7 @@ class AIPlayer(ABC):
 ### Dummy AI (MVP)
 
 ```python
-# server/src/kfchess/ai/dummy.py
+# server/src/clutchchess/ai/dummy.py
 
 class DummyAI(AIPlayer):
     """AI that never moves. For testing basic gameplay."""
@@ -414,7 +414,7 @@ class DummyAI(AIPlayer):
 ### Random AI (Post-MVP)
 
 ```python
-# server/src/kfchess/ai/random_ai.py
+# server/src/clutchchess/ai/random_ai.py
 
 class RandomAI(AIPlayer):
     """AI that makes random legal moves periodically."""
@@ -711,7 +711,7 @@ export function interpolatePiecePosition(
 ## File Structure (Server)
 
 ```
-server/src/kfchess/
+server/src/clutchchess/
 ├── __init__.py
 ├── main.py                    # FastAPI app entry point
 ├── settings.py                # Configuration

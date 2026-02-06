@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kfchess.db.repositories.campaign import CampaignProgressRepository
+from clutchchess.db.repositories.campaign import CampaignProgressRepository
 
 
 class TestCampaignProgressRepository:

@@ -6,10 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from kfchess.main import app
-from kfchess.services.game_service import get_game_service
-from kfchess.ws.handler import ConnectionManager
-from kfchess.ws.protocol import (
+from clutchchess.main import app
+from clutchchess.services.game_service import get_game_service
+from clutchchess.ws.handler import ConnectionManager
+from clutchchess.ws.protocol import (
     MoveMessage,
     PingMessage,
     ReadyMessage,

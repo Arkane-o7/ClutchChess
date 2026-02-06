@@ -2,8 +2,8 @@
 
 import pytest
 
-from kfchess.lobby.manager import LobbyError, LobbyManager
-from kfchess.lobby.models import LobbySettings, LobbyStatus
+from clutchchess.lobby.manager import LobbyError, LobbyManager
+from clutchchess.lobby.models import LobbySettings, LobbyStatus
 
 
 class TestLobbyCreation:

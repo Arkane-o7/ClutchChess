@@ -12,10 +12,10 @@ Run with: uv run pytest tests/integration/test_lobby_manager_persistence.py -v
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from kfchess.db.repositories.lobbies import LobbyRepository
-from kfchess.lobby.manager import LobbyManager
-from kfchess.lobby.models import LobbySettings, LobbyStatus
-from kfchess.settings import get_settings
+from clutchchess.db.repositories.lobbies import LobbyRepository
+from clutchchess.lobby.manager import LobbyManager
+from clutchchess.lobby.models import LobbySettings, LobbyStatus
+from clutchchess.settings import get_settings
 
 
 @pytest.fixture

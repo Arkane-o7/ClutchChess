@@ -4,11 +4,11 @@ function Privacy() {
   return (
     <div className="privacy-policy">
       <div className="privacy-policy-text">
-        <h1>Privacy Policy of kfchess.com</h1>
-        <p>kfchess.com operates the kfchess.com website, which provides the SERVICE.</p>
+        <h1>Privacy Policy of clutchchess.com</h1>
+        <p>clutchchess.com operates the clutchchess.com website, which provides the SERVICE.</p>
         <p>
           This page is used to inform website visitors regarding our policies with the collection, use, and disclosure
-          of Personal Information if anyone decided to use our Service, the Kung Fu Chess website.
+          of Personal Information if anyone decided to use our Service, the Clutch Chess website.
         </p>
         <p>
           If you choose to use our Service, then you agree to the collection and use of information in relation with
@@ -17,7 +17,7 @@ function Privacy() {
         </p>
         <p>
           The terms used in this Privacy Policy have the same meanings as in our Terms and Conditions, which is
-          accessible at kfchess.com, unless otherwise defined in this Privacy Policy.
+          accessible at clutchchess.com, unless otherwise defined in this Privacy Policy.
         </p>
 
         <h2>Information Collection and Use</h2>

@@ -1,11 +1,11 @@
 """Tests for the core game engine."""
 
 
-from kfchess.game.board import Board
-from kfchess.game.engine import GameEngine, GameEventType
-from kfchess.game.moves import Cooldown, Move
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
+from clutchchess.game.board import Board
+from clutchchess.game.engine import GameEngine, GameEventType
+from clutchchess.game.moves import Cooldown, Move
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.state import SPEED_CONFIGS, GameStatus, Speed, WinReason
 
 
 class TestCreateGame:

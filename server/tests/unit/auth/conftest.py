@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kfchess.db.models import User
+from clutchchess.db.models import User
 
 
 @pytest.fixture

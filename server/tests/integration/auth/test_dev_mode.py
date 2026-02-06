@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from kfchess.main import app
+from clutchchess.main import app
 
 
 def generate_test_email() -> str:
@@ -43,7 +43,7 @@ class TestDevModeBypass:
                 mock_settings.dev_user_id = user_id
 
                 with patch(
-                    "kfchess.auth.dependencies.get_settings",
+                    "clutchchess.auth.dependencies.get_settings",
                     return_value=mock_settings,
                 ):
                     # Should be able to access /users/me without authentication
@@ -93,7 +93,7 @@ class TestDevModeBypass:
             mock_settings.dev_user_id = user_b_id
 
             with patch(
-                "kfchess.auth.dependencies.get_settings",
+                "clutchchess.auth.dependencies.get_settings",
                 return_value=mock_settings,
             ):
                 # User A is authenticated, should still get user A (not B)
@@ -116,7 +116,7 @@ class TestDevModeBypass:
             mock_settings.dev_user_id = None
 
             with patch(
-                "kfchess.auth.dependencies.get_settings",
+                "clutchchess.auth.dependencies.get_settings",
                 return_value=mock_settings,
             ):
                 # Should get 401 without authentication
@@ -134,7 +134,7 @@ class TestDevModeBypass:
             mock_settings.dev_user_id = 999999  # Non-existent ID
 
             with patch(
-                "kfchess.auth.dependencies.get_settings",
+                "clutchchess.auth.dependencies.get_settings",
                 return_value=mock_settings,
             ):
                 # Should get 401 since user doesn't exist

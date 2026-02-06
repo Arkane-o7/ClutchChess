@@ -1,4 +1,4 @@
-# Kung Fu Chess AI — Design Document
+# Clutch Chess AI — Design Document
 
 ## Overview
 

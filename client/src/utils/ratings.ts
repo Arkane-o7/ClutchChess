@@ -2,7 +2,7 @@
  * Rating and Belt Utilities
  *
  * Functions for working with ELO ratings and belt rankings.
- * Mirrors the server-side logic in server/src/kfchess/game/elo.py
+ * Mirrors the server-side logic in server/src/clutchchess/game/elo.py
  */
 
 import { staticUrl } from '../config';

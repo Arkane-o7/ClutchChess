@@ -4,14 +4,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from kfchess.auth.users import (
+from clutchchess.auth.users import (
     ADJECTIVES,
     ANIMALS,
     CHESS_PIECES,
     UserManager,
     generate_random_username,
 )
-from kfchess.db.models import OAuthAccount, User
+from clutchchess.db.models import OAuthAccount, User
 
 
 class TestGenerateRandomUsername:
@@ -321,7 +321,7 @@ class TestUserManagerCreate:
         """Test create() rejects registration with legacy Google user email."""
         from fastapi_users.exceptions import UserAlreadyExists
 
-        from kfchess.auth.schemas import UserCreate
+        from clutchchess.auth.schemas import UserCreate
 
         # Mock finding legacy user
         user_manager._find_legacy_google_user = AsyncMock(return_value=mock_legacy_user)
@@ -337,7 +337,7 @@ class TestUserManagerCreate:
     @pytest.mark.asyncio
     async def test_create_allows_email_if_user_has_password(self, user_manager, mock_user):
         """Test create() allows email if existing user has password (not legacy)."""
-        from kfchess.auth.schemas import UserCreate
+        from clutchchess.auth.schemas import UserCreate
 
         # Mock user with password (not legacy Google-only)
         mock_user.hashed_password = "existing_hash"
@@ -365,7 +365,7 @@ class TestUserManagerCreate:
     @pytest.mark.asyncio
     async def test_create_generates_username_when_not_provided(self, user_manager):
         """Test create() auto-generates username when not provided."""
-        from kfchess.auth.schemas import UserCreate
+        from clutchchess.auth.schemas import UserCreate
 
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
         user_manager._generate_unique_username = AsyncMock(return_value="Humble Dragon Knight 78901")
@@ -395,7 +395,7 @@ class TestUserManagerCreate:
     @pytest.mark.asyncio
     async def test_create_preserves_provided_username(self, user_manager):
         """Test create() preserves username when provided."""
-        from kfchess.auth.schemas import UserCreate
+        from clutchchess.auth.schemas import UserCreate
 
         user_manager._find_legacy_google_user = AsyncMock(return_value=None)
         user_manager._generate_unique_username = AsyncMock()
@@ -530,7 +530,7 @@ class TestUserManagerOAuthEdgeCases:
         """Test _validate_oauth_tokens logs warning for empty access token."""
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+        with caplog.at_level(logging.WARNING, logger="clutchchess.auth.users"):
             user_manager._validate_oauth_tokens("", None, None)
             assert any("empty access_token" in record.message.lower() for record in caplog.records)
 
@@ -538,7 +538,7 @@ class TestUserManagerOAuthEdgeCases:
         """Test _validate_oauth_tokens logs warning for expired token."""
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+        with caplog.at_level(logging.WARNING, logger="clutchchess.auth.users"):
             user_manager._validate_oauth_tokens("valid_token", 1, None)  # expired timestamp
             assert any("expired token" in record.message.lower() for record in caplog.records)
 
@@ -549,7 +549,7 @@ class TestUserManagerOAuthEdgeCases:
 
         future_timestamp = int(time.time()) + 3600  # 1 hour in the future
 
-        with caplog.at_level(logging.WARNING, logger="kfchess.auth.users"):
+        with caplog.at_level(logging.WARNING, logger="clutchchess.auth.users"):
             user_manager._validate_oauth_tokens("valid_token", future_timestamp, "refresh_token")
             # Should not have any warnings
             assert not any(

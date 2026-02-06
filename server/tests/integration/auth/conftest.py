@@ -11,8 +11,8 @@ async def cleanup_test_users():
     Runs before and after each test to ensure clean state.
     Deletes users with emails matching 'test_%@example.com' pattern.
     """
-    from kfchess.db.models import OAuthAccount, User
-    from kfchess.db.session import async_session_factory
+    from clutchchess.db.models import OAuthAccount, User
+    from clutchchess.db.session import async_session_factory
 
     async def _cleanup():
         async with async_session_factory() as session:
@@ -47,7 +47,7 @@ async def reset_db_engine():
     yield
 
     # Dispose the engine after each test to clean up connections
-    from kfchess.db import session as db_session
+    from clutchchess.db import session as db_session
 
     if db_session._engine is not None:
         await db_session._engine.dispose()
@@ -55,7 +55,7 @@ async def reset_db_engine():
         # Recreate the engine for the next test
         from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-        from kfchess.settings import get_settings
+        from clutchchess.settings import get_settings
 
         db_session._engine = create_async_engine(
             get_settings().database_url,

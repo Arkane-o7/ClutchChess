@@ -2,11 +2,11 @@
 
 import time
 
-from kfchess.ai.kungfu_ai import KungFuAI
-from kfchess.game.board import Board, BoardType
-from kfchess.game.engine import GameEngine
-from kfchess.game.pieces import Piece, PieceType
-from kfchess.game.state import GameState, GameStatus, Speed
+from clutchchess.ai.kungfu_ai import KungFuAI
+from clutchchess.game.board import Board, BoardType
+from clutchchess.game.engine import GameEngine
+from clutchchess.game.pieces import Piece, PieceType
+from clutchchess.game.state import GameState, GameStatus, Speed
 
 
 def _make_game(speed: Speed = Speed.STANDARD) -> GameState:
@@ -22,7 +22,7 @@ def _make_game(speed: Speed = Speed.STANDARD) -> GameState:
 class TestKungFuAI:
     def test_implements_ai_player_interface(self):
         """KungFuAI should implement the AIPlayer interface."""
-        from kfchess.ai.base import AIPlayer
+        from clutchchess.ai.base import AIPlayer
 
         ai = KungFuAI(level=1, speed=Speed.STANDARD)
         assert isinstance(ai, AIPlayer)
@@ -65,7 +65,7 @@ class TestKungFuAI:
         ai.controller.last_move_tick = -9999
 
         # Put all pieces on cooldown
-        from kfchess.game.moves import Cooldown
+        from clutchchess.game.moves import Cooldown
 
         for piece in state.board.get_pieces_for_player(1):
             state.cooldowns.append(
